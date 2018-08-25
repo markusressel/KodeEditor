@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/contentLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal">
+
+    <TextView xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/codeLinesView"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:gravity="right|top"
+        android:paddingTop="10dp"
+        android:textSize="12sp"
+        android:typeface="monospace" />
+
+    <de.markusressel.kodeeditor.library.view.CodeEditText
+        android:id="@+id/codeEditText"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:gravity="top|start"
+        android:inputType="textMultiLine|textNoSuggestions"
+        android:maxLength="99999999"
+        android:maxLines="99999999"
+        android:scrollHorizontally="false"
+        android:scrollbars="none"
+        android:textSize="12sp"
+        android:typeface="monospace" />
+
+</LinearLayout>
