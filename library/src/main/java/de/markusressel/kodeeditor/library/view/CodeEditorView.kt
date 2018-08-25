@@ -92,12 +92,13 @@ class CodeEditorView : ZoomLayout {
     }
 
 
-    private var initialSizeNotSet = true
+    private var firstInit = true
 
     private fun setListeners() {
         addOnLayoutChangeListener { v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            if (firstInit) {
+                firstInit = false
 
-            if (initialSizeNotSet) {
                 val displayMetrics = context
                         .resources
                         .displayMetrics
@@ -108,7 +109,7 @@ class CodeEditorView : ZoomLayout {
                 contentLayout
                         .minimumWidth = displayMetrics.widthPixels + 80
 
-                initialSizeNotSet = false
+                updateLineNumbers(editTextView.lineCount)
             }
         }
 
@@ -242,6 +243,7 @@ class CodeEditorView : ZoomLayout {
                 .setText(text, TextView.BufferType.EDITABLE)
         editTextView
                 .refreshSyntaxHighlighting()
+        updateLineNumbers(editTextView.lineCount)
     }
 
     /**
@@ -253,6 +255,7 @@ class CodeEditorView : ZoomLayout {
                 .setText(text, TextView.BufferType.EDITABLE)
         editTextView
                 .refreshSyntaxHighlighting()
+        updateLineNumbers(editTextView.lineCount)
     }
 
     /**
