@@ -15,8 +15,8 @@ import android.widget.TextView
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.otaliastudios.zoom.ZoomLayout
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
+import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxHighlighter
-import de.markusressel.library.R
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.subscribeBy
@@ -89,22 +89,29 @@ class CodeEditorView : ZoomLayout {
         contentLayout = inflater.inflate(R.layout.view_code_editor__inner_layout, null) as LinearLayout
         lineNumberView = contentLayout.findViewById(R.id.codeLinesView) as TextView
         editTextView = contentLayout.findViewById(R.id.codeEditText) as CodeEditText
-
-        post {
-            val displayMetrics = context
-                    .resources
-                    .displayMetrics
-
-            contentLayout
-                    .minimumHeight = displayMetrics
-                    .heightPixels
-            contentLayout
-                    .minimumWidth = displayMetrics
-                    .widthPixels
-        }
     }
 
+
+    private var initialSizeNotSet = true
+
     private fun setListeners() {
+        addOnLayoutChangeListener { v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+
+            if (initialSizeNotSet) {
+                val displayMetrics = context
+                        .resources
+                        .displayMetrics
+
+                contentLayout
+                        .minimumHeight = displayMetrics
+                        .heightPixels
+                contentLayout
+                        .minimumWidth = displayMetrics.widthPixels + 80
+
+                initialSizeNotSet = false
+            }
+        }
+
         setOnTouchListener { view, motionEvent ->
             when (motionEvent.action) {
                 MotionEvent.ACTION_MOVE -> {
