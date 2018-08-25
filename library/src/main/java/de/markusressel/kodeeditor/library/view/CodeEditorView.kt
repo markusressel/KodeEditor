@@ -99,15 +99,16 @@ class CodeEditorView : ZoomLayout {
             if (firstInit) {
                 firstInit = false
 
-                val displayMetrics = context
-                        .resources
-                        .displayMetrics
+                val parentView = (parent as View)
+                parentView
+                        .width
 
                 contentLayout
-                        .minimumHeight = displayMetrics
-                        .heightPixels
+                        .minimumHeight = parentView
+                        .height
                 contentLayout
-                        .minimumWidth = displayMetrics.widthPixels + 80
+                        .minimumWidth = parentView
+                        .width
 
                 updateLineNumbers(editTextView.lineCount)
             }
