@@ -131,10 +131,15 @@ class CodeEditorView : ZoomLayout {
                 .filter { moveWithCursorEnabled }
                 .bindToLifecycle(this)
                 .subscribeBy(onNext = {
-                    moveScreenWithCursorIfNecessary()
+                    try {
+                        moveScreenWithCursorIfNecessary()
+                    } catch (e: Throwable) {
+                        Log
+                                .e(TAG, "Error moving screen with cursor", e)
+                    }
                 }, onError = {
                     Log
-                            .e(TAG, "Error moving screen with cursor", it)
+                            .e(TAG, "Unrecoverable error while moving screen with cursor", it)
                 })
 
         RxTextView
@@ -148,10 +153,15 @@ class CodeEditorView : ZoomLayout {
                 .observeOn(AndroidSchedulers.mainThread())
                 .bindToLifecycle(this)
                 .subscribeBy(onNext = {
-                    updateLineNumbers(editTextView.lineCount)
+                    try {
+                        updateLineNumbers(editTextView.lineCount)
+                    } catch (e: Throwable) {
+                        Log
+                                .e(TAG, "Error updating line numbers", e)
+                    }
                 }, onError = {
                     Log
-                            .e(TAG, "Error updating line numbers", it)
+                            .e(TAG, "Unrecoverable error while updating line numbers", it)
                 })
     }
 
