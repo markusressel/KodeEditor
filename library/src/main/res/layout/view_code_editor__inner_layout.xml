@@ -15,6 +15,12 @@
         android:textSize="12sp"
         android:typeface="monospace" />
 
+    <View
+        android:id="@+id/divider"
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="#000" />
+
     <de.markusressel.kodeeditor.library.view.CodeEditText
         android:id="@+id/codeEditText"
         android:layout_width="0dp"
