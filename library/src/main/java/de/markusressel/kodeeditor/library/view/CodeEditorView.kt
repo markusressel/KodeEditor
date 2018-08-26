@@ -24,15 +24,16 @@ import io.reactivex.schedulers.Schedulers
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
-
+/**
+ * Code Editor that allows pinch-to-zoom, line numbers etc.
+ */
 class CodeEditorView : ZoomLayout {
 
     private lateinit var contentLayout: LinearLayout
-    lateinit var lineNumberView: TextView
-    lateinit var editTextView: CodeEditText
+    private lateinit var lineNumberView: TextView
+    private lateinit var editTextView: CodeEditText
 
-    var moveWithCursorEnabled = false
-
+    private var moveWithCursorEnabled = false
     private var currentLineCount = -1
 
     constructor(context: Context) : super(context) {

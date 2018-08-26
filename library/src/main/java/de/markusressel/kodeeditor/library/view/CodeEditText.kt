@@ -13,8 +13,14 @@ import io.reactivex.rxkotlin.subscribeBy
 import io.reactivex.schedulers.Schedulers
 import java.util.concurrent.TimeUnit
 
+/**
+ * EditText modified for longer texts and support for syntax highlighting
+ */
 class CodeEditText : AppCompatEditText {
 
+    /**
+     * The syntax highlighter that currently in use
+     */
     var syntaxHighlighter: SyntaxHighlighter? = null
         set(value) {
             field = value
@@ -23,7 +29,6 @@ class CodeEditText : AppCompatEditText {
 
 
     private var highlightingTimeout = 50L to TimeUnit.MILLISECONDS
-
     private var highlightingDisposable: Disposable? = null
 
     constructor(context: Context) : super(context) {
@@ -93,10 +98,7 @@ class CodeEditText : AppCompatEditText {
         }
 
         syntaxHighlighter
-                ?.let {
-                    it
-                            .highlight(text)
-                }
+                ?.highlight(text)
     }
 
     companion object {
