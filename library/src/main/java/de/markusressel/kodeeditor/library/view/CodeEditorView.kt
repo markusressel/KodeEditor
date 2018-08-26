@@ -29,9 +29,20 @@ import kotlin.math.roundToInt
  */
 class CodeEditorView : ZoomLayout {
 
+    /**
+     * The unique (zoomable) child element of this ZoomLayout
+     */
     private lateinit var contentLayout: LinearLayout
-    private lateinit var lineNumberView: TextView
-    private lateinit var editTextView: CodeEditText
+
+    /**
+     * The view displaying line numbers
+     */
+    lateinit var lineNumberView: TextView
+
+    /**
+     * The actual EditText
+     */
+    lateinit var editTextView: CodeEditText
 
     private var moveWithCursorEnabled = false
     private var currentLineCount = -1
