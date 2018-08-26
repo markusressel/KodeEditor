@@ -27,7 +27,7 @@ import kotlin.math.roundToInt
 /**
  * Code Editor that allows pinch-to-zoom, line numbers etc.
  */
-class CodeEditorView : ZoomLayout {
+open class CodeEditorView : ZoomLayout {
 
     /**
      * The unique (zoomable) child element of this ZoomLayout
