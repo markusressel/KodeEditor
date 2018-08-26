@@ -3,6 +3,8 @@ package de.markusressel.kodeeditor.library.syntaxhighlighter
 import android.text.Editable
 import android.text.Spannable
 import android.text.style.CharacterStyle
+import android.util.Log
+import java.time.Instant
 
 /**
  * Interface for a SyntaxHighlighter with basic logic for color schemes and applying styles
@@ -44,21 +46,30 @@ interface SyntaxHighlighter {
         // reapply
         getRules()
                 .forEach { rule ->
-                    rule
-                            .findMatches(editable)
-                            .forEach {
-                                val start = it
-                                        .range
-                                        .start
-                                val end = it.range.endInclusive + 1
+                    var matches: Sequence<MatchResult> = emptySequence()
+                    logComputationDuration("Find matches") {
+                        matches = rule
+                                .findMatches(editable)
 
-                                // needs to be called for each result
-                                // so multiple spans are created and applied
-                                val styles = colorScheme
-                                        .getStyles(rule)
+                    }
 
-                                highlight(editable, start, end, styles)
-                            }
+                    logComputationDuration("Highlighting ${rule.javaClass}") {
+                        matches
+                                .forEach {
+                                    val start = it
+                                            .range
+                                            .start
+                                    val end = it.range.endInclusive + 1
+
+                                    // needs to be called for each result
+                                    // so multiple spans are created and applied
+                                    val styles = colorScheme
+                                            .getStyles(rule)
+
+
+                                    highlight(editable, start, end, styles)
+                                }
+                    }
                 }
     }
 
@@ -87,13 +98,34 @@ interface SyntaxHighlighter {
      * Clear any modifications the syntax highlighter may have made to a given editable
      */
     fun clearAppliedStyles(editable: Editable) {
-        appliedStyles
-                .forEach {
-                    editable
-                            .removeSpan(it)
-                }
-        appliedStyles
-                .clear()
+        logComputationDuration("Removing span") {
+            appliedStyles
+                    .forEach {
+
+                        editable
+                                .removeSpan(it)
+                    }
+
+            appliedStyles
+                    .clear()
+        }
+    }
+
+    private fun logComputationDuration(description: String, function: () -> Unit) {
+        val now = Instant
+                .now()
+
+        function()
+
+
+        val durationMs = Instant
+                .now()
+                .minusMillis(now.toEpochMilli())
+                .toEpochMilli()
+
+        Log
+                .d("TIMING", "$description took ${durationMs}ms")
+
     }
 
 }
