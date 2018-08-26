@@ -6,8 +6,8 @@ import android.text.style.CharacterStyle
 import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
 import de.markusressel.kodeeditor.library.markdown.rule.*
+import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxColorScheme
 import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxHighlighterRule
-import de.markusressel.kodeeditor.library.syntaxhighlighter.colorscheme.SyntaxColorScheme
 
 /**
  * A dark color scheme for markdown text

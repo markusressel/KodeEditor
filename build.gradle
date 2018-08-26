@@ -41,6 +41,7 @@ buildscript {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
+apply plugin: 'kotlin'
 
 allprojects {
     repositories {
@@ -48,7 +49,13 @@ allprojects {
         jcenter()
     }
 }
-
-task clean(type: Delete) {
-    delete rootProject.buildDir
+compileKotlin {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+compileTestKotlin {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
 }

@@ -3,7 +3,6 @@ package de.markusressel.kodeeditor.library.syntaxhighlighter
 import android.text.Editable
 import android.text.Spannable
 import android.text.style.CharacterStyle
-import de.markusressel.kodeeditor.library.syntaxhighlighter.colorscheme.SyntaxColorScheme
 
 /**
  * Interface for a SyntaxHighlighter with basic logic for color schemes and applying styles
