@@ -1,10 +1,10 @@
-package de.markusressel.kodeeditor.library.syntaxhighlighter.markdown
+package de.markusressel.kodeeditor.library.markdown
 
+import de.markusressel.kodeeditor.library.markdown.colorscheme.DarkBackgroundColorScheme
+import de.markusressel.kodeeditor.library.markdown.rule.*
 import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxHighlighterBase
 import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxHighlighterRule
 import de.markusressel.kodeeditor.library.syntaxhighlighter.colorscheme.SyntaxColorScheme
-import de.markusressel.kodeeditor.library.syntaxhighlighter.markdown.colorscheme.DarkBackgroundColorScheme
-import de.markusressel.kodeeditor.library.syntaxhighlighter.markdown.rule.*
 
 class MarkdownSyntaxHighlighter : SyntaxHighlighterBase() {
 

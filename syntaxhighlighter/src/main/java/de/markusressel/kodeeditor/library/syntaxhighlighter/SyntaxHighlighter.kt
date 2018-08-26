@@ -37,10 +37,8 @@ interface SyntaxHighlighter {
 
         // reapply
         getRules()
-                .forEach {
-                    val sectionType = it
-                            .getSectionType()
-                    it
+                .forEach {rule ->
+                    rule
                             .findMatches(editable)
                             .forEach {
                                 val start = it
@@ -51,7 +49,7 @@ interface SyntaxHighlighter {
                                 // needs to be called for each result
                                 // so multiple spans are created and applied
                                 val styles = colorScheme
-                                        .getStyles(sectionType)
+                                        .getStyles(rule)
 
                                 highlight(editable, start, end, styles)
                             }

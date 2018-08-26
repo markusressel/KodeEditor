@@ -7,7 +7,6 @@ import android.util.Log
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxHighlighter
-import de.markusressel.kodeeditor.library.syntaxhighlighter.markdown.MarkdownSyntaxHighlighter
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 import io.reactivex.rxkotlin.subscribeBy
@@ -16,7 +15,13 @@ import java.util.concurrent.TimeUnit
 
 class CodeEditText : AppCompatEditText {
 
-    var syntaxHighlighter: SyntaxHighlighter = MarkdownSyntaxHighlighter()
+    var syntaxHighlighter: SyntaxHighlighter? = null
+        set(value) {
+            field = value
+            initSyntaxHighlighter()
+        }
+
+
     private var highlightingTimeout = 50L to TimeUnit.MILLISECONDS
 
     private var highlightingDisposable: Disposable? = null
@@ -34,22 +39,28 @@ class CodeEditText : AppCompatEditText {
     }
 
     private fun reinit() {
+        initSyntaxHighlighter()
+    }
+
+    private fun initSyntaxHighlighter() {
         highlightingDisposable
                 ?.dispose()
 
-        highlightingDisposable = RxTextView
-                .afterTextChangeEvents(this)
-                .debounce(highlightingTimeout.first, highlightingTimeout.second)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .bindToLifecycle(this)
-                .subscribeBy(onNext = {
-                    // syntax highlighting
-                    refreshSyntaxHighlighting()
-                }, onError = {
-                    Log
-                            .e(TAG, "Error while refreshing syntax highlighting", it)
-                })
+        if (syntaxHighlighter != null) {
+            highlightingDisposable = RxTextView
+                    .afterTextChangeEvents(this)
+                    .debounce(highlightingTimeout.first, highlightingTimeout.second)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .bindToLifecycle(this)
+                    .subscribeBy(onNext = {
+                        // syntax highlighting
+                        refreshSyntaxHighlighting()
+                    }, onError = {
+                        Log
+                                .e(TAG, "Error while refreshing syntax highlighting", it)
+                    })
+        }
     }
 
     /**
@@ -76,8 +87,16 @@ class CodeEditText : AppCompatEditText {
 
     @Synchronized
     fun refreshSyntaxHighlighting() {
+        if (syntaxHighlighter == null) {
+            Log
+                    .w(TAG, "No syntax highlighter is set!")
+        }
+
         syntaxHighlighter
-                .highlight(text)
+                ?.let {
+                    it
+                            .highlight(text)
+                }
     }
 
     companion object {
