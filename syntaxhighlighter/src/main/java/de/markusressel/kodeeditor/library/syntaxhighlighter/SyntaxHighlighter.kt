@@ -6,10 +6,13 @@ import android.text.style.CharacterStyle
 import de.markusressel.kodeeditor.library.syntaxhighlighter.colorscheme.SyntaxColorScheme
 
 /**
- * Interface for a SyntaxHighlighter
+ * Interface for a SyntaxHighlighter with basic logic for color schemes and applying styles
  */
 interface SyntaxHighlighter {
 
+    /**
+     * A set of styles that were applied by this highlighter
+     */
     val appliedStyles: MutableSet<CharacterStyle>
 
     /**
@@ -29,15 +32,19 @@ interface SyntaxHighlighter {
 
     /**
      * Highlight the given text
+     *
+     * Note: If you need to highlight multiple editables at the same time
+     *       be sure to also create one highlighter instance for each editable.
+     *       Otherwise applied styles might not be cleared properly
+     *       when refreshing highlighting of an already highlighted editable.
      */
     fun highlight(editable: Editable) {
         // cleanup previously applied styles
-        //        clear(editable)
         clearAppliedStyles(editable)
 
         // reapply
         getRules()
-                .forEach {rule ->
+                .forEach { rule ->
                     rule
                             .findMatches(editable)
                             .forEach {
