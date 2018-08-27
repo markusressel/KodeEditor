@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <declare-styleable name="CodeEditorView">
+        <attr name="cev_lineNumbers_textColor" format="reference|color" />
+        <attr name="cev_lineNumbers_backgroundColor" format="reference|color" />
+        <attr name="cev_divider" format="boolean" />
+        <attr name="cev_divider_color" format="reference|color" />
+        <attr name="cev_editor_backgroundColor" format="reference|color" />
+    </declare-styleable>
+
+</resources>

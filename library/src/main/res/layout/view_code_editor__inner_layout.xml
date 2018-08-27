@@ -18,8 +18,7 @@
     <View
         android:id="@+id/divider"
         android:layout_width="1dp"
-        android:layout_height="match_parent"
-        android:background="#000" />
+        android:layout_height="match_parent" />
 
     <de.markusressel.kodeeditor.library.view.CodeEditText
         android:id="@+id/codeEditText"

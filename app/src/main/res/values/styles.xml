@@ -6,6 +6,17 @@
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
+
+        <!-- CodeEditorView -->
+        <!--<item name="cev_divider_color">#f0f</item>-->
+        <!--<item name="cev_editor_backgroundColor">#f00</item>-->
+        <!--<item name="cev_lineNumbers_backgroundColor">#f08</item>-->
+        <!--<item name="cev_lineNumbers_textColor">#f0c</item>-->
+
+        <item name="cev_lineNumbers_backgroundColor">#ccc</item>
+        <item name="cev_lineNumbers_textColor">#000</item>
+        <item name="cev_divider">false</item>
+
     </style>
 
 </resources>
