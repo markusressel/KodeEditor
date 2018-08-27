@@ -50,6 +50,14 @@ allprojects {
         google()
         jcenter()
     }
+
+    configurations.all() {
+        resolutionStrategy.force "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+        resolutionStrategy.force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+
+        resolutionStrategy.force "com.android.support:appcompat-v7:$supportLibVersion"
+        resolutionStrategy.force "com.android.support:design:$supportLibVersion"
+    }
 }
 
 apply plugin: 'kotlin'
