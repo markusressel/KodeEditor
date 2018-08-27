@@ -1,7 +1,7 @@
 # KodeEditor
 A simple code editor with syntax highlighting and pinch to zoom
 
- ![Sample](/screenshot/KodeEditor.png)
+ <img src="/screenshot/KodeEditor.png" width="">
 
 # Build Status
 
