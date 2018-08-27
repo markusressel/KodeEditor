@@ -55,6 +55,11 @@ open class CodeEditorView : ZoomLayout {
      */
     lateinit var editTextView: CodeEditText
 
+    /**
+     * Set to true to force the width of the CodeEditorView to it's parents width
+     */
+    private var forceParentWidth = false
+
     private var moveWithCursorEnabled = false
     private var currentLineCount = -1
 
@@ -189,17 +194,17 @@ open class CodeEditorView : ZoomLayout {
             if (firstInit) {
                 firstInit = false
 
-                val parentView = (parent as View)
-                parentView
-                        .width
-
-                contentLayout
-                        .minimumHeight = parentView
-                        .height
-                contentLayout
-                        .minimumWidth = parentView
-                        .width
-
+                setMinimumDimensions()
+                if (forceParentWidth) {
+                    // force exact width
+                    val params = contentLayout
+                            .layoutParams
+                    params
+                            .width = (parent as View)
+                            .height
+                    contentLayout
+                            .layoutParams = params
+                }
                 updateLineNumbers(editTextView.lineCount)
             }
         }
@@ -255,6 +260,20 @@ open class CodeEditorView : ZoomLayout {
                     Log
                             .e(TAG, "Unrecoverable error while updating line numbers", it)
                 })
+    }
+
+    private fun setMinimumDimensions() {
+        val parentView = (parent as View)
+
+        val parentWidth = parentView
+                .width
+        val parentHeight = parentView
+                .height
+
+        contentLayout
+                .minimumHeight = parentHeight
+        contentLayout
+                .minimumWidth = parentWidth
     }
 
     private fun moveScreenWithCursorIfNecessary() {

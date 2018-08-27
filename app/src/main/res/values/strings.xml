@@ -1,6 +1,74 @@
 <resources>
     <string name="app_name">KodeEditor</string>
 
+    <string name="demo_text"><![CDATA[
+        # KodeEditor
+\nA simple code editor with syntax highlighting and pinch to zoom
+\n
+\n# Build Status
+\n
+\n| Master | Dev |
+\n|--------|-----|
+\n| [![Master](https://travis-ci.org/markusressel/KodeEditor.svg?branch=master)] | [![Dev](https://travis-ci.org/markusressel/KutePreferences.svg?branch=dev)] |
+\n| ![codebeat badge](https://codebeat.co/badges/f7fa8602-1d15-457e-904d-cb585e984952) | ![codebeat badge](https://codebeat.co/badges/19447977-bc96-4519-90b1-e532139ae1a5) |
+\n
+\n# Features
+\n* Pinch-To-Zoom
+\n* Line numbers
+\n* Syntax highlighting
+\n  * import languages you need
+\n  * or simply create your own highlighter using **regex** or other techniques
+\n* Written entirely in Kotlin
+\n
+\n# How to use
+\nHave a look at the demo app (`app`  module) for a complete sample.
+\n
+\n## Gradle
+\nTo use this library just include it in your dependencies using
+\n
+\n\u0020\u0020\u0020\u0020repositories {
+\n\u0020\u0020\u0020\u0020\u0020\u0020…
+\n\u0020\u0020\u0020\u0020\u0020\u0020maven { url "https://jitpack.io" }
+\n\u0020\u0020\u0020\u0020}
+\n
+\nin your project build.gradle file and
+\n
+\n\u0020\u0020\u0020\u0020dependencies {
+\n\u0020\u0020\u0020\u0020\u0020\u0020implementation("com.github.markusressel.KodeEditor:library:+") {
+\n\u0020\u0020\u0020\u0020\u0020\u0020\u0020\u0020transitive = true
+\n\u0020\u0020\u0020\u0020\u0020\u0020}
+\n\u0020\u0020\u0020\u0020}
+\n
+\nin your desired module ```build.gradle``` file.
+\n
+\n# License
+\n
+\n```
+\nMIT License
+\n
+\nCopyright © 2018 Markus Ressel
+\n
+\nPermission is hereby granted, free of charge, to any person obtaining a copy
+\nof this software and associated documentation files (the "Software"), to deal
+\nin the Software without restriction, including without limitation the rights
+\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+\ncopies of the Software, and to permit persons to whom the Software is
+\nfurnished to do so, subject to the following conditions:
+\n
+\nThe above copyright notice and this permission notice shall be included in all
+\ncopies or substantial portions of the Software.
+\n
+\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+\nSOFTWARE.
+\n```
+
+    ]]></string>
+
     <string name="huge_text"><![CDATA[
        # TutorialTooltip [![API](https://img.shields.io/badge/API-14%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=14)
 \nA simple and easy way to add targeted tutorial messages to your app.
@@ -30,7 +98,7 @@
 \nTo use this library just include it in your depencencies using
 \n
 \n    repositories {
-\n        ...
+\n        …
 \n        maven { url "https://jitpack.io" }
 \n    }
 \n
@@ -290,7 +358,7 @@
 \n
 \n# License
 \n
-\n    Copyright (c) 2016 Markus Ressel
+\n    Copyright © 2016 Markus Ressel
 \n
 \n    Licensed under the Apache License, Version 2.0 (the "License");
 \n    you may not use this file except in compliance with the License.
@@ -333,7 +401,7 @@
 \nTo use this library just include it in your depencencies using
 \n
 \n    repositories {
-\n        ...
+\n        …
 \n        maven { url "https://jitpack.io" }
 \n    }
 \n
@@ -593,7 +661,7 @@
 \n
 \n# License
 \n
-\n    Copyright (c) 2016 Markus Ressel
+\n    Copyright © 2016 Markus Ressel
 \n
 \n    Licensed under the Apache License, Version 2.0 (the "License");
 \n    you may not use this file except in compliance with the License.
@@ -636,7 +704,7 @@
 \nTo use this library just include it in your depencencies using
 \n
 \n    repositories {
-\n        ...
+\n        …
 \n        maven { url "https://jitpack.io" }
 \n    }
 \n
@@ -896,7 +964,7 @@
 \n
 \n# License
 \n
-\n    Copyright (c) 2016 Markus Ressel
+\n    Copyright © 2016 Markus Ressel
 \n
 \n    Licensed under the Apache License, Version 2.0 (the "License");
 \n    you may not use this file except in compliance with the License.
