@@ -16,6 +16,7 @@ A simple code editor with syntax highlighting and pinch to zoom
 * Syntax highlighting
   * import languages you need
   * or simply create your own highlighter using **regex** or other techniques
+  * themes
 * Written entirely in Kotlin
 
 # How to use
@@ -31,13 +32,83 @@ To use this library just include it in your dependencies using
 
 in your project build.gradle file and
 
-    dependencies {
-        implementation("com.github.markusressel.KodeEditor:library:+") {
-            transitive = true
-        }
-    }
+```
+dependencies {
+    ...
+
+    def codeEditorVersion = "v0.5.0"
+    implementation("com.github.markusressel.KodeEditor:library:${codeEditorVersion}")
+}
+```
 
 in your desired module ```build.gradle``` file.
+
+## Adding syntax highlighting
+
+To include an existing language just pick the ones you would like to use and import them **in addition** to the `library` core module:
+
+```
+dependencies {
+    ...
+    implementation("com.github.markusressel.KodeEditor:markdown:${codeEditorVersion}")
+    implementation("com.github.markusressel.KodeEditor:java:${codeEditorVersion}")
+    implementation("com.github.markusressel.KodeEditor:kotlin:${codeEditorVersion}")
+```
+
+Currently there is no auto detection for the language used in a document so you have to manage this yourself and call the `setSyntaxHighlighter` method when appropriate.
+
+## Styling
+
+KodeEditor can be styled in multiple ways:
+
+1. xml attributes on KodeEditor
+1. theme attributes in your custom theme
+1. methods on the view object itself
+
+### Theme Attributes
+
+| Name                      | Description                              | Type     | Default                                |
+|---------------------------|------------------------------------------|----------|----------------------------------------|
+| cev_lineNumbers_textColor | Specifies the text color of line numbers | Color    | `android.R.attr.textColorPrimary`      |
+| cev_lineNumbers_backgroundColor | Specifies the background color of the line numbers view | Color | `android.R.attr.windowBackground` |
+| cev_divider | Specifies if a divider should be drawn between line numbers and the actual code editor content | Boolean | `true` |
+| cev_divider_color | Specifies the color of the divider (has no effect if `cev_divider` is set to `false`) | Color | `android.R.attr.textColorPrimary` |
+| cev_editor_backgroundColor | Specifies the background color of the code editor view | Color | `android.R.attr.windowBackground` |
+
+You can either use those attributes directly on the view in your layout like this:
+
+```
+<de.markusressel.kodeeditor.library.view.CodeEditorView
+    android:id="@+id/codeEditorView"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    [...]
+    app:cev_divider="true"
+    app:cev_divider_color="?android:attr/textColorPrimary"
+    app:cev_editor_backgroundColor="?android:attr/windowBackground"
+    [...] />
+```
+
+or specify them in your application theme (`styles.xml` in dem app) for to apply a style globally:
+
+```
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Other theme attributes of your application -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+
+        <!-- CodeEditorView specific stylings -->
+        <item name="cev_lineNumbers_backgroundColor">#ccc</item>
+        <item name="cev_lineNumbers_textColor">#000</item>
+        <item name="cev_divider">false</item>
+    </style>
+
+</resources>
+```
 
 # License
 

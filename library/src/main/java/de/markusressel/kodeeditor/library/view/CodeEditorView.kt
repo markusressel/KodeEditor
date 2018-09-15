@@ -38,22 +38,22 @@ open class CodeEditorView : ZoomLayout {
     /**
      * The unique (zoomable) child element of this ZoomLayout
      */
-    private lateinit var contentLayout: LinearLayout
+    internal lateinit var contentLayout: LinearLayout
 
     /**
      * The view displaying line numbers
      */
-    lateinit var lineNumberView: TextView
+    internal lateinit var lineNumberView: TextView
 
     /**
      * The divider between line numbers and text editor
      */
-    lateinit var dividerView: View
+    internal lateinit var dividerView: View
 
     /**
      * The actual EditText
      */
-    lateinit var editTextView: CodeEditText
+    internal lateinit var editTextView: CodeEditText
 
     /**
      * Set to true to force the width of the CodeEditorView to it's parents width
@@ -76,6 +76,7 @@ open class CodeEditorView : ZoomLayout {
     }
 
     private fun initialize(attrs: AttributeSet?, defStyleAttr: Int) {
+        setHasClickableChildren(true)
         inflateViews(LayoutInflater.from(context))
         readParameters(attrs, defStyleAttr)
 
@@ -361,11 +362,7 @@ open class CodeEditorView : ZoomLayout {
      */
     @Suppress("unused")
     fun setText(@StringRes text: Int) {
-        editTextView
-                .setText(text, TextView.BufferType.EDITABLE)
-        editTextView
-                .refreshSyntaxHighlighting()
-        updateLineNumbers(editTextView.lineCount)
+        setText(context.getString(text))
     }
 
     /**
