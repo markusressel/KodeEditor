@@ -53,10 +53,10 @@ To use this editor simply add something similar to this to your desired layout x
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fadeScrollbars="true"
-        android:scrollbars="vertical|horizontal" </>
+        android:scrollbars="vertical|horizontal" />
 ```
 
-## Adding syntax highlighting
+## Syntax highlighting
 
 To include an existing language just pick the ones you would like to use and import them **in addition** to the `library` core module:
 
@@ -69,10 +69,12 @@ dependencies {
     [etc.]
 ```
 
-Currently there is no auto detection for the language used in a document so you have to manage this yourself and call the `setSyntaxHighlighter` method when appropriate.
+### Language Autodetection
 
+Currently there is no auto detection for the language used in a document.
+You have to manage the syntax highlighter yourself and call the `setSyntaxHighlighter` method when appropriate.
 
-#### Integrated syntax highlighters
+### Integrated syntax highlighters
 
 This library includes a small set of highlighters for you to use right away without spending time to think about the right code highlighting.
 Here you can find a list of those items:
@@ -81,7 +83,7 @@ Here you can find a list of those items:
 * java
 * kotlin
 
-#### Writing a custom syntax highlighter
+### Writing a custom syntax highlighter
 
 Using your own rules to highlight text in the editor can be achieved by extending the `SyntaxHighlighterBase` class (which implements the `SyntaxHighlighter` interface):
 
