@@ -53,9 +53,40 @@ dependencies {
     implementation("com.github.markusressel.KodeEditor:markdown:${codeEditorVersion}")
     implementation("com.github.markusressel.KodeEditor:java:${codeEditorVersion}")
     implementation("com.github.markusressel.KodeEditor:kotlin:${codeEditorVersion}")
+    [etc.]
 ```
 
 Currently there is no auto detection for the language used in a document so you have to manage this yourself and call the `setSyntaxHighlighter` method when appropriate.
+
+
+#### Integrated syntax highlighters
+
+This library includes a small set of highlighters for you to use right away without spending time to think about the right code highlighting.
+Here you can find a list of those items:
+
+* markdown
+* java
+* kotlin
+
+#### Writing a custom syntax highlighter
+
+Using your own rules to highlight text in the editor can be achieved by extending the `SyntaxHighlighterBase` class (which implements the `SyntaxHighlighter` interface):
+
+```
+class MarkdownSyntaxHighlighter : SyntaxHighlighterBase() {
+
+    override fun getRules(): Set<SyntaxHighlighterRule> {
+        return setOf(HeadingRule(), ItalicRule(), BoldRule(), CodeInlineRule(), CodeLineRule(), TextLinkRule(), ImageLinkRule(), StrikeRule())
+    }
+
+    override fun getDefaultColorScheme(): SyntaxColorScheme {
+        return DarkBackgroundColorScheme()
+    }
+
+}
+```
+
+A syntax highlighter consists of a **default color scheme** and a **set of rules** that provide information on how to style different parts of the editor text.
 
 ## Styling
 
