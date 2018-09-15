@@ -58,17 +58,6 @@ To use this editor simply add something similar to this to your desired layout x
 
 ## Syntax highlighting
 
-To include an existing language just pick the ones you would like to use and import them **in addition** to the `library` core module:
-
-```
-dependencies {
-    ...
-    implementation("com.github.markusressel.KodeEditor:markdown:${codeEditorVersion}")
-    implementation("com.github.markusressel.KodeEditor:java:${codeEditorVersion}")
-    implementation("com.github.markusressel.KodeEditor:kotlin:${codeEditorVersion}")
-    [etc.]
-```
-
 ### Language Autodetection
 
 Currently there is no auto detection for the language used in a document.
@@ -82,6 +71,17 @@ Here you can find a list of those items:
 * markdown
 * java
 * kotlin
+
+To include an existing language just pick the ones you would like to use and import them **in addition** to the `library` core module:
+
+```
+dependencies {
+    ...
+    implementation("com.github.markusressel.KodeEditor:markdown:${codeEditorVersion}")
+    implementation("com.github.markusressel.KodeEditor:java:${codeEditorVersion}")
+    implementation("com.github.markusressel.KodeEditor:kotlin:${codeEditorVersion}")
+    [etc.]
+```
 
 ### Writing a custom syntax highlighter
 
@@ -102,6 +102,7 @@ class MarkdownSyntaxHighlighter : SyntaxHighlighterBase() {
 ```
 
 A syntax highlighter consists of a **default color scheme** and a **set of rules** that provide information on how to style different parts of the editor text.
+Have a look at how the `MarkdownSyntaxHighlighter` is implemented to get a feel for how to implement those methods.
 
 ## Styling
 
