@@ -43,6 +43,19 @@ dependencies {
 
 in your desired module ```build.gradle``` file.
 
+## Add to your layout
+
+To use this editor simply add something similar to this to your desired layout xml file:
+
+```
+<de.markusressel.kodeeditor.library.view.CodeEditorView
+        android:id="@+id/codeEditorView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fadeScrollbars="true"
+        android:scrollbars="vertical|horizontal" </>
+```
+
 ## Adding syntax highlighting
 
 To include an existing language just pick the ones you would like to use and import them **in addition** to the `library` core module:

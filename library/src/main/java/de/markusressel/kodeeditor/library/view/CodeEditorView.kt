@@ -77,6 +77,8 @@ open class CodeEditorView : ZoomLayout {
 
     private fun initialize(attrs: AttributeSet?, defStyleAttr: Int) {
         setHasClickableChildren(true)
+        isFocusableInTouchMode = true
+
         inflateViews(LayoutInflater.from(context))
         readParameters(attrs, defStyleAttr)
 
