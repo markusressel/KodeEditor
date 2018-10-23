@@ -98,7 +98,7 @@ class CodeEditText : AppCompatEditText {
         }
 
         syntaxHighlighter
-                ?.highlight(text)
+                ?.apply { highlight(text!!) }
     }
 
     companion object {
