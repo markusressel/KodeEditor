@@ -1,7 +1,9 @@
 package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
+import android.os.Build
 import android.support.v7.widget.AppCompatEditText
+import android.text.Layout
 import android.util.AttributeSet
 import android.util.Log
 import com.jakewharton.rxbinding2.widget.RxTextView
@@ -44,6 +46,10 @@ class CodeEditText : AppCompatEditText {
     }
 
     private fun reinit() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
+        }
+
         initSyntaxHighlighter()
     }
 
