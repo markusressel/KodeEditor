@@ -10,7 +10,7 @@ import android.text.style.CharacterStyle
 interface SyntaxHighlighter {
 
     /**
-     * A set of styles that were applied by this highlighter
+     * A set of styles that are currently applied by this highlighter
      */
     val appliedStyles: MutableSet<CharacterStyle>
 

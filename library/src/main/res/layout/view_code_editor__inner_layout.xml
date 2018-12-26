@@ -5,21 +5,6 @@
     android:layout_height="match_parent"
     android:orientation="horizontal">
 
-    <TextView xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/codeLinesView"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:gravity="right|top"
-        android:paddingLeft="4dp"
-        android:paddingTop="10dp"
-        android:textSize="12sp"
-        android:typeface="monospace" />
-
-    <View
-        android:id="@+id/divider"
-        android:layout_width="1dp"
-        android:layout_height="match_parent" />
-
     <de.markusressel.kodeeditor.library.view.CodeEditText
         android:id="@+id/codeEditText"
         android:layout_width="0dp"
