@@ -29,8 +29,8 @@
         android:inputType="textMultiLine|textNoSuggestions"
         android:maxLength="99999999"
         android:maxLines="99999999"
-        android:scrollHorizontally="false"
         android:scrollbars="none"
+        android:scrollHorizontally="false"
         android:textSize="12sp"
         android:typeface="monospace" />
 
