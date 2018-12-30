@@ -32,7 +32,7 @@ EOF
  
   if [[ "${TRAVIS_TEST_RESULT}" == "0" ]]; then
     # find compiled .apk file
-    APK_FILE=$(find ./app/build/outputs/apk/debug -type f -name "*.apk")
+    APK_FILE=$(find "${TRAVIS_BUILD_DIR}/app/build/outputs/apk/debug" -type f -name "*.apk")
     
     echo "Sending apk file..."
     
