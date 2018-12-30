@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-if [[ "${TRAVIS_BRANCH}" == "dev" ]]; then
+if [[ "${TRAVIS_BRANCH}" =~ ^(dev|master)$  ]]; then
   echo "Generating Telegram Messages..."
   
   BASE_URL="https://api.telegram.org/${TELEGRAM_TOKEN}"
