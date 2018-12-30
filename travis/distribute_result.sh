@@ -7,7 +7,7 @@ if [[ "${TRAVIS_BRANCH}" == "dev" ]]; then
   # prepare telegram message to send as reply to the apk file
   if [[ "${TRAVIS_PULL_REQUEST}" != "false" ]]; then
     PR_LINK_TEXT=$(cat <<EOF
-[Pull Request](https://github.com/freitagsrunde/k4ever-android/pull/${TRAVIS_PULL_REQUEST})
+[Pull Request](${GITHUB_URL}/pull/${TRAVIS_PULL_REQUEST})
 EOF
 )
   fi
@@ -21,7 +21,7 @@ EOF
   COMMITS_INVOLVED=$(git log --oneline ${TRAVIS_COMMIT_RANGE})
   
   MESSAGE=$(cat <<EOF
-${RESULT_EMOJI} *Travis Build* [#${TRAVIS_BUILD_NUMBER}](https://travis-ci.org/freitagsrunde/k4ever-android/builds/${TRAVIS_BUILD_ID}) *(${TRAVIS_EVENT_TYPE})*
+${RESULT_EMOJI} *Travis Build* [#${TRAVIS_BUILD_NUMBER}](https://travis-ci.org/${TRAVIS_URL}/builds/${TRAVIS_BUILD_ID}) *(${TRAVIS_EVENT_TYPE})*
 
 Commits:
 \`${COMMITS_INVOLVED}\`
@@ -32,7 +32,7 @@ EOF
  
   if [[ "${TRAVIS_TEST_RESULT}" == "0" ]]; then
     # find compiled .apk file
-    APK_FILE=$(find ./app/build/outputs/apk/debug -type f -name "k4ever*.apk")
+    APK_FILE=$(find ./app/build/outputs/apk/debug -type f -name "*.apk")
     
     echo "Sending apk file..."
     
