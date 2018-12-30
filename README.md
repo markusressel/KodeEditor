@@ -44,7 +44,7 @@ dependencies {
 in your desired module ```build.gradle``` file.
 
 ## Add to your layout
-
+ 
 To use this editor simply add something similar to this to your desired layout xml file:
 
 ```
