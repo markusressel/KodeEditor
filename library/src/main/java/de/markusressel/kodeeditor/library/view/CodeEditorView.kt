@@ -4,12 +4,14 @@ import android.content.Context
 import android.content.res.TypedArray
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.support.annotation.AttrRes
 import android.support.annotation.ColorInt
 import android.support.annotation.StringRes
 import android.support.annotation.StyleableRes
 import android.support.v4.content.ContextCompat
 import android.support.v4.view.ViewCompat
+import android.text.Layout
 import android.util.AttributeSet
 import android.util.Log
 import android.util.TypedValue
@@ -142,6 +144,9 @@ open class CodeEditorView : ZoomLayout {
         contentLayout = inflater.inflate(R.layout.view_code_editor__inner_layout, null) as LinearLayout
 
         lineNumberView = contentLayout.findViewById(R.id.codeLinesView) as TextView
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            lineNumberView.hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
+        }
 
         dividerView = contentLayout.findViewById(R.id.divider) as View
 
