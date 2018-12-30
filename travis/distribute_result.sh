@@ -2,7 +2,7 @@
 if [[ "${TRAVIS_BRANCH}" =~ "${TELEGRAM_BRANCHES}"  ]]; then
   echo "Generating Telegram Messages..."
   
-  BASE_URL="https://api.telegram.org/${TELEGRAM_TOKEN}"
+  BASE_URL="https://api.telegram.org/bot${TELEGRAM_TOKEN}"
   
   # prepare telegram message to send as reply to the apk file
   if [[ "${TRAVIS_PULL_REQUEST}" != "false" ]]; then
