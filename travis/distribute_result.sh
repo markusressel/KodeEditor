@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-if [[ "${TRAVIS_BRANCH}" == "dev" ]]; then
+if [[ "${TRAVIS_BRANCH}" =~ "${TELEGRAM_BRANCHES}"  ]]; then
   echo "Generating Telegram Messages..."
   
-  BASE_URL="https://api.telegram.org/${TELEGRAM_TOKEN}"
+  BASE_URL="https://api.telegram.org/bot${TELEGRAM_TOKEN}"
   
   # prepare telegram message to send as reply to the apk file
   if [[ "${TRAVIS_PULL_REQUEST}" != "false" ]]; then
@@ -32,7 +32,7 @@ EOF
  
   if [[ "${TRAVIS_TEST_RESULT}" == "0" ]]; then
     # find compiled .apk file
-    APK_FILE=$(find ./app/build/outputs/apk/debug -type f -name "*.apk")
+    APK_FILE=$(find "${TRAVIS_BUILD_DIR}/app/build/outputs/apk/debug" -type f -name "*.apk")
     
     echo "Sending apk file..."
     
