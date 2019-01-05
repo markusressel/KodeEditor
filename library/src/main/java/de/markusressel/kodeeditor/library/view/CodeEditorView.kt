@@ -62,7 +62,9 @@ open class CodeEditorView : ZoomLayout {
      */
     private var forceParentWidth = false
 
-    private var moveWithCursorEnabled = false
+    var mMoveWithCursorEnabled = false
+    private var internalMoveWithCursorEnabled = false
+
     private var currentLineCount = -1
 
     constructor(context: Context) : super(context) {
@@ -220,7 +222,7 @@ open class CodeEditorView : ZoomLayout {
         setOnTouchListener { view, motionEvent ->
             when (motionEvent.action) {
                 MotionEvent.ACTION_MOVE -> {
-                    moveWithCursorEnabled = false
+                    internalMoveWithCursorEnabled = false
                 }
             }
             false
@@ -228,30 +230,35 @@ open class CodeEditorView : ZoomLayout {
 
         editTextView
                 .setOnClickListener {
-                    moveWithCursorEnabled = true
+                    if (mMoveWithCursorEnabled) {
+                        internalMoveWithCursorEnabled = true
+                    }
                 }
 
-        Observable
-                .interval(250, TimeUnit.MILLISECONDS)
-                .filter { moveWithCursorEnabled }
-                .bindToLifecycle(this)
-                .subscribeBy(onNext = {
-                    try {
-                        moveScreenWithCursorIfNecessary()
-                    } catch (e: Throwable) {
-                        Log
-                                .e(TAG, "Error moving screen with cursor", e)
-                    }
-                }, onError = {
-                    Log
-                            .e(TAG, "Unrecoverable error while moving screen with cursor", it)
-                })
+        if (mMoveWithCursorEnabled) {
+            Observable
+                    .interval(250, TimeUnit.MILLISECONDS)
+                    .skip(5, TimeUnit.SECONDS)
+                    .filter { internalMoveWithCursorEnabled }
+                    .bindToLifecycle(this)
+                    .subscribeBy(onNext = {
+                        try {
+                            moveScreenWithCursorIfNecessary()
+                        } catch (e: Throwable) {
+                            Log.e(TAG, "Error moving screen with cursor", e)
+                        }
+                    }, onError = {
+                        Log.e(TAG, "Unrecoverable error while moving screen with cursor", it)
+                    })
+        }
 
         RxTextView
                 .textChanges(editTextView)
                 .debounce(50, TimeUnit.MILLISECONDS)
                 .filter {
-                    moveWithCursorEnabled = true
+                    if (mMoveWithCursorEnabled) {
+                        internalMoveWithCursorEnabled = true
+                    }
                     editTextView.lineCount != currentLineCount
                 }
                 .subscribeOn(Schedulers.computation())
