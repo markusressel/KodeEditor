@@ -40,22 +40,22 @@ open class CodeEditorView : ZoomLayout {
     /**
      * The unique (zoomable) child element of this ZoomLayout
      */
-    internal lateinit var contentLayout: LinearLayout
+    lateinit var contentLayout: LinearLayout
 
     /**
      * The view displaying line numbers
      */
-    internal lateinit var lineNumberView: TextView
+    lateinit var lineNumberView: TextView
 
     /**
      * The divider between line numbers and text editor
      */
-    internal lateinit var dividerView: View
+    lateinit var dividerView: View
 
     /**
      * The actual EditText
      */
-    internal lateinit var editTextView: CodeEditText
+    lateinit var editTextView: CodeEditText
 
     /**
      * Set to true to force the width of the CodeEditorView to it's parents width
