@@ -207,13 +207,9 @@ open class CodeEditorView : ZoomLayout {
                 setMinimumDimensions()
                 if (forceParentWidth) {
                     // force exact width
-                    val params = contentLayout
-                            .layoutParams
-                    params
-                            .width = (parent as View)
-                            .height
-                    contentLayout
-                            .layoutParams = params
+                    val params = contentLayout.layoutParams
+                    params.width = (parent as View).height
+                    contentLayout.layoutParams = params
                 }
                 updateLineNumbers(editTextView.lineCount)
             }
