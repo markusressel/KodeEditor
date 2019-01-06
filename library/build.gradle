@@ -51,11 +51,18 @@ dependencies {
     implementation "com.trello.rxlifecycle2:rxlifecycle-android-lifecycle-kotlin:$rxLifecycleVersion"
 
     // Zoom Layout Container
-    api 'com.otaliastudios:zoomlayout:1.4.0'
+//    api 'com.otaliastudios:zoomlayout:1.4.0'
+    api ('com.github.markusressel:ZoomLayout:beta-SNAPSHOT') {
+        changing = true
+    }
 
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+}
+
+configurations.all {
+    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
 }
 
 // build a jar with source files
