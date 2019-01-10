@@ -14,6 +14,8 @@ android {
         versionName rootProject.ext.versionName
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
 
+        setProperty("archivesBaseName", "KodeEditor_v${versionName}_(${versionCode})")
+
         multiDexEnabled true
     }
 
