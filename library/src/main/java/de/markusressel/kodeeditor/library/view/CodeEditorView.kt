@@ -40,29 +40,31 @@ open class CodeEditorView : ZoomLayout {
     /**
      * The unique (zoomable) child element of this ZoomLayout
      */
-    internal lateinit var contentLayout: LinearLayout
+    lateinit var contentLayout: LinearLayout
 
     /**
      * The view displaying line numbers
      */
-    internal lateinit var lineNumberView: TextView
+    lateinit var lineNumberView: TextView
 
     /**
      * The divider between line numbers and text editor
      */
-    internal lateinit var dividerView: View
+    lateinit var dividerView: View
 
     /**
      * The actual EditText
      */
-    internal lateinit var editTextView: CodeEditText
+    lateinit var editTextView: CodeEditText
 
     /**
      * Set to true to force the width of the CodeEditorView to it's parents width
      */
     private var forceParentWidth = false
 
-    private var moveWithCursorEnabled = false
+    var mMoveWithCursorEnabled = false
+    private var internalMoveWithCursorEnabled = false
+
     private var currentLineCount = -1
 
     constructor(context: Context) : super(context) {
@@ -205,13 +207,9 @@ open class CodeEditorView : ZoomLayout {
                 setMinimumDimensions()
                 if (forceParentWidth) {
                     // force exact width
-                    val params = contentLayout
-                            .layoutParams
-                    params
-                            .width = (parent as View)
-                            .height
-                    contentLayout
-                            .layoutParams = params
+                    val params = contentLayout.layoutParams
+                    params.width = (parent as View).height
+                    contentLayout.layoutParams = params
                 }
                 updateLineNumbers(editTextView.lineCount)
             }
@@ -220,7 +218,7 @@ open class CodeEditorView : ZoomLayout {
         setOnTouchListener { view, motionEvent ->
             when (motionEvent.action) {
                 MotionEvent.ACTION_MOVE -> {
-                    moveWithCursorEnabled = false
+                    internalMoveWithCursorEnabled = false
                 }
             }
             false
@@ -228,30 +226,35 @@ open class CodeEditorView : ZoomLayout {
 
         editTextView
                 .setOnClickListener {
-                    moveWithCursorEnabled = true
+                    if (mMoveWithCursorEnabled) {
+                        internalMoveWithCursorEnabled = true
+                    }
                 }
 
-        Observable
-                .interval(250, TimeUnit.MILLISECONDS)
-                .filter { moveWithCursorEnabled }
-                .bindToLifecycle(this)
-                .subscribeBy(onNext = {
-                    try {
-                        moveScreenWithCursorIfNecessary()
-                    } catch (e: Throwable) {
-                        Log
-                                .e(TAG, "Error moving screen with cursor", e)
-                    }
-                }, onError = {
-                    Log
-                            .e(TAG, "Unrecoverable error while moving screen with cursor", it)
-                })
+        if (mMoveWithCursorEnabled) {
+            Observable
+                    .interval(250, TimeUnit.MILLISECONDS)
+                    .skip(5, TimeUnit.SECONDS)
+                    .filter { internalMoveWithCursorEnabled }
+                    .bindToLifecycle(this)
+                    .subscribeBy(onNext = {
+                        try {
+                            moveScreenWithCursorIfNecessary()
+                        } catch (e: Throwable) {
+                            Log.e(TAG, "Error moving screen with cursor", e)
+                        }
+                    }, onError = {
+                        Log.e(TAG, "Unrecoverable error while moving screen with cursor", it)
+                    })
+        }
 
         RxTextView
                 .textChanges(editTextView)
                 .debounce(50, TimeUnit.MILLISECONDS)
                 .filter {
-                    moveWithCursorEnabled = true
+                    if (mMoveWithCursorEnabled) {
+                        internalMoveWithCursorEnabled = true
+                    }
                     editTextView.lineCount != currentLineCount
                 }
                 .subscribeOn(Schedulers.computation())
