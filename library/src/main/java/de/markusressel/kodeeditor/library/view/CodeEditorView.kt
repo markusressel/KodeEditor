@@ -27,17 +27,22 @@ open class CodeEditorView : ZoomLayout {
     /**
      * The unique (zoomable) child element of this ZoomLayout
      */
-    internal lateinit var contentLayout: LinearLayout
+    lateinit var contentLayout: LinearLayout
 
     /**
      * The actual EditText
      */
-    internal lateinit var editTextView: CodeEditText
+    lateinit var editTextView: CodeEditText
 
     /**
      * Set to true to force the width of the CodeEditorView to it's parents width
      */
     private var forceParentWidth = false
+
+    var mMoveWithCursorEnabled = false
+    private var internalMoveWithCursorEnabled = false
+
+    private var currentLineCount = -1
 
     constructor(context: Context) : super(context) {
         initialize(null, 0)
@@ -149,13 +154,9 @@ open class CodeEditorView : ZoomLayout {
                 setMinimumDimensions()
                 if (forceParentWidth) {
                     // force exact width
-                    val params = contentLayout
-                            .layoutParams
-                    params
-                            .width = (parent as View)
-                            .height
-                    contentLayout
-                            .layoutParams = params
+                    val params = contentLayout.layoutParams
+                    params.width = (parent as View).height
+                    contentLayout.layoutParams = params
                 }
             }
         }
