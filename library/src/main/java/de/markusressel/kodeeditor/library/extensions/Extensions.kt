@@ -2,11 +2,14 @@ package de.markusressel.kodeeditor.library.extensions
 
 import android.content.Context
 import android.content.res.TypedArray
+import android.graphics.drawable.Drawable
 import android.support.annotation.AttrRes
 import android.support.annotation.ColorInt
 import android.support.annotation.StyleableRes
 import android.support.v4.content.ContextCompat
+import android.support.v4.view.ViewCompat
 import android.util.TypedValue
+import android.view.View
 
 /**
  * Get a color from this TypedArray or use the first default that is found
@@ -41,4 +44,18 @@ fun Context.getThemeAttrColor(@AttrRes attr: Int): Int? {
     }
 
     return null
+}
+
+/**
+ * Sets a view background without resetting it's padding
+ *
+ * @param background the background drawable to use (may be null)
+ */
+fun View.setViewBackgroundWithoutResettingPadding(background: Drawable?) {
+    val paddingBottom = this.paddingBottom
+    val paddingStart = ViewCompat.getPaddingStart(this)
+    val paddingEnd = ViewCompat.getPaddingEnd(this)
+    val paddingTop = this.paddingTop
+    ViewCompat.setBackground(this, background)
+    ViewCompat.setPaddingRelative(this, paddingStart, paddingTop, paddingEnd, paddingBottom)
 }

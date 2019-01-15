@@ -1,9 +1,7 @@
 package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
-import android.graphics.drawable.Drawable
 import android.support.annotation.StringRes
-import android.support.v4.view.ViewCompat
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
@@ -12,12 +10,15 @@ import android.widget.TextView
 import com.otaliastudios.zoom.ZoomLayout
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.getColor
+import de.markusressel.kodeeditor.library.extensions.setViewBackgroundWithoutResettingPadding
 import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxHighlighter
 
 /**
- * Code Editor that allows pinch-to-zoom, line numbers etc.
+ * Code Editor that allows pinch-to-zoom
  */
-open class CodeEditorView : ZoomLayout {
+open class CodeEditorView
+@JvmOverloads constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0)
+    : ZoomLayout(context, attrs, defStyleAttr) {
 
     /**
      * The unique (zoomable) child element of this ZoomLayout
@@ -25,7 +26,7 @@ open class CodeEditorView : ZoomLayout {
     lateinit var contentLayout: LinearLayout
 
     /**
-     * The actual EditText
+     * The actual text editor content
      */
     lateinit var editTextView: CodeEditText
 
@@ -34,15 +35,7 @@ open class CodeEditorView : ZoomLayout {
      */
     private var forceParentWidth = false
 
-    constructor(context: Context) : super(context) {
-        initialize(null, 0)
-    }
-
-    constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
-        initialize(attrs, 0)
-    }
-
-    constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
+    init {
         initialize(attrs, defStyleAttr)
     }
 
@@ -53,19 +46,8 @@ open class CodeEditorView : ZoomLayout {
         inflateViews(LayoutInflater.from(context))
         readParameters(attrs, defStyleAttr)
 
-        addView(contentLayout)
         setListeners()
     }
-
-    private fun View.setViewBackgroundWithoutResettingPadding(background: Drawable?) {
-        val paddingBottom = this.paddingBottom
-        val paddingStart = ViewCompat.getPaddingStart(this)
-        val paddingEnd = ViewCompat.getPaddingEnd(this)
-        val paddingTop = this.paddingTop
-        ViewCompat.setBackground(this, background)
-        ViewCompat.setPaddingRelative(this, paddingStart, paddingTop, paddingEnd, paddingBottom)
-    }
-
 
     private fun readParameters(attrs: AttributeSet?, defStyleAttr: Int) {
         val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0)
@@ -77,9 +59,9 @@ open class CodeEditorView : ZoomLayout {
     }
 
     private fun inflateViews(inflater: LayoutInflater) {
-        contentLayout = inflater.inflate(R.layout.view_code_editor__inner_layout, null) as LinearLayout
+        contentLayout = inflater.inflate(R.layout.view_code_editor__inner_layout, this).findViewById(R.id.cev_editor_contentLayout)
 
-        editTextView = contentLayout.findViewById(R.id.codeEditText) as CodeEditText
+        editTextView = contentLayout.findViewById(R.id.cev_editor_codeEditText) as CodeEditText
         editTextView.setViewBackgroundWithoutResettingPadding(null)
         editTextView.post {
             editTextView.setSelection(0)
@@ -106,12 +88,8 @@ open class CodeEditorView : ZoomLayout {
 
     private fun setMinimumDimensions() {
         val parentView = (parent as View)
-
-        val parentWidth = parentView.width
-        val parentHeight = parentView.height
-
-        contentLayout.minimumHeight = parentHeight
-        contentLayout.minimumWidth = parentWidth
+        contentLayout.minimumHeight = parentView.height
+        contentLayout.minimumWidth = parentView.width
     }
 
     /**
@@ -147,7 +125,6 @@ open class CodeEditorView : ZoomLayout {
 
     companion object {
         const val TAG = "CodeEditorView"
-        const val MIN_LINES = 1
     }
 
 }

@@ -1,6 +1,7 @@
 package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
+import android.graphics.Matrix
 import android.graphics.Rect
 import android.os.Build
 import android.support.annotation.StringRes
@@ -14,6 +15,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.otaliastudios.zoom.ZoomApi
+import com.otaliastudios.zoom.ZoomEngine
+import com.otaliastudios.zoom.ZoomLayout
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.getColor
@@ -29,14 +32,14 @@ import kotlin.math.roundToInt
  * Code Editor that allows pinch-to-zoom, line numbers etc.
  */
 open class CodeEditorLayout
-private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, private val codeEditorView: CodeEditorView)
-    : LinearLayout(context, attrs, defStyleAttr), ZoomApi by codeEditorView {
-
+private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, private val codeEditorZoomLayout: CodeEditorView)
+    : LinearLayout(context, attrs, defStyleAttr), ZoomApi by codeEditorZoomLayout {
 
     /**
      * The view displaying line numbers
      */
-    internal lateinit var lineNumberView: TextView
+    internal lateinit var lineNumberZoomLayout: ZoomLayout
+    internal lateinit var lineNumberTextView: TextView
 
     /**
      * The divider between line numbers and text editor
@@ -59,32 +62,33 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
             this(context, attrs, defStyleAttr, View.inflate(context, R.layout.view_code_editor__editor, null) as CodeEditorView)
 
     private fun initialize(attrs: AttributeSet?, defStyleAttr: Int) {
+        orientation = LinearLayout.HORIZONTAL
         inflateViews(LayoutInflater.from(context))
         readParameters(attrs, defStyleAttr)
         setListeners()
     }
 
     private fun inflateViews(layoutInflater: LayoutInflater) {
-        lineNumberView = View.inflate(context, R.layout.view_code_editor__linenumbers, null) as TextView
-        dividerView = View.inflate(context, R.layout.view_code_editor__divider, null)
-
+        lineNumberZoomLayout = layoutInflater.inflate(R.layout.view_code_editor__linenumbers, this).findViewById(R.id.cev_linenumbers_zoomLayout)
+        lineNumberTextView = lineNumberZoomLayout.findViewById(R.id.cev_linenumbers_textview) as TextView
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            lineNumberView.hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
+            lineNumberTextView.hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
         }
 
-        addView(lineNumberView)
+        dividerView = layoutInflater.inflate(R.layout.view_code_editor__divider, null)
+
         addView(dividerView)
-        addView(codeEditorView)
+        addView(codeEditorZoomLayout)
     }
 
     private fun readParameters(attrs: AttributeSet?, defStyleAttr: Int) {
         val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0)
 
         val lineNumberTextColor = a.getColor(context, R.styleable.CodeEditorView_cev_lineNumbers_textColor, R.attr.cev_lineNumbers_textColor, android.R.attr.textColorPrimary)
-        lineNumberView.setTextColor(lineNumberTextColor)
+        lineNumberTextView.setTextColor(lineNumberTextColor)
 
         val lineNumberBackgroundColor = a.getColor(context, R.styleable.CodeEditorView_cev_lineNumbers_backgroundColor, R.attr.cev_lineNumbers_backgroundColor, android.R.attr.windowBackground)
-        lineNumberView.setBackgroundColor(lineNumberBackgroundColor)
+        lineNumberZoomLayout.setBackgroundColor(lineNumberBackgroundColor)
 
 
         val dividerEnabled = a.getBoolean(R.styleable.CodeEditorView_cev_divider, true)
@@ -96,15 +100,36 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
         dividerView.setBackgroundColor(dividerColor)
 
         val editTextBackgroundColor = a.getColor(context, R.styleable.CodeEditorView_cev_editor_backgroundColor, R.attr.cev_editor_backgroundColor, android.R.attr.windowBackground)
-        codeEditorView.editTextView.setBackgroundColor(editTextBackgroundColor)
+        codeEditorZoomLayout.editTextView.setBackgroundColor(editTextBackgroundColor)
+
+        val codeEditorMaxZoom = a.getFloat(R.styleable.CodeEditorView_cev_editor_maxZoom, 10F)
+        lineNumberZoomLayout.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
+        codeEditorZoomLayout.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
 
         a.recycle()
     }
 
     private fun setListeners() {
+        // add listener to code editor to keep linenumbers position and zoom in sync
+        codeEditorZoomLayout.engine.addListener(object : ZoomEngine.Listener {
+            override fun onIdle(engine: ZoomEngine) {
+            }
+
+            override fun onUpdate(engine: ZoomEngine, matrix: Matrix) {
+                lineNumberZoomLayout.layoutParams = lineNumberZoomLayout.layoutParams.apply {
+                    // TODO: the base line number width depends on how wide the longest line number text is,
+                    // so this should not be a hardcoded value but rather computed based on currentLineCount
+                    val defaultWidth = resources.getDimensionPixelSize(R.dimen.cev_linenumber_width)
+                    width = (defaultWidth * engine.realZoom).toInt()
+                }
+
+                lineNumberZoomLayout.moveTo(engine.zoom, -engine.computeHorizontalScrollRange().toFloat(), engine.panY, false)
+            }
+        })
+
         addOnLayoutChangeListener { v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
             // TODO: only update when CodeEditor finishes layout phase
-            updateLineNumbers(codeEditorView.editTextView.lineCount)
+            updateLineNumbers(codeEditorZoomLayout.editTextView.lineCount)
         }
 
         setOnTouchListener { view, motionEvent ->
@@ -116,35 +141,37 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
             false
         }
 
-        codeEditorView.editTextView.setOnClickListener {
+        codeEditorZoomLayout.editTextView.setOnClickListener {
             moveWithCursorEnabled = true
         }
 
-        Observable.interval(250, TimeUnit.MILLISECONDS)
-                .filter { moveWithCursorEnabled }
-                .bindToLifecycle(this)
-                .subscribeBy(onNext = {
-                    try {
-                        moveScreenWithCursorIfNecessary()
-                    } catch (e: Throwable) {
-                        Log.e(CodeEditorView.TAG, "Error moving screen with cursor", e)
-                    }
-                }, onError = {
-                    Log.e(CodeEditorView.TAG, "Unrecoverable error while moving screen with cursor", it)
-                })
+        if (mMoveWithCursorEnabled) {
+            Observable.interval(250, TimeUnit.MILLISECONDS)
+                    .filter { moveWithCursorEnabled }
+                    .bindToLifecycle(this)
+                    .subscribeBy(onNext = {
+                        try {
+                            moveScreenWithCursorIfNecessary()
+                        } catch (e: Throwable) {
+                            Log.e(CodeEditorView.TAG, "Error moving screen with cursor", e)
+                        }
+                    }, onError = {
+                        Log.e(CodeEditorView.TAG, "Unrecoverable error while moving screen with cursor", it)
+                    })
+        }
 
-        RxTextView.textChanges(codeEditorView.editTextView)
+        RxTextView.textChanges(codeEditorZoomLayout.editTextView)
                 .debounce(50, TimeUnit.MILLISECONDS)
                 .filter {
                     moveWithCursorEnabled = true
-                    codeEditorView.editTextView.lineCount != currentLineCount
+                    codeEditorZoomLayout.editTextView.lineCount != currentLineCount
                 }
                 .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .bindToLifecycle(this)
                 .subscribeBy(onNext = {
                     try {
-                        updateLineNumbers(codeEditorView.editTextView.lineCount)
+                        updateLineNumbers(codeEditorZoomLayout.editTextView.lineCount)
                     } catch (e: Throwable) {
                         Log.e(CodeEditorView.TAG, "Error updating line numbers", e)
                     }
@@ -157,15 +184,15 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
      * @param editable true = user can type, false otherwise
      */
     fun setEditable(editable: Boolean) {
-        codeEditorView.setEditable(editable)
+        codeEditorZoomLayout.setEditable(editable)
     }
 
     /**
      * Set the text in the editor
      */
     fun setText(text: CharSequence) {
-        codeEditorView.setText(text)
-        updateLineNumbers(codeEditorView.editTextView.lineCount)
+        codeEditorZoomLayout.setText(text)
+        updateLineNumbers(codeEditorZoomLayout.editTextView.lineCount)
     }
 
     /**
@@ -173,7 +200,7 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
      */
     @Suppress("unused")
     fun setText(@StringRes text: Int) {
-        codeEditorView.setText(text)
+        codeEditorZoomLayout.setText(text)
     }
 
     /**
@@ -181,25 +208,25 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
      */
     @Suppress("unused")
     fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter) {
-        codeEditorView.setSyntaxHighlighter(syntaxHighlighter)
+        codeEditorZoomLayout.setSyntaxHighlighter(syntaxHighlighter)
     }
 
     private fun updateLineNumbers(lines: Int) {
         currentLineCount = lines
 
-        val linesToDraw = if (lines < CodeEditorView.MIN_LINES) CodeEditorView.MIN_LINES else lines
+        val linesToDraw = Math.max(MIN_LINES, lines)
 
         val sb = StringBuilder()
         for (i in 1..linesToDraw) {
             sb.append("$i:\n")
         }
 
-        lineNumberView.text = sb.toString()
+        lineNumberTextView.text = sb.toString()
     }
 
     private fun moveScreenWithCursorIfNecessary() {
-        val pos = codeEditorView.editTextView.selectionStart
-        val layout = codeEditorView.editTextView.layout
+        val pos = codeEditorZoomLayout.editTextView.selectionStart
+        val layout = codeEditorZoomLayout.editTextView.layout
 
         if (layout != null) {
             val line = layout.getLineForOffset(pos)
@@ -211,7 +238,7 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
             val zoomLayoutRect = Rect()
             getLocalVisibleRect(zoomLayoutRect)
 
-            val transformedX = x * realZoom + panX * realZoom + lineNumberView.width * realZoom
+            val transformedX = x * realZoom + panX * realZoom + lineNumberTextView.width * realZoom
             val transformedY = y * realZoom + panY * realZoom
 
             if (!zoomLayoutRect.contains(transformedX.roundToInt(), transformedY.roundToInt())) {
@@ -230,6 +257,10 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
                 moveTo(zoom, newX, newY, false)
             }
         }
+    }
+
+    companion object {
+        const val MIN_LINES = 1
     }
 
 }

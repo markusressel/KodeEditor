@@ -15,13 +15,6 @@
         app:cev_divider="false"
         app:cev_divider_color="?android:attr/textColorPrimary"
         app:cev_editor_backgroundColor="?android:attr/windowBackground"
-        app:hasClickableChildren="true"
-        app:maxZoom="10.0"
-        app:maxZoomType="realZoom"
-        app:minZoom="1"
-        app:minZoomType="zoom"
-        app:overPinchable="true"
-        app:overScrollHorizontal="false"
-        app:overScrollVertical="false" />
+        app:cev_editor_maxZoom="10.0" />
 
 </LinearLayout>
