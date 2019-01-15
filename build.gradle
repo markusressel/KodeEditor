@@ -6,7 +6,7 @@ buildscript {
     ext {
         group = 'com.github.markusressel'
 
-        gradle_plugin_version = '3.2.1'
+        gradle_plugin_version = '3.3.0'
 
         minSdkVersion = 16
         versionName = "0.5.0"
