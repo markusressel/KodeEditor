@@ -1,22 +1,17 @@
 package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
-import android.content.res.TypedArray
 import android.graphics.drawable.Drawable
-import android.support.annotation.AttrRes
-import android.support.annotation.ColorInt
 import android.support.annotation.StringRes
-import android.support.annotation.StyleableRes
-import android.support.v4.content.ContextCompat
 import android.support.v4.view.ViewCompat
 import android.util.AttributeSet
-import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.otaliastudios.zoom.ZoomLayout
 import de.markusressel.kodeeditor.library.R
+import de.markusressel.kodeeditor.library.extensions.getColor
 import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxHighlighter
 
 /**
@@ -38,11 +33,6 @@ open class CodeEditorView : ZoomLayout {
      * Set to true to force the width of the CodeEditorView to it's parents width
      */
     private var forceParentWidth = false
-
-    var mMoveWithCursorEnabled = false
-    private var internalMoveWithCursorEnabled = false
-
-    private var currentLineCount = -1
 
     constructor(context: Context) : super(context) {
         initialize(null, 0)
@@ -68,81 +58,33 @@ open class CodeEditorView : ZoomLayout {
     }
 
     private fun View.setViewBackgroundWithoutResettingPadding(background: Drawable?) {
-        val paddingBottom = this
-                .paddingBottom
-        val paddingStart = ViewCompat
-                .getPaddingStart(this)
-        val paddingEnd = ViewCompat
-                .getPaddingEnd(this)
-        val paddingTop = this
-                .paddingTop
-        ViewCompat
-                .setBackground(this, background)
-        ViewCompat
-                .setPaddingRelative(this, paddingStart, paddingTop, paddingEnd, paddingBottom)
+        val paddingBottom = this.paddingBottom
+        val paddingStart = ViewCompat.getPaddingStart(this)
+        val paddingEnd = ViewCompat.getPaddingEnd(this)
+        val paddingTop = this.paddingTop
+        ViewCompat.setBackground(this, background)
+        ViewCompat.setPaddingRelative(this, paddingStart, paddingTop, paddingEnd, paddingBottom)
     }
 
 
     private fun readParameters(attrs: AttributeSet?, defStyleAttr: Int) {
-        val a = context
-                .obtainStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0)
+        val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0)
 
-        val editTextBackgroundColor = a
-                .getColor(R.styleable.CodeEditorView_cev_editor_backgroundColor, R.attr.cev_editor_backgroundColor, android.R.attr.windowBackground)
-        editTextView
-                .setBackgroundColor(editTextBackgroundColor)
+        val editTextBackgroundColor = a.getColor(context, R.styleable.CodeEditorView_cev_editor_backgroundColor, R.attr.cev_editor_backgroundColor, android.R.attr.windowBackground)
+        editTextView.setBackgroundColor(editTextBackgroundColor)
 
-        a
-                .recycle()
+        a.recycle()
     }
 
     private fun inflateViews(inflater: LayoutInflater) {
         contentLayout = inflater.inflate(R.layout.view_code_editor__inner_layout, null) as LinearLayout
 
         editTextView = contentLayout.findViewById(R.id.codeEditText) as CodeEditText
-        editTextView
-                .setViewBackgroundWithoutResettingPadding(null)
-        editTextView
-                .post {
-                    editTextView
-                            .setSelection(0)
-                }
-    }
-
-    /**
-     * Get Color from Theme attribute
-     *
-     * @param context Activity context
-     * @param attr    Attribute ressource ID
-     *
-     * @return Color as Int
-     */
-    @ColorInt
-    private fun getThemeAttrColor(context: Context, @AttrRes attr: Int): Int? {
-        val typedValue = TypedValue()
-        if (context.theme.resolveAttribute(attr, typedValue, true)) {
-            if (typedValue.type >= TypedValue.TYPE_FIRST_INT && typedValue.type <= TypedValue.TYPE_LAST_INT) {
-                return typedValue
-                        .data
-            } else if (typedValue.type == TypedValue.TYPE_STRING) {
-                return ContextCompat
-                        .getColor(context, typedValue.resourceId)
-            }
+        editTextView.setViewBackgroundWithoutResettingPadding(null)
+        editTextView.post {
+            editTextView.setSelection(0)
         }
-
-        return null
     }
-
-    /**
-     * Get a color from this TypedArray or use the first default that is found
-     */
-    @ColorInt
-    private fun TypedArray.getColor(@StyleableRes styleableRes: Int, @AttrRes vararg attr: Int): Int {
-        return this
-                .getColor(styleableRes, attr.find { getThemeAttrColor(context, it) != null }
-                        ?: getThemeAttrColor(context, attr.last())!!)
-    }
-
 
     private var firstInit = true
 
@@ -165,33 +107,26 @@ open class CodeEditorView : ZoomLayout {
     private fun setMinimumDimensions() {
         val parentView = (parent as View)
 
-        val parentWidth = parentView
-                .width
-        val parentHeight = parentView
-                .height
+        val parentWidth = parentView.width
+        val parentHeight = parentView.height
 
-        contentLayout
-                .minimumHeight = parentHeight
-        contentLayout
-                .minimumWidth = parentWidth
+        contentLayout.minimumHeight = parentHeight
+        contentLayout.minimumWidth = parentWidth
     }
 
     /**
      * @param editable true = user can type, false otherwise
      */
     fun setEditable(editable: Boolean) {
-        editTextView
-                .isEnabled = editable
+        editTextView.isEnabled = editable
     }
 
     /**
      * Set the text in the editor
      */
     fun setText(text: CharSequence) {
-        editTextView
-                .setText(text, TextView.BufferType.EDITABLE)
-        editTextView
-                .refreshSyntaxHighlighting()
+        editTextView.setText(text, TextView.BufferType.EDITABLE)
+        editTextView.refreshSyntaxHighlighting()
     }
 
     /**

@@ -34,18 +34,18 @@ class CodeEditText : AppCompatEditText {
     private var highlightingDisposable: Disposable? = null
 
     constructor(context: Context) : super(context) {
-        reinit()
+        reInit()
     }
 
     constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
-        reinit()
+        reInit()
     }
 
     constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
-        reinit()
+        reInit()
     }
 
-    private fun reinit() {
+    private fun reInit() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
         }
@@ -53,9 +53,9 @@ class CodeEditText : AppCompatEditText {
         initSyntaxHighlighter()
     }
 
+
     private fun initSyntaxHighlighter() {
-        highlightingDisposable
-                ?.dispose()
+        highlightingDisposable?.dispose()
 
         if (syntaxHighlighter != null) {
             highlightingDisposable = RxTextView
@@ -68,8 +68,7 @@ class CodeEditText : AppCompatEditText {
                         // syntax highlighting
                         refreshSyntaxHighlighting()
                     }, onError = {
-                        Log
-                                .e(TAG, "Error while refreshing syntax highlighting", it)
+                        Log.e(TAG, "Error while refreshing syntax highlighting", it)
                     })
         }
     }
@@ -83,7 +82,7 @@ class CodeEditText : AppCompatEditText {
     @Suppress("unused")
     fun setHighlightingTimeout(timeout: Long, timeUnit: TimeUnit) {
         highlightingTimeout = timeout to timeUnit
-        reinit()
+        reInit()
     }
 
     /**
@@ -91,20 +90,16 @@ class CodeEditText : AppCompatEditText {
      */
     @Suppress("unused")
     fun getHighlightingTimeout(): Long {
-        return highlightingTimeout
-                .second
-                .toMillis(highlightingTimeout.first)
+        return highlightingTimeout.second.toMillis(highlightingTimeout.first)
     }
 
     @Synchronized
     fun refreshSyntaxHighlighting() {
         if (syntaxHighlighter == null) {
-            Log
-                    .w(TAG, "No syntax highlighter is set!")
+            Log.w(TAG, "No syntax highlighter is set!")
         }
 
-        syntaxHighlighter
-                ?.apply { highlight(text!!) }
+        syntaxHighlighter?.apply { highlight(text!!) }
     }
 
     companion object {
