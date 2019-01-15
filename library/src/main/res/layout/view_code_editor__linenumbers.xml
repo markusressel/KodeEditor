@@ -4,7 +4,7 @@
     android:id="@+id/cev_linenumbers_zoomLayout"
     android:layout_width="@dimen/cev_linenumber_width"
     android:layout_height="match_parent"
-
+    android:scrollbars="none"
     app:horizontalPanEnabled="false"
     app:verticalPanEnabled="false"
     app:zoomEnabled="false">
