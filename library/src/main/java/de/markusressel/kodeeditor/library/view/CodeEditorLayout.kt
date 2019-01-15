@@ -75,9 +75,8 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
             lineNumberTextView.hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
         }
 
-        dividerView = layoutInflater.inflate(R.layout.view_code_editor__divider, null)
+        dividerView = layoutInflater.inflate(R.layout.view_code_editor__divider, this).findViewById(R.id.cev_divider)
 
-        addView(dividerView)
         addView(codeEditorZoomLayout)
     }
 

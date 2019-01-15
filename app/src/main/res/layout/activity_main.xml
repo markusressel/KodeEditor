@@ -12,7 +12,7 @@
         android:layout_height="match_parent"
         android:fadeScrollbars="true"
         android:scrollbars="vertical|horizontal"
-        app:cev_divider="false"
+        app:cev_divider="true"
         app:cev_divider_color="?android:attr/textColorPrimary"
         app:cev_editor_backgroundColor="?android:attr/windowBackground"
         app:cev_editor_maxZoom="10.0" />
