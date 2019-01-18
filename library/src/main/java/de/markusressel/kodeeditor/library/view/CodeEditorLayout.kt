@@ -136,7 +136,10 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
             override fun onUpdate(engine: ZoomEngine, matrix: Matrix) {
                 lineNumberZoomLayout.layoutParams = lineNumberZoomLayout.layoutParams.apply {
                     val defaultWidth = "$currentLineCount$LINE_NUMBER_SUFFIX".length * textSizePx
-                    width = (defaultWidth * engine.realZoom).toInt()
+                    val scaledWidth = defaultWidth * engine.realZoom
+                    val maxWidth = Rect().apply { codeEditorZoomLayout.getLocalVisibleRect(this) }.width() / 3F
+                    val targetWidth = Math.min(scaledWidth, maxWidth)
+                    width = targetWidth.toInt()
                 }
 
                 lineNumberZoomLayout.moveTo(engine.zoom, -engine.computeHorizontalScrollRange().toFloat(), engine.panY, false)
