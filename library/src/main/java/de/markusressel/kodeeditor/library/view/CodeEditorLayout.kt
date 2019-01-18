@@ -2,12 +2,14 @@ package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
 import android.graphics.Matrix
+import android.graphics.PointF
 import android.graphics.Rect
 import android.os.Build
 import android.support.annotation.StringRes
 import android.text.Layout
 import android.util.AttributeSet
 import android.util.Log
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -36,6 +38,23 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
     : LinearLayout(context, attrs, defStyleAttr), ZoomApi by codeEditorZoomLayout {
 
     /**
+     * Text size in SP
+     */
+    private var textSizeSp: Float = DEFAULT_TEXT_SIZE_SP
+
+    /**
+     * Text size in PX
+     */
+    private var textSizePx: Float
+        get() {
+            return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, textSizeSp, context.resources.displayMetrics)
+        }
+        set(value) {
+            textSizeSp = value / resources.displayMetrics.scaledDensity
+        }
+
+
+    /**
      * The view displaying line numbers
      */
     internal lateinit var lineNumberZoomLayout: ZoomLayout
@@ -49,8 +68,6 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
     private var currentLineCount = -1
 
     var mMoveWithCursorEnabled = false
-    private var moveWithCursorEnabled = false
-
     private var internalMoveWithCursorEnabled = false
 
     init {
@@ -66,6 +83,8 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
         inflateViews(LayoutInflater.from(context))
         readParameters(attrs, defStyleAttr)
         setListeners()
+
+        syncLineNumbersWithEditor()
     }
 
     private fun inflateViews(layoutInflater: LayoutInflater) {
@@ -116,9 +135,7 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
 
             override fun onUpdate(engine: ZoomEngine, matrix: Matrix) {
                 lineNumberZoomLayout.layoutParams = lineNumberZoomLayout.layoutParams.apply {
-                    // TODO: the base line number width depends on how wide the longest line number text is,
-                    // so this should not be a hardcoded value but rather computed based on currentLineCount
-                    val defaultWidth = resources.getDimensionPixelSize(R.dimen.cev_linenumber_width)
+                    val defaultWidth = "$currentLineCount$LINE_NUMBER_SUFFIX".length * textSizePx
                     width = (defaultWidth * engine.realZoom).toInt()
                 }
 
@@ -126,27 +143,22 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
             }
         })
 
-        addOnLayoutChangeListener { v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
-            // TODO: only update when CodeEditor finishes layout phase
-            updateLineNumbers(codeEditorZoomLayout.editTextView.lineCount)
-        }
-
         setOnTouchListener { view, motionEvent ->
             when (motionEvent.action) {
                 MotionEvent.ACTION_MOVE -> {
-                    moveWithCursorEnabled = false
+                    internalMoveWithCursorEnabled = false
                 }
             }
             false
         }
 
         codeEditorZoomLayout.editTextView.setOnClickListener {
-            moveWithCursorEnabled = true
+            internalMoveWithCursorEnabled = true
         }
 
         if (mMoveWithCursorEnabled) {
             Observable.interval(250, TimeUnit.MILLISECONDS)
-                    .filter { moveWithCursorEnabled }
+                    .filter { internalMoveWithCursorEnabled }
                     .bindToLifecycle(this)
                     .subscribeBy(onNext = {
                         try {
@@ -162,7 +174,6 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
         RxTextView.textChanges(codeEditorZoomLayout.editTextView)
                 .debounce(50, TimeUnit.MILLISECONDS)
                 .filter {
-                    moveWithCursorEnabled = true
                     codeEditorZoomLayout.editTextView.lineCount != currentLineCount
                 }
                 .subscribeOn(Schedulers.computation())
@@ -170,13 +181,21 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
                 .bindToLifecycle(this)
                 .subscribeBy(onNext = {
                     try {
-                        updateLineNumbers(codeEditorZoomLayout.editTextView.lineCount)
+                        syncLineNumbersWithEditor()
                     } catch (e: Throwable) {
                         Log.e(CodeEditorView.TAG, "Error updating line numbers", e)
                     }
                 }, onError = {
                     Log.e(CodeEditorView.TAG, "Unrecoverable error while updating line numbers", it)
                 })
+    }
+
+    private fun syncLineNumbersWithEditor() {
+        codeEditorZoomLayout.post {
+            // linenumbers always have to be the exact same size as the content
+            lineNumberTextView.height = codeEditorZoomLayout.engine.computeVerticalScrollRange()
+            updateLineNumbers(codeEditorZoomLayout.editTextView.lineCount)
+        }
     }
 
     /**
@@ -212,54 +231,56 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
 
     private fun updateLineNumbers(lines: Int) {
         currentLineCount = lines
-
         val linesToDraw = Math.max(MIN_LINES, lines)
+        lineNumberTextView.text = createLineNumberText(linesToDraw)
+    }
 
-        val sb = StringBuilder()
-        for (i in 1..linesToDraw) {
-            sb.append("$i:\n")
-        }
-
-        lineNumberTextView.text = sb.toString()
+    private fun createLineNumberText(lines: Int): String {
+        return (1..lines).joinToString(separator = "$LINE_NUMBER_SUFFIX\n",
+                postfix = LINE_NUMBER_SUFFIX)
     }
 
     private fun moveScreenWithCursorIfNecessary() {
+        val position = calculateCursorPosition()
+        val visibleRect = calculateVisibleCodeArea()
+
+        if (!visibleRect.contains(position.x.roundToInt(), position.y.roundToInt())) {
+            val newX = when {
+                position.x < visibleRect.left || position.x > visibleRect.right -> -x
+                else -> panX
+            }
+
+            val newY = when {
+                position.y < visibleRect.top || position.y > visibleRect.bottom -> -y
+                else -> panY
+            }
+
+            moveTo(zoom, newX, newY, true)
+        }
+    }
+
+    private fun calculateVisibleCodeArea(): Rect {
+        return Rect().apply { codeEditorZoomLayout.getLocalVisibleRect(this) }
+    }
+
+    private fun calculateCursorPosition(): PointF {
         val pos = codeEditorZoomLayout.editTextView.selectionStart
         val layout = codeEditorZoomLayout.editTextView.layout
 
-        if (layout != null) {
-            val line = layout.getLineForOffset(pos)
-            val baseline = layout.getLineBaseline(line)
-            val ascent = layout.getLineAscent(line)
-            val x = layout.getPrimaryHorizontal(pos)
-            val y = (baseline + ascent).toFloat()
+        val line = layout.getLineForOffset(pos)
+        val baseline = layout.getLineBaseline(line)
+        val ascent = layout.getLineAscent(line)
+        val x = layout.getPrimaryHorizontal(pos)
+        val y = (baseline + ascent).toFloat()
 
-            val zoomLayoutRect = Rect()
-            getLocalVisibleRect(zoomLayoutRect)
-
-            val transformedX = x * realZoom + panX * realZoom + lineNumberTextView.width * realZoom
-            val transformedY = y * realZoom + panY * realZoom
-
-            if (!zoomLayoutRect.contains(transformedX.roundToInt(), transformedY.roundToInt())) {
-
-                var newX = panX
-                var newY = panY
-
-                if (transformedX < zoomLayoutRect.left || transformedX > zoomLayoutRect.right) {
-                    newX = -x
-                }
-
-                if (transformedY < zoomLayoutRect.top || transformedY > zoomLayoutRect.bottom) {
-                    newY = -y
-                }
-
-                moveTo(zoom, newX, newY, false)
-            }
-        }
+        return PointF(x * realZoom + panX * realZoom + lineNumberTextView.width * realZoom,
+                y * realZoom + panY * realZoom)
     }
 
     companion object {
         const val MIN_LINES = 1
+        const val DEFAULT_TEXT_SIZE_SP = 12F
+        const val LINE_NUMBER_SUFFIX = ":"
     }
 
 }

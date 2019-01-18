@@ -5,6 +5,8 @@
     android:layout_width="@dimen/cev_linenumber_width"
     android:layout_height="match_parent"
     android:scrollbars="none"
+    app:alignment="top|right"
+    app:transformation="none"
     app:horizontalPanEnabled="false"
     app:verticalPanEnabled="false"
     app:zoomEnabled="false">
