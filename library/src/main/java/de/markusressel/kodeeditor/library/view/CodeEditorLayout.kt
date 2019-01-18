@@ -197,7 +197,7 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
         codeEditorZoomLayout.post {
             // linenumbers always have to be the exact same size as the content
             lineNumberTextView.height = codeEditorZoomLayout.engine.computeVerticalScrollRange()
-            updateLineNumbers(codeEditorZoomLayout.editTextView.lineCount)
+            updateLineNumberText(codeEditorZoomLayout.editTextView.lineCount)
         }
     }
 
@@ -213,7 +213,7 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
      */
     fun setText(text: CharSequence) {
         codeEditorZoomLayout.setText(text)
-        updateLineNumbers(codeEditorZoomLayout.editTextView.lineCount)
+        updateLineNumberText(codeEditorZoomLayout.editTextView.lineCount)
     }
 
     /**
@@ -232,7 +232,7 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
         codeEditorZoomLayout.setSyntaxHighlighter(syntaxHighlighter)
     }
 
-    private fun updateLineNumbers(lines: Int) {
+    private fun updateLineNumberText(lines: Int) {
         currentLineCount = lines
         val linesToDraw = Math.max(MIN_LINES, lines)
         lineNumberTextView.text = createLineNumberText(linesToDraw)

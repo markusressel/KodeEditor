@@ -11,6 +11,7 @@
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:gravity="top|start"
+        android:imeOptions="flagNoExtractUi"
         android:inputType="textMultiLine|textNoSuggestions"
         android:maxLength="99999999"
         android:maxLines="99999999"
