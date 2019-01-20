@@ -6,7 +6,6 @@ import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.LinearLayout
-import android.widget.TextView
 import com.otaliastudios.zoom.ZoomLayout
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.getColor
@@ -93,6 +92,8 @@ open class CodeEditorView
     }
 
     /**
+     * Controls whether the text is editable
+     *
      * @param editable true = user can type, false otherwise
      */
     fun setEditable(editable: Boolean) {
@@ -101,14 +102,17 @@ open class CodeEditorView
 
     /**
      * Set the text in the editor
+     *
+     * @param text the new text to set
      */
     fun setText(text: CharSequence) {
-        editTextView.setText(text, TextView.BufferType.EDITABLE)
-        editTextView.refreshSyntaxHighlighting()
+        editTextView.setText(text)
     }
 
     /**
      * Set the text in the editor
+     *
+     * @param text string resource of the new text to set
      */
     @Suppress("unused")
     fun setText(@StringRes text: Int) {
@@ -116,9 +120,10 @@ open class CodeEditorView
     }
 
     /**
-     * Set the syntax highlighter to use for this CodeEditor
+     * Set the syntax highlighter to use
+     *
+     * @param syntaxHighlighter the highlighter to set
      */
-    @Suppress("unused")
     fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter) {
         editTextView.syntaxHighlighter = syntaxHighlighter
     }

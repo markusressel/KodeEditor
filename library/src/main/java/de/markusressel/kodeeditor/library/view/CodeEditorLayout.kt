@@ -34,8 +34,16 @@ import kotlin.math.roundToInt
  * Code Editor that allows pinch-to-zoom, line numbers etc.
  */
 open class CodeEditorLayout
-private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, private val codeEditorZoomLayout: CodeEditorView)
-    : LinearLayout(context, attrs, defStyleAttr), ZoomApi by codeEditorZoomLayout {
+private constructor(
+        context: Context,
+        attrs: AttributeSet?,
+        defStyleAttr: Int,
+        /**
+         * The ZoomLayout containing the [CodeEditText].
+         */
+        internal val codeEditorZoomLayout: CodeEditorView)
+    : LinearLayout(context, attrs, defStyleAttr),
+        ZoomApi by codeEditorZoomLayout {
 
     /**
      * Text size in SP
@@ -53,32 +61,36 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
             textSizeSp = value / resources.displayMetrics.scaledDensity
         }
 
-
     /**
-     * The view displaying line numbers
+     * The view displaying line numbers.
+     * This is also a [ZoomLayout] so the line numbers can be scaled and panned according to the
+     * code editor's zoom and pan.
      */
     internal lateinit var lineNumberZoomLayout: ZoomLayout
+
+    /**
+     * The [TextView] with the actual line numbers as a multiline text.
+     */
     internal lateinit var lineNumberTextView: TextView
 
     /**
-     * The divider between line numbers and text editor
+     * The (optional) divider between [lineNumberZoomLayout] and [codeEditorZoomLayout]
      */
     internal lateinit var dividerView: View
 
     private var currentLineCount = -1
 
-    var mMoveWithCursorEnabled = false
+    /**
+     * Controls whether to follow cursor movements or not.
+     */
+    var isMoveWithCursorEnabled = false
     private var internalMoveWithCursorEnabled = false
-
-    init {
-        initialize(attrs, defStyleAttr)
-    }
 
     @JvmOverloads
     constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) :
             this(context, attrs, defStyleAttr, View.inflate(context, R.layout.view_code_editor__editor, null) as CodeEditorView)
 
-    private fun initialize(attrs: AttributeSet?, defStyleAttr: Int) {
+    init {
         orientation = LinearLayout.HORIZONTAL
         inflateViews(LayoutInflater.from(context))
         readParameters(attrs, defStyleAttr)
@@ -159,7 +171,7 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
             internalMoveWithCursorEnabled = true
         }
 
-        if (mMoveWithCursorEnabled) {
+        if (isMoveWithCursorEnabled) {
             Observable.interval(250, TimeUnit.MILLISECONDS)
                     .filter { internalMoveWithCursorEnabled }
                     .bindToLifecycle(this)
@@ -210,6 +222,8 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
 
     /**
      * Set the text in the editor
+     *
+     * @param text the new text
      */
     fun setText(text: CharSequence) {
         codeEditorZoomLayout.setText(text)
@@ -218,14 +232,17 @@ private constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, p
 
     /**
      * Set the text in the editor
+     *
+     * @param text string resource of the new text
      */
-    @Suppress("unused")
     fun setText(@StringRes text: Int) {
-        codeEditorZoomLayout.setText(text)
+        setText(context.getString(text))
     }
 
     /**
      * Set the syntax highlighter to use for this CodeEditor
+     *
+     * @param syntaxHighlighter
      */
     @Suppress("unused")
     fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter) {

@@ -18,30 +18,34 @@ import java.util.concurrent.TimeUnit
 /**
  * EditText modified for longer texts and support for syntax highlighting
  */
-class CodeEditText : AppCompatEditText {
+class CodeEditText
+@JvmOverloads
+constructor(context: Context,
+            attrs: AttributeSet? = null,
+            defStyleAttr: Int = 0)
+    : AppCompatEditText(context, attrs, defStyleAttr) {
 
     /**
-     * The syntax highlighter that currently in use
+     * The current syntax highlighter
      */
     var syntaxHighlighter: SyntaxHighlighter? = null
         set(value) {
+            // clear any old style
+            text?.let {
+                field?.clearAppliedStyles(it)
+            }
+
+            // set new highlighter
             field = value
+
+            // and initialize it
             initSyntaxHighlighter()
         }
-
 
     private var highlightingTimeout = 50L to TimeUnit.MILLISECONDS
     private var highlightingDisposable: Disposable? = null
 
-    constructor(context: Context) : super(context) {
-        reInit()
-    }
-
-    constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
-        reInit()
-    }
-
-    constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
+    init {
         reInit()
     }
 
@@ -53,11 +57,12 @@ class CodeEditText : AppCompatEditText {
         initSyntaxHighlighter()
     }
 
-
     private fun initSyntaxHighlighter() {
         highlightingDisposable?.dispose()
 
         if (syntaxHighlighter != null) {
+            refreshSyntaxHighlighting()
+
             highlightingDisposable = RxTextView
                     .afterTextChangeEvents(this)
                     .debounce(highlightingTimeout.first, highlightingTimeout.second)
@@ -73,11 +78,16 @@ class CodeEditText : AppCompatEditText {
         }
     }
 
+    override fun setText(text: CharSequence?, type: BufferType?) {
+        super.setText(text, type)
+        refreshSyntaxHighlighting()
+    }
+
     /**
-     * Set the timeout before new text is highlighted after the user has stopped typing
+     * Set the timeout before new text is highlighted after the user has stopped typing.
      *
      * @param timeout arbitrary value
-     * @param timeUnit the timeunit to use
+     * @param timeUnit the time unit to use
      */
     @Suppress("unused")
     fun setHighlightingTimeout(timeout: Long, timeUnit: TimeUnit) {
@@ -86,13 +96,18 @@ class CodeEditText : AppCompatEditText {
     }
 
     /**
-     * Get the current timeout in milliseconds
+     * Get the current syntax highlighter timeout in milliseconds.
+     *
+     * @return timeout in milliseconds
      */
     @Suppress("unused")
     fun getHighlightingTimeout(): Long {
         return highlightingTimeout.second.toMillis(highlightingTimeout.first)
     }
 
+    /**
+     * Force a refresh of the syntax highlighting
+     */
     @Synchronized
     fun refreshSyntaxHighlighting() {
         if (syntaxHighlighter == null) {

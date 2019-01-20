@@ -12,8 +12,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         codeEditorView.setSyntaxHighlighter(MarkdownSyntaxHighlighter())
-        codeEditorView.setText(getString(R.string.demo_text))
+        codeEditorView.setText(R.string.demo_text)
         codeEditorView.zoomTo(codeEditorView.realZoom, false)
+
+        codeEditorView.setEditable(true)
     }
 
 }
