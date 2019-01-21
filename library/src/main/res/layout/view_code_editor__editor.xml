@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<de.markusressel.kodeeditor.library.view.CodeEditorView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:scrollbars="horizontal|vertical"
+    app:alignment="left|top"
+    app:hasClickableChildren="true"
+    app:maxZoom="30.0"
+    app:maxZoomType="realZoom"
+    app:minZoom="1"
+    app:minZoomType="realZoom"
+    app:overPinchable="false"
+    app:overScrollHorizontal="false"
+    app:overScrollVertical="false"
+    app:transformation="none"
+    app:transformationGravity="top|left" />

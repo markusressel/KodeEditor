@@ -6,22 +6,15 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <de.markusressel.kodeeditor.library.view.CodeEditorView
+    <de.markusressel.kodeeditor.library.view.CodeEditorLayout
         android:id="@+id/codeEditorView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fadeScrollbars="true"
         android:scrollbars="vertical|horizontal"
-        app:cev_divider="false"
+        app:cev_divider="true"
         app:cev_divider_color="?android:attr/textColorPrimary"
         app:cev_editor_backgroundColor="?android:attr/windowBackground"
-        app:hasClickableChildren="true"
-        app:maxZoom="10.0"
-        app:maxZoomType="realZoom"
-        app:minZoom="1"
-        app:minZoomType="zoom"
-        app:overPinchable="true"
-        app:overScrollHorizontal="false"
-        app:overScrollVertical="false" />
+        app:cev_editor_maxZoom="10.0" />
 
 </LinearLayout>

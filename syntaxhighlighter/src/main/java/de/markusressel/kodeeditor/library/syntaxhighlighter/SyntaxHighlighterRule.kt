@@ -1,6 +1,6 @@
 package de.markusressel.kodeeditor.library.syntaxhighlighter
 
-import android.text.Editable
+import android.text.Spannable
 
 /**
  * Interface for a single highlighter rule.
@@ -11,8 +11,8 @@ import android.text.Editable
 interface SyntaxHighlighterRule {
 
     /**
-     * Find segments in the editable that are affected by this rule
+     * Find segments in the spannable that are affected by this rule
      */
-    fun findMatches(editable: Editable): Sequence<MatchResult>
+    fun findMatches(spannable: Spannable): Sequence<MatchResult>
 
 }

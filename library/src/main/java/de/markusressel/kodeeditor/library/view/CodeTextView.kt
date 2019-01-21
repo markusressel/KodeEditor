@@ -2,8 +2,10 @@ package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
 import android.os.Build
-import android.support.v7.widget.AppCompatEditText
+import android.support.v7.widget.AppCompatTextView
 import android.text.Layout
+import android.text.Spannable
+import android.text.SpannableString
 import android.util.AttributeSet
 import android.util.Log
 import com.jakewharton.rxbinding2.widget.RxTextView
@@ -16,14 +18,14 @@ import io.reactivex.schedulers.Schedulers
 import java.util.concurrent.TimeUnit
 
 /**
- * EditText modified for longer texts and support for syntax highlighting
+ * TextView modified for longer texts and support for syntax highlighting
  */
-class CodeEditText
+class CodeTextView
 @JvmOverloads
 constructor(context: Context,
             attrs: AttributeSet? = null,
             defStyleAttr: Int = 0)
-    : AppCompatEditText(context, attrs, defStyleAttr) {
+    : AppCompatTextView(context, attrs, defStyleAttr) {
 
     /**
      * The current syntax highlighter
@@ -32,7 +34,7 @@ constructor(context: Context,
         set(value) {
             // clear any old style
             text?.let {
-                field?.clearAppliedStyles(it)
+                field?.clearAppliedStyles(it as Spannable)
             }
 
             // set new highlighter
@@ -55,8 +57,6 @@ constructor(context: Context,
         }
 
         initSyntaxHighlighter()
-        isClickable = true
-        isFocusableInTouchMode = true
     }
 
     private fun initSyntaxHighlighter() {
@@ -81,7 +81,7 @@ constructor(context: Context,
     }
 
     override fun setText(text: CharSequence?, type: BufferType?) {
-        super.setText(text, type)
+        super.setText(SpannableString.valueOf(text), BufferType.SPANNABLE)
         refreshSyntaxHighlighting()
     }
 
@@ -116,11 +116,13 @@ constructor(context: Context,
             Log.w(TAG, "No syntax highlighter is set!")
         }
 
-        syntaxHighlighter?.apply { highlight(text!!) }
+        syntaxHighlighter?.apply {
+            highlight(text as Spannable)
+        }
     }
 
     companion object {
-        const val TAG = "CodeEditText"
+        const val TAG = "CodeTextView"
     }
 
 }

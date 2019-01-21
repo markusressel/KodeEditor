@@ -1,18 +1,16 @@
 package de.markusressel.kodeeditor.library.java.rule
 
-import android.text.Editable
+import android.text.Spannable
 import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxHighlighterRule
 
 class AnnotationRule : SyntaxHighlighterRule {
 
-    override fun findMatches(editable: Editable): Sequence<MatchResult> {
-        return PATTERN
-                .findAll(editable)
+    override fun findMatches(spannable: Spannable): Sequence<MatchResult> {
+        return PATTERN.findAll(spannable)
     }
 
     companion object {
-        val PATTERN = "@\\S+(\\(.*?\\))?"
-                .toRegex()
+        val PATTERN = "@\\S+(\\(.*?\\))?".toRegex()
     }
 
 }
