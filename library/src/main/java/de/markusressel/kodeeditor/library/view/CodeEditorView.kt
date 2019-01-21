@@ -79,20 +79,36 @@ open class CodeEditorView
                 firstInit = false
 
                 setMinimumDimensions()
-                if (forceParentWidth) {
-                    // force exact width
-                    val params = contentLayout.layoutParams
-                    params.width = (parent as View).height
-                    contentLayout.layoutParams = params
-                }
+//                if (forceParentWidth) {
+//                    // force exact width
+//                    val params = contentLayout.layoutParams
+//                    params.width = (parent as View).height
+//                    contentLayout.layoutParams = params
+//
+//                    codeEditText.minWidth = width
+//                    codeTextView.minWidth = width
+//                }
             }
         }
     }
 
+    /**
+     * Applies minimum dimensions for the [CodeEditText] and [CodeTextView] so that they always
+     * fill up the parent.
+     */
     private fun setMinimumDimensions() {
-        val parentView = (parent as View)
-        contentLayout.minimumHeight = parentView.height
-        contentLayout.minimumWidth = parentView.width
+        val containerWidth = width - (paddingLeft + paddingRight)
+        val containerHeight = height - (paddingTop + paddingBottom)
+
+        val codeEditTextLayoutParams = (codeEditText.layoutParams as ViewGroup.MarginLayoutParams)
+        val minimumWidth = containerWidth + (codeEditTextLayoutParams.leftMargin + codeEditTextLayoutParams.rightMargin)
+        val minimumHeight = containerHeight - (codeEditTextLayoutParams.topMargin + codeEditTextLayoutParams.bottomMargin)
+
+        codeEditText.minWidth = minimumWidth
+        codeTextView.minWidth = minimumWidth
+
+        codeEditText.minHeight = minimumHeight
+        codeTextView.minHeight = minimumHeight
     }
 
     /**

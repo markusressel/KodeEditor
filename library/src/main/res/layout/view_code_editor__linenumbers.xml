@@ -20,7 +20,7 @@
         android:layout_marginTop="4dp"
         android:layout_marginBottom="4dp"
         android:gravity="end|top"
-        android:textSize="12sp"
+        android:textSize="@dimen/cev_editor_text_size"
         android:typeface="monospace" />
 
 </com.otaliastudios.zoom.ZoomLayout>

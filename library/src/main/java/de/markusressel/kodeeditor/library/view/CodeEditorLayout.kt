@@ -147,8 +147,7 @@ private constructor(
 
             override fun onUpdate(engine: ZoomEngine, matrix: Matrix) {
                 lineNumberZoomLayout.layoutParams = lineNumberZoomLayout.layoutParams.apply {
-                    val defaultWidth = ("$currentLineCount$LINE_NUMBER_SUFFIX".length - 1) * textSizePx
-                    val scaledWidth = defaultWidth * engine.realZoom
+                    val scaledWidth = lineNumberTextView.width * engine.realZoom
                     val maxWidth = Rect().apply { codeEditorZoomLayout.getLocalVisibleRect(this) }.width() / 3F
                     val targetWidth = Math.min(scaledWidth, maxWidth)
                     width = targetWidth.toInt()

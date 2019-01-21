@@ -9,7 +9,7 @@
         android:id="@+id/cev_editor_codeEditText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="4dp"
+        android:layout_margin="@dimen/cev_editor_text_margin"
         android:editable="true"
         android:focusableInTouchMode="true"
         android:gravity="top|start"
@@ -19,7 +19,7 @@
         android:maxLines="99999999"
         android:scrollbars="none"
         android:scrollHorizontally="false"
-        android:textSize="12sp"
+        android:textSize="@dimen/cev_editor_text_size"
         android:typeface="monospace"
         android:visibility="visible" />
 
@@ -27,10 +27,10 @@
         android:id="@+id/cev_editor_codeTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="4dp"
+        android:layout_margin="@dimen/cev_editor_text_margin"
         android:scrollbars="none"
         android:textIsSelectable="true"
-        android:textSize="12sp"
+        android:textSize="@dimen/cev_editor_text_size"
         android:typeface="monospace"
         android:visibility="gone" />
 
