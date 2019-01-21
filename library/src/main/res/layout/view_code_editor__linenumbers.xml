@@ -9,15 +9,17 @@
     app:hasClickableChildren="false"
     app:horizontalPanEnabled="false"
     app:transformation="none"
+    app:transformationGravity="top|right"
     app:verticalPanEnabled="false"
     app:zoomEnabled="false">
 
-    <TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    <TextView
         android:id="@+id/cev_linenumbers_textview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="4dp"
         android:gravity="end|top"
-        android:paddingTop="10dp"
         android:textSize="12sp"
         android:typeface="monospace" />
 

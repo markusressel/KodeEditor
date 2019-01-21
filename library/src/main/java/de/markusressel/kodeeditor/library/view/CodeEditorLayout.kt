@@ -147,7 +147,7 @@ private constructor(
 
             override fun onUpdate(engine: ZoomEngine, matrix: Matrix) {
                 lineNumberZoomLayout.layoutParams = lineNumberZoomLayout.layoutParams.apply {
-                    val defaultWidth = "$currentLineCount$LINE_NUMBER_SUFFIX".length * textSizePx
+                    val defaultWidth = ("$currentLineCount$LINE_NUMBER_SUFFIX".length - 1) * textSizePx
                     val scaledWidth = defaultWidth * engine.realZoom
                     val maxWidth = Rect().apply { codeEditorZoomLayout.getLocalVisibleRect(this) }.width() / 3F
                     val targetWidth = Math.min(scaledWidth, maxWidth)
@@ -209,7 +209,9 @@ private constructor(
         codeEditorZoomLayout.post {
             // linenumbers always have to be the exact same size as the content
             lineNumberTextView.height = codeEditorZoomLayout.engine.computeVerticalScrollRange()
-            updateLineNumberText(codeEditorZoomLayout.codeEditText.lineCount)
+
+            val lineCount = codeEditorZoomLayout.codeEditText.text?.count { it == '\n' } ?: 0
+            updateLineNumberText(lineCount)
         }
     }
 

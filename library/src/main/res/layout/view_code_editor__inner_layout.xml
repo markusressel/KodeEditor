@@ -3,14 +3,13 @@
     android:id="@+id/cev_editor_contentLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:layout_marginLeft="4dp"
-    android:layout_marginRight="4dp"
     android:orientation="vertical">
 
     <de.markusressel.kodeeditor.library.view.CodeEditText
         android:id="@+id/cev_editor_codeEditText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_margin="4dp"
         android:editable="true"
         android:focusableInTouchMode="true"
         android:gravity="top|start"
@@ -28,6 +27,7 @@
         android:id="@+id/cev_editor_codeTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_margin="4dp"
         android:scrollbars="none"
         android:textIsSelectable="true"
         android:textSize="12sp"
