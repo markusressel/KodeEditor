@@ -78,7 +78,7 @@ private constructor(
      */
     internal lateinit var dividerView: View
 
-    private var currentLineCount = -1
+    private var currentLineCount = -1L
 
     /**
      * Controls whether to follow cursor movements or not.
@@ -188,9 +188,6 @@ private constructor(
 
         RxTextView.textChanges(codeEditorZoomLayout.codeEditText)
                 .debounce(50, TimeUnit.MILLISECONDS)
-                .filter {
-                    codeEditorZoomLayout.codeEditText.lineCount != currentLineCount
-                }
                 .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .bindToLifecycle(this)
@@ -210,8 +207,10 @@ private constructor(
             // linenumbers always have to be the exact same size as the content
             lineNumberTextView.height = codeEditorZoomLayout.engine.computeVerticalScrollRange()
 
-            val lineCount = codeEditorZoomLayout.codeEditText.text?.count { it == '\n' } ?: 0
-            updateLineNumberText(lineCount)
+            val lineCount = codeEditorZoomLayout.getLineCount()
+            if (lineCount != currentLineCount) {
+                updateLineNumberText(lineCount)
+            }
         }
     }
 
@@ -229,7 +228,7 @@ private constructor(
      */
     fun setText(text: CharSequence) {
         codeEditorZoomLayout.setText(text)
-        updateLineNumberText(codeEditorZoomLayout.codeEditText.lineCount)
+        updateLineNumberText(codeEditorZoomLayout.getLineCount())
     }
 
     /**
@@ -251,13 +250,13 @@ private constructor(
         codeEditorZoomLayout.setSyntaxHighlighter(syntaxHighlighter)
     }
 
-    private fun updateLineNumberText(lines: Int) {
+    private fun updateLineNumberText(lines: Long) {
         currentLineCount = lines
         val linesToDraw = Math.max(MIN_LINES, lines)
         lineNumberTextView.text = createLineNumberText(linesToDraw)
     }
 
-    private fun createLineNumberText(lines: Int): String {
+    private fun createLineNumberText(lines: Long): String {
         return (1..lines).joinToString(separator = "$LINE_NUMBER_SUFFIX\n",
                 postfix = LINE_NUMBER_SUFFIX)
     }
@@ -300,7 +299,7 @@ private constructor(
     }
 
     companion object {
-        const val MIN_LINES = 1
+        const val MIN_LINES = 1L
         const val DEFAULT_TEXT_SIZE_SP = 12F
         const val LINE_NUMBER_SUFFIX = ":"
     }

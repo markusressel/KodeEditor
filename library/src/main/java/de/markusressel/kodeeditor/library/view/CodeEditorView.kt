@@ -141,6 +141,18 @@ open class CodeEditorView
         codeTextView.syntaxHighlighter = syntaxHighlighter
     }
 
+    /**
+     * @return the current count of lines of code in the editor.
+     */
+    fun getLineCount(): Long {
+        val currentText = codeEditText.text
+        return if (currentText != null) {
+            currentText.count { it == '\n' } + 1L
+        } else {
+            0L
+        }
+    }
+
     companion object {
         const val TAG = "CodeEditorView"
     }
