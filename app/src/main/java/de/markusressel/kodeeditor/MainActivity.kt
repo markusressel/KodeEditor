@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor
 
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
+import com.github.kittinunf.fuel.Fuel
 import de.markusressel.kodeeditor.library.markdown.MarkdownSyntaxHighlighter
 import kotlinx.android.synthetic.main.activity_main.*
 
@@ -12,10 +13,25 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         codeEditorView.setSyntaxHighlighter(MarkdownSyntaxHighlighter())
-        codeEditorView.setText(R.string.demo_text)
-        codeEditorView.zoomTo(codeEditorView.realZoom, false)
+        codeEditorView.setEditable(false)
 
-        codeEditorView.setEditable(true)
+        initEditorText()
+    }
+
+    private fun initEditorText() {
+        Fuel.get("https://raw.githubusercontent.com/markusressel/KodeEditor/master/README.md")
+                .responseString { request, response, result ->
+                    val (text, error) = result
+
+                    if (error != null || text == null) {
+                        // fallback if no network is available
+                        codeEditorView.setText(R.string.demo_text)
+                    } else {
+                        codeEditorView.setText(text)
+                    }
+                    codeEditorView.zoomTo(codeEditorView.realZoom, false)
+                    codeEditorView.setEditable(true)
+                }
     }
 
 }

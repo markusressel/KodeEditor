@@ -214,11 +214,14 @@ private constructor(
     }
 
     /**
+     * @return true if editable, false otherwise
+     */
+    fun isEditable() = codeEditorZoomLayout.isEditable()
+
+    /**
      * @param editable true = user can type, false otherwise
      */
-    fun setEditable(editable: Boolean) {
-        codeEditorZoomLayout.setEditable(editable)
-    }
+    fun setEditable(editable: Boolean) = codeEditorZoomLayout.setEditable(editable)
 
     /**
      * Set the text in the editor
@@ -235,9 +238,7 @@ private constructor(
      *
      * @param text string resource of the new text
      */
-    fun setText(@StringRes text: Int) {
-        setText(context.getString(text))
-    }
+    fun setText(@StringRes text: Int) = setText(context.getString(text))
 
     /**
      * Set the syntax highlighter to use for this CodeEditor

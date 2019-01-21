@@ -36,6 +36,7 @@ open class CodeEditorView
 
     /**
      * Set to true to force the width of the CodeEditorView to it's parents width
+     * TODO: currently not working
      */
     private var forceParentWidth = false
 
@@ -112,6 +113,11 @@ open class CodeEditorView
     }
 
     /**
+     * @return true if editable, false otherwise
+     */
+    fun isEditable() = codeEditText.visibility == View.VISIBLE
+
+    /**
      * Controls whether the text is editable
      *
      * @param editable true = user can type, false otherwise
@@ -143,9 +149,7 @@ open class CodeEditorView
      * @param text string resource of the new text to set
      */
     @Suppress("unused")
-    fun setText(@StringRes text: Int) {
-        setText(context.getString(text))
-    }
+    fun setText(@StringRes text: Int) = setText(context.getString(text))
 
     /**
      * Set the syntax highlighter to use
