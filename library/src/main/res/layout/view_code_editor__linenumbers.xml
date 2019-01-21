@@ -6,8 +6,9 @@
     android:layout_height="match_parent"
     android:scrollbars="none"
     app:alignment="top|right"
-    app:transformation="none"
+    app:hasClickableChildren="false"
     app:horizontalPanEnabled="false"
+    app:transformation="none"
     app:verticalPanEnabled="false"
     app:zoomEnabled="false">
 

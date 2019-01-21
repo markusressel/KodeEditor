@@ -130,7 +130,7 @@ private constructor(
         dividerView.setBackgroundColor(dividerColor)
 
         val editTextBackgroundColor = a.getColor(context, R.styleable.CodeEditorView_cev_editor_backgroundColor, R.attr.cev_editor_backgroundColor, android.R.attr.windowBackground)
-        codeEditorZoomLayout.editTextView.setBackgroundColor(editTextBackgroundColor)
+        codeEditorZoomLayout.codeEditText.setBackgroundColor(editTextBackgroundColor)
 
         val codeEditorMaxZoom = a.getFloat(R.styleable.CodeEditorView_cev_editor_maxZoom, 10F)
         lineNumberZoomLayout.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
@@ -167,7 +167,7 @@ private constructor(
             false
         }
 
-        codeEditorZoomLayout.editTextView.setOnClickListener {
+        codeEditorZoomLayout.codeEditText.setOnClickListener {
             internalMoveWithCursorEnabled = true
         }
 
@@ -186,10 +186,10 @@ private constructor(
                     })
         }
 
-        RxTextView.textChanges(codeEditorZoomLayout.editTextView)
+        RxTextView.textChanges(codeEditorZoomLayout.codeEditText)
                 .debounce(50, TimeUnit.MILLISECONDS)
                 .filter {
-                    codeEditorZoomLayout.editTextView.lineCount != currentLineCount
+                    codeEditorZoomLayout.codeEditText.lineCount != currentLineCount
                 }
                 .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -209,7 +209,7 @@ private constructor(
         codeEditorZoomLayout.post {
             // linenumbers always have to be the exact same size as the content
             lineNumberTextView.height = codeEditorZoomLayout.engine.computeVerticalScrollRange()
-            updateLineNumberText(codeEditorZoomLayout.editTextView.lineCount)
+            updateLineNumberText(codeEditorZoomLayout.codeEditText.lineCount)
         }
     }
 
@@ -227,7 +227,7 @@ private constructor(
      */
     fun setText(text: CharSequence) {
         codeEditorZoomLayout.setText(text)
-        updateLineNumberText(codeEditorZoomLayout.editTextView.lineCount)
+        updateLineNumberText(codeEditorZoomLayout.codeEditText.lineCount)
     }
 
     /**
@@ -245,7 +245,7 @@ private constructor(
      * @param syntaxHighlighter
      */
     @Suppress("unused")
-    fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter) {
+    fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter?) {
         codeEditorZoomLayout.setSyntaxHighlighter(syntaxHighlighter)
     }
 
@@ -284,8 +284,8 @@ private constructor(
     }
 
     private fun calculateCursorPosition(): PointF {
-        val pos = codeEditorZoomLayout.editTextView.selectionStart
-        val layout = codeEditorZoomLayout.editTextView.layout
+        val pos = codeEditorZoomLayout.codeEditText.selectionStart
+        val layout = codeEditorZoomLayout.codeEditText.layout
 
         val line = layout.getLineForOffset(pos)
         val baseline = layout.getLineBaseline(line)

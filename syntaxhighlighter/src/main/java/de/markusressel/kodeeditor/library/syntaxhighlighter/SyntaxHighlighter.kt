@@ -1,6 +1,5 @@
 package de.markusressel.kodeeditor.library.syntaxhighlighter
 
-import android.text.Editable
 import android.text.Spannable
 import android.text.style.CharacterStyle
 
@@ -32,20 +31,20 @@ interface SyntaxHighlighter {
     /**
      * Highlight the given text
      *
-     * Note: If you need to highlight multiple editables at the same time
-     *       be sure to also create one highlighter instance for each editable.
+     * Note: If you need to highlight multiple spannables at the same time
+     *       be sure to also create one highlighter instance for each spannable.
      *       Otherwise applied styles might not be cleared properly
-     *       when refreshing highlighting of an already highlighted editable.
+     *       when refreshing highlighting of an already highlighted spannable.
      */
-    fun highlight(editable: Editable) {
+    fun highlight(spannable: Spannable) {
         // cleanup previously applied styles
-        clearAppliedStyles(editable)
+        clearAppliedStyles(spannable)
 
         // reapply
         getRules()
                 .forEach { rule ->
                     rule
-                            .findMatches(editable)
+                            .findMatches(spannable)
                             .forEach {
                                 val start = it
                                         .range
@@ -57,43 +56,38 @@ interface SyntaxHighlighter {
                                 val styles = colorScheme
                                         .getStyles(rule)
 
-                                highlight(editable, start, end, styles)
+                                highlight(spannable, start, end, styles)
                             }
                 }
     }
 
     /**
-     * Apply a set of styles to a specific part of an editable
+     * Apply a set of styles to a specific part of an spannable
      *
-     * @param editable the editable to highlight
+     * @param spannable the spannable to highlight
      * @param start the starting position
      * @param end the end position (inclusive)
      * @param styles the styles to apply
      */
-    private fun highlight(editable: Editable, start: Int, end: Int, styles: Set<() -> CharacterStyle>) {
+    private fun highlight(spannable: Spannable, start: Int, end: Int, styles: Set<() -> CharacterStyle>) {
         styles
                 .forEach {
                     val style = it()
-                    editable
-                            .setSpan(style, start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannable.setSpan(style, start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
 
                     // remember which styles were applied
-                    appliedStyles
-                            .add(style)
+                    appliedStyles.add(style)
                 }
     }
 
     /**
-     * Clear any modifications the syntax highlighter may have made to a given editable
+     * Clear any modifications the syntax highlighter may have made to a given spannable
      */
-    fun clearAppliedStyles(editable: Editable) {
-        appliedStyles
-                .forEach {
-                    editable
-                            .removeSpan(it)
-                }
-        appliedStyles
-                .clear()
+    fun clearAppliedStyles(spannable: Spannable) {
+        appliedStyles.forEach {
+            spannable.removeSpan(it)
+        }
+        appliedStyles.clear()
     }
 
 }

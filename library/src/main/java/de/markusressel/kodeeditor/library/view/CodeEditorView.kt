@@ -27,7 +27,12 @@ open class CodeEditorView
     /**
      * The actual text editor content
      */
-    lateinit var editTextView: CodeEditText
+    lateinit var codeEditText: CodeEditText
+
+    /**
+     * A text view for the non-editable state
+     */
+    lateinit var codeTextView: CodeTextView
 
     /**
      * Set to true to force the width of the CodeEditorView to it's parents width
@@ -35,10 +40,6 @@ open class CodeEditorView
     private var forceParentWidth = false
 
     init {
-        initialize(attrs, defStyleAttr)
-    }
-
-    private fun initialize(attrs: AttributeSet?, defStyleAttr: Int) {
         setHasClickableChildren(true)
         isFocusableInTouchMode = true
 
@@ -52,7 +53,7 @@ open class CodeEditorView
         val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0)
 
         val editTextBackgroundColor = a.getColor(context, R.styleable.CodeEditorView_cev_editor_backgroundColor, R.attr.cev_editor_backgroundColor, android.R.attr.windowBackground)
-        editTextView.setBackgroundColor(editTextBackgroundColor)
+        codeEditText.setBackgroundColor(editTextBackgroundColor)
 
         a.recycle()
     }
@@ -60,11 +61,14 @@ open class CodeEditorView
     private fun inflateViews(inflater: LayoutInflater) {
         contentLayout = inflater.inflate(R.layout.view_code_editor__inner_layout, this).findViewById(R.id.cev_editor_contentLayout)
 
-        editTextView = contentLayout.findViewById(R.id.cev_editor_codeEditText) as CodeEditText
-        editTextView.setViewBackgroundWithoutResettingPadding(null)
-        editTextView.post {
-            editTextView.setSelection(0)
+        codeEditText = contentLayout.findViewById(R.id.cev_editor_codeEditText) as CodeEditText
+        codeEditText.setViewBackgroundWithoutResettingPadding(null)
+        codeEditText.post {
+            codeEditText.setSelection(0)
         }
+
+        codeTextView = contentLayout.findViewById(R.id.cev_editor_codeTextView) as CodeTextView
+        codeTextView.setViewBackgroundWithoutResettingPadding(null)
     }
 
     private var firstInit = true
@@ -97,7 +101,17 @@ open class CodeEditorView
      * @param editable true = user can type, false otherwise
      */
     fun setEditable(editable: Boolean) {
-        editTextView.isEnabled = editable
+        if (editable) {
+            codeEditText.visibility = View.VISIBLE
+            codeTextView.visibility = View.GONE
+        } else {
+            codeEditText.visibility = View.GONE
+            codeTextView.visibility = View.VISIBLE
+        }
+//        codeEditText.isEnabled = editable
+//        codeEditText.isClickable = editable
+//        codeEditText.isFocusableInTouchMode = editable
+//        if (!editable) codeEditText.clearFocus()
     }
 
     /**
@@ -106,7 +120,8 @@ open class CodeEditorView
      * @param text the new text to set
      */
     fun setText(text: CharSequence) {
-        editTextView.setText(text)
+        codeEditText.setText(text)
+        codeTextView.text = text
     }
 
     /**
@@ -124,8 +139,9 @@ open class CodeEditorView
      *
      * @param syntaxHighlighter the highlighter to set
      */
-    fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter) {
-        editTextView.syntaxHighlighter = syntaxHighlighter
+    fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter?) {
+        codeEditText.syntaxHighlighter = syntaxHighlighter
+        codeTextView.syntaxHighlighter = syntaxHighlighter
     }
 
     companion object {

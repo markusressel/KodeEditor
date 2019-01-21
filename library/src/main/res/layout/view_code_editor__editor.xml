@@ -5,6 +5,7 @@
     android:layout_height="match_parent"
     android:scrollbars="horizontal|vertical"
     app:alignment="left|top"
+    app:hasClickableChildren="true"
     app:maxZoom="30.0"
     app:maxZoomType="realZoom"
     app:minZoom="1"
