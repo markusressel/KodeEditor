@@ -55,6 +55,8 @@ constructor(context: Context,
         }
 
         initSyntaxHighlighter()
+        isClickable = true
+        isFocusableInTouchMode = true
     }
 
     private fun initSyntaxHighlighter() {

@@ -5,7 +5,7 @@ import android.support.annotation.StringRes
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.LinearLayout
+import android.view.ViewGroup
 import com.otaliastudios.zoom.ZoomLayout
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.getColor
@@ -22,7 +22,7 @@ open class CodeEditorView
     /**
      * The unique (zoomable) child element of this ZoomLayout
      */
-    lateinit var contentLayout: LinearLayout
+    lateinit var contentLayout: ViewGroup
 
     /**
      * The actual text editor content
@@ -105,13 +105,10 @@ open class CodeEditorView
             codeEditText.visibility = View.VISIBLE
             codeTextView.visibility = View.GONE
         } else {
+            codeTextView.text = codeEditText.text
             codeEditText.visibility = View.GONE
             codeTextView.visibility = View.VISIBLE
         }
-//        codeEditText.isEnabled = editable
-//        codeEditText.isClickable = editable
-//        codeEditText.isFocusableInTouchMode = editable
-//        if (!editable) codeEditText.clearFocus()
     }
 
     /**

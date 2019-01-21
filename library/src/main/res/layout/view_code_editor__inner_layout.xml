@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/cev_editor_contentLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -9,10 +9,10 @@
 
     <de.markusressel.kodeeditor.library.view.CodeEditText
         android:id="@+id/cev_editor_codeEditText"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:editable="true"
+        android:focusableInTouchMode="true"
         android:gravity="top|start"
         android:imeOptions="flagNoExtractUi"
         android:inputType="textMultiLine|textNoSuggestions"
@@ -26,16 +26,12 @@
 
     <de.markusressel.kodeeditor.library.view.CodeTextView
         android:id="@+id/cev_editor_codeTextView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:gravity="top|start"
-        android:lines="99999999"
-        android:maxLength="99999999"
-        android:maxLines="99999999"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:scrollbars="none"
+        android:textIsSelectable="true"
         android:textSize="12sp"
         android:typeface="monospace"
         android:visibility="gone" />
 
-</LinearLayout>
+</FrameLayout>
