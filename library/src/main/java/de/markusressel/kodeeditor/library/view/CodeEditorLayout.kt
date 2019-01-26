@@ -41,7 +41,7 @@ private constructor(
         /**
          * The ZoomLayout containing the [CodeEditText].
          */
-        internal val codeEditorZoomLayout: CodeEditorView)
+        val codeEditorZoomLayout: CodeEditorView)
     : LinearLayout(context, attrs, defStyleAttr),
         ZoomApi by codeEditorZoomLayout {
 
