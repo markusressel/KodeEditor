@@ -38,9 +38,6 @@ android {
 
 dependencies {
     implementation project(':library')
-    implementation project(':markdown')
-    implementation project(':java')
-    implementation project(':kotlin')
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 
