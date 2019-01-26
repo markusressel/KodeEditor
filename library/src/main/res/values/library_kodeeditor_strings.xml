@@ -16,6 +16,6 @@
     <!-- ClassPath for autoDetect section -->
     <string name="library_kodeeditor_classPath">de.markusressel.kodeeditor</string>
     <!-- License section -->
-    <string name="library_kodeeditor_licenseId">apache_2_0</string>
+    <string name="library_kodeeditor_licenseId">mit</string>
     <!-- Custom variables section -->
 </resources>

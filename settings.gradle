@@ -1,1 +1,1 @@
-include ':app', ':library', ':markdown', ':syntaxhighlighter', ':java', ':kotlin'
+include ':app', ':library'

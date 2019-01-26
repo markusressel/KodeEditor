@@ -8,7 +8,7 @@ import android.util.AttributeSet
 import android.util.Log
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
-import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxHighlighter
+import de.markusressel.kodehighlighter.core.StatefulSyntaxHighlighter
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 import io.reactivex.rxkotlin.subscribeBy
@@ -28,7 +28,7 @@ constructor(context: Context,
     /**
      * The current syntax highlighter
      */
-    var syntaxHighlighter: SyntaxHighlighter? = null
+    var syntaxHighlighter: StatefulSyntaxHighlighter? = null
         set(value) {
             // clear any old style
             text?.let {

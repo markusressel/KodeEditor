@@ -22,7 +22,7 @@ import com.otaliastudios.zoom.ZoomLayout
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.getColor
-import de.markusressel.kodeeditor.library.syntaxhighlighter.SyntaxHighlighter
+import de.markusressel.kodehighlighter.core.StatefulSyntaxHighlighter
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.subscribeBy
@@ -246,7 +246,7 @@ private constructor(
      * @param syntaxHighlighter
      */
     @Suppress("unused")
-    fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter?) {
+    fun setSyntaxHighlighter(syntaxHighlighter: StatefulSyntaxHighlighter?) {
         codeEditorZoomLayout.setSyntaxHighlighter(syntaxHighlighter)
     }
 
