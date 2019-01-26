@@ -49,8 +49,7 @@ dependencies {
     implementation "com.trello.rxlifecycle2:rxlifecycle-android-lifecycle-kotlin:$rxLifecycleVersion"
 
     // Syntax Highlighting
-    def kodeHighlighterVersion = "v1.0.0"
-    api("com.github.markusressel.KodeHighlighter:markdown:$kodeHighlighterVersion")
+    api("com.github.markusressel.KodeHighlighter:core:$kodeHighlighterVersion")
 
     // Zoom Layout Container
     api 'com.otaliastudios:zoomlayout:1.5.0'

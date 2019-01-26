@@ -39,6 +39,9 @@ android {
 dependencies {
     implementation project(':library')
 
+    // Syntax Highlighting
+    api("com.github.markusressel.KodeHighlighter:markdown:$kodeHighlighterVersion")
+
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 
     implementation "com.android.support:appcompat-v7:$supportLibVersion"

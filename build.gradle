@@ -18,6 +18,8 @@ buildscript {
 
         // DEPENDENCIES
 
+        kodeHighlighterVersion = "v1.0.0"
+
         androidKtxVersion = "0.3"
         supportLibVersion = "28.0.0"
 
