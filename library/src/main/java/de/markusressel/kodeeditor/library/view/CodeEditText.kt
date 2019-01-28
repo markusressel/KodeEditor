@@ -8,7 +8,7 @@ import android.util.AttributeSet
 import android.util.Log
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
-import de.markusressel.kodehighlighter.core.StatefulSyntaxHighlighter
+import de.markusressel.kodehighlighter.core.EditTextSyntaxHighlighter
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 import io.reactivex.rxkotlin.subscribeBy
@@ -28,12 +28,10 @@ constructor(context: Context,
     /**
      * The current syntax highlighter
      */
-    var syntaxHighlighter: StatefulSyntaxHighlighter? = null
+    var syntaxHighlighter: EditTextSyntaxHighlighter? = null
         set(value) {
             // clear any old style
-            text?.let {
-                field?.clearAppliedStyles(it)
-            }
+            field?.clearAppliedStyles()
 
             // set new highlighter
             field = value
@@ -62,7 +60,7 @@ constructor(context: Context,
     private fun initSyntaxHighlighter() {
         highlightingDisposable?.dispose()
 
-        if (syntaxHighlighter != null) {
+        syntaxHighlighter?.let {
             refreshSyntaxHighlighting()
 
             highlightingDisposable = RxTextView
@@ -78,6 +76,7 @@ constructor(context: Context,
                         Log.e(TAG, "Error while refreshing syntax highlighting", it)
                     })
         }
+
     }
 
     override fun setText(text: CharSequence?, type: BufferType?) {
@@ -112,11 +111,8 @@ constructor(context: Context,
      */
     @Synchronized
     fun refreshSyntaxHighlighting() {
-        if (syntaxHighlighter == null) {
-            Log.w(TAG, "No syntax highlighter is set!")
-        }
-
-        syntaxHighlighter?.apply { highlight(text!!) }
+        syntaxHighlighter?.refreshHighlighting()
+                ?: Log.w(TAG, "No syntax highlighter is set!")
     }
 
     companion object {

@@ -33,16 +33,13 @@ constructor(context: Context,
     var syntaxHighlighter: StatefulSyntaxHighlighter? = null
         set(value) {
             // clear any old style
-            text?.let {
-                field?.clearAppliedStyles(it as Spannable)
-            }
+            field?.clearAppliedStyles(text as Spannable)
 
             // set new highlighter
             field = value
 
             // and initialize it
             initSyntaxHighlighter()
-            text = text
         }
 
     private var highlightingTimeout = 50L to TimeUnit.MILLISECONDS

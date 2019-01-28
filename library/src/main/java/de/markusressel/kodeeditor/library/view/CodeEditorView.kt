@@ -10,7 +10,9 @@ import com.otaliastudios.zoom.ZoomLayout
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.getColor
 import de.markusressel.kodeeditor.library.extensions.setViewBackgroundWithoutResettingPadding
+import de.markusressel.kodehighlighter.core.EditTextSyntaxHighlighter
 import de.markusressel.kodehighlighter.core.StatefulSyntaxHighlighter
+import de.markusressel.kodehighlighter.core.SyntaxHighlighter
 
 /**
  * Code Editor that allows pinch-to-zoom
@@ -156,9 +158,14 @@ open class CodeEditorView
      *
      * @param syntaxHighlighter the highlighter to set
      */
-    fun setSyntaxHighlighter(syntaxHighlighter: StatefulSyntaxHighlighter?) {
-        codeEditText.syntaxHighlighter = syntaxHighlighter
-        codeTextView.syntaxHighlighter = syntaxHighlighter
+    fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter?) {
+        if (syntaxHighlighter != null) {
+            codeEditText.syntaxHighlighter = EditTextSyntaxHighlighter(syntaxHighlighter, codeEditText)
+            codeTextView.syntaxHighlighter = StatefulSyntaxHighlighter(syntaxHighlighter)
+        } else {
+            codeEditText.syntaxHighlighter = null
+            codeTextView.syntaxHighlighter = null
+        }
     }
 
     /**
