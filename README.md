@@ -36,7 +36,7 @@ in your project build.gradle file and
 dependencies {
     ...
 
-    def codeEditorVersion = "v0.5.0"
+    def codeEditorVersion = "v1.0.0"
     implementation("com.github.markusressel.KodeEditor:library:${codeEditorVersion}")
 }
 ```
@@ -48,12 +48,15 @@ in your desired module ```build.gradle``` file.
 To use this editor simply add something similar to this to your desired layout xml file:
 
 ```
-<de.markusressel.kodeeditor.library.view.CodeEditorView
+<de.markusressel.kodeeditor.library.view.CodeEditorLayout
         android:id="@+id/codeEditorView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fadeScrollbars="true"
-        android:scrollbars="vertical|horizontal" />
+        app:cev_divider="true"
+        app:cev_divider_color="?android:attr/textColorPrimary"
+        app:cev_editor_backgroundColor="?android:attr/windowBackground"
+        app:cev_editor_maxZoom="10.0"
+        />
 ```
 
 ## Syntax highlighting
@@ -65,44 +68,11 @@ You have to manage the syntax highlighter yourself and call the `setSyntaxHighli
 
 ### Integrated syntax highlighters
 
-This library includes a small set of highlighters for you to use right away without spending time to think about the right code highlighting.
-Here you can find a list of those items:
-
-* markdown
-* java
-* kotlin
-
-To include an existing language just pick the ones you would like to use and import them **in addition** to the `library` core module:
-
-```
-dependencies {
-    ...
-    implementation("com.github.markusressel.KodeEditor:markdown:${codeEditorVersion}")
-    implementation("com.github.markusressel.KodeEditor:java:${codeEditorVersion}")
-    implementation("com.github.markusressel.KodeEditor:kotlin:${codeEditorVersion}")
-    [etc.]
-```
+Have a look at the [KodeHighlighter section about this](https://github.com/markusressel/KodeHighlighter).
 
 ### Writing a custom syntax highlighter
 
-Using your own rules to highlight text in the editor can be achieved by extending the `SyntaxHighlighterBase` class (which implements the `SyntaxHighlighter` interface):
-
-```
-class MarkdownSyntaxHighlighter : SyntaxHighlighterBase() {
-
-    override fun getRules(): Set<SyntaxHighlighterRule> {
-        return setOf(HeadingRule(), ItalicRule(), BoldRule(), CodeInlineRule(), CodeLineRule(), TextLinkRule(), ImageLinkRule(), StrikeRule())
-    }
-
-    override fun getDefaultColorScheme(): SyntaxColorScheme {
-        return DarkBackgroundColorScheme()
-    }
-
-}
-```
-
-A syntax highlighter consists of a **default color scheme** and a **set of rules** that provide information on how to style different parts of the editor text.
-Have a look at how the `MarkdownSyntaxHighlighter` is implemented to get a feel for how to implement those methods.
+Have a look at the [KodeHighlighter section about this](https://github.com/markusressel/KodeHighlighter).
 
 ## Styling
 
@@ -156,6 +126,11 @@ or specify them in your application theme (`styles.xml` in dem app) for to apply
 
 </resources>
 ```
+
+# Contributing
+
+GitHub is for social coding: if you want to write code, I encourage contributions through pull requests from forks
+of this repository. Create GitHub tickets for bugs and new features and comment on the ones that you are interested in.
 
 # License
 

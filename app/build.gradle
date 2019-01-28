@@ -38,14 +38,17 @@ android {
 
 dependencies {
     implementation project(':library')
-    implementation project(':markdown')
-    implementation project(':java')
-    implementation project(':kotlin')
+
+    // Syntax Highlighting
+    api("com.github.markusressel.KodeHighlighter:markdown:$kodeHighlighterVersion")
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 
     implementation "com.android.support:appcompat-v7:$supportLibVersion"
     implementation "com.android.support:design:$supportLibVersion"
+
+    implementation "com.github.kittinunf.fuel:fuel:1.16.0"
+    implementation "com.github.kittinunf.fuel:fuel-android:1.16.0"
 
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
