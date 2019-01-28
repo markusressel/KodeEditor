@@ -9,7 +9,7 @@ buildscript {
         gradle_plugin_version = '3.3.0'
 
         minSdkVersion = 16
-        versionName = "0.5.0"
+        versionName = "1.0.0"
         versionCode = 1
 
         compileSdkVersion = 28
@@ -19,7 +19,6 @@ buildscript {
         // DEPENDENCIES
 
         kodeHighlighterVersion = "v1.2.2"
-//        kodeHighlighterVersion = "master-SNAPSHOT"
 
         androidKtxVersion = "0.3"
         supportLibVersion = "28.0.0"

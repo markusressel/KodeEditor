@@ -36,7 +36,7 @@ in your project build.gradle file and
 dependencies {
     ...
 
-    def codeEditorVersion = "v0.5.0"
+    def codeEditorVersion = "v1.0.0"
     implementation("com.github.markusressel.KodeEditor:library:${codeEditorVersion}")
 }
 ```
@@ -48,12 +48,15 @@ in your desired module ```build.gradle``` file.
 To use this editor simply add something similar to this to your desired layout xml file:
 
 ```
-<de.markusressel.kodeeditor.library.view.CodeEditorView
+<de.markusressel.kodeeditor.library.view.CodeEditorLayout
         android:id="@+id/codeEditorView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fadeScrollbars="true"
-        android:scrollbars="vertical|horizontal" />
+        app:cev_divider="true"
+        app:cev_divider_color="?android:attr/textColorPrimary"
+        app:cev_editor_backgroundColor="?android:attr/windowBackground"
+        app:cev_editor_maxZoom="10.0"
+        />
 ```
 
 ## Syntax highlighting
