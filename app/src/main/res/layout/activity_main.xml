@@ -15,6 +15,7 @@
         app:cev_divider="true"
         app:cev_divider_color="?android:attr/textColorPrimary"
         app:cev_editor_backgroundColor="?android:attr/windowBackground"
-        app:cev_editor_maxZoom="10.0" />
+        app:cev_editor_maxZoom="10.0"
+        app:cev_editor_showMinimap="true" />
 
 </FrameLayout>

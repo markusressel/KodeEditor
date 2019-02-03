@@ -17,6 +17,7 @@ A simple code editor with syntax highlighting and pinch to zoom
   * import languages you need
   * or simply create your own highlighter using **regex** or other techniques
   * themes
+* "Minimap" style overview
 * Written entirely in Kotlin
 
 # How to use
@@ -56,6 +57,7 @@ To use this editor simply add something similar to this to your desired layout x
         app:cev_divider_color="?android:attr/textColorPrimary"
         app:cev_editor_backgroundColor="?android:attr/windowBackground"
         app:cev_editor_maxZoom="10.0"
+        app:cev_editor_showMinimap="true"
         />
 ```
 
