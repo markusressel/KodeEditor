@@ -1,9 +1,7 @@
 package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
-import android.graphics.Matrix
-import android.graphics.PointF
-import android.graphics.Rect
+import android.graphics.*
 import android.os.Build
 import android.support.annotation.StringRes
 import android.text.Layout
@@ -13,11 +11,12 @@ import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
-import android.widget.LinearLayout
+import android.widget.FrameLayout
 import android.widget.TextView
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.otaliastudios.zoom.ZoomApi
 import com.otaliastudios.zoom.ZoomEngine
+import com.otaliastudios.zoom.ZoomImageView
 import com.otaliastudios.zoom.ZoomLayout
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodeeditor.library.R
@@ -30,20 +29,22 @@ import io.reactivex.schedulers.Schedulers
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
+
 /**
  * Code Editor that allows pinch-to-zoom, line numbers etc.
  */
 open class CodeEditorLayout
-private constructor(
+@JvmOverloads
+constructor(
         context: Context,
-        attrs: AttributeSet?,
-        defStyleAttr: Int,
-        /**
-         * The ZoomLayout containing the [CodeEditText].
-         */
-        val codeEditorZoomLayout: CodeEditorView)
-    : LinearLayout(context, attrs, defStyleAttr),
-        ZoomApi by codeEditorZoomLayout {
+        attrs: AttributeSet? = null,
+        defStyleAttr: Int = 0)
+    : FrameLayout(context, attrs, defStyleAttr) {
+
+    /**
+     * The ZoomLayout containing the [CodeEditText].
+     */
+    lateinit var codeEditorZoomLayout: CodeEditorView
 
     /**
      * Text size in SP
@@ -74,6 +75,11 @@ private constructor(
     internal lateinit var lineNumberTextView: TextView
 
     /**
+     * The [ZoomLayout] used for the minimap.
+     */
+    internal lateinit var minimapZoomLayout: ZoomImageView
+
+    /**
      * The (optional) divider between [lineNumberZoomLayout] and [codeEditorZoomLayout]
      */
     internal lateinit var dividerView: View
@@ -86,12 +92,7 @@ private constructor(
     var isMoveWithCursorEnabled = false
     private var internalMoveWithCursorEnabled = false
 
-    @JvmOverloads
-    constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) :
-            this(context, attrs, defStyleAttr, View.inflate(context, R.layout.view_code_editor__editor, null) as CodeEditorView)
-
     init {
-        orientation = LinearLayout.HORIZONTAL
         inflateViews(LayoutInflater.from(context))
         readParameters(attrs, defStyleAttr)
         setListeners()
@@ -100,15 +101,18 @@ private constructor(
     }
 
     private fun inflateViews(layoutInflater: LayoutInflater) {
-        lineNumberZoomLayout = layoutInflater.inflate(R.layout.view_code_editor__linenumbers, this).findViewById(R.id.cev_linenumbers_zoomLayout)
-        lineNumberTextView = lineNumberZoomLayout.findViewById(R.id.cev_linenumbers_textview) as TextView
+        layoutInflater.inflate(R.layout.layout_code_editor__main_layout, this)
+
+        lineNumberZoomLayout = findViewById(R.id.cev_linenumbers_zoomLayout)
+        lineNumberTextView = findViewById(R.id.cev_linenumbers_textview)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             lineNumberTextView.hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
         }
 
-        dividerView = layoutInflater.inflate(R.layout.view_code_editor__divider, this).findViewById(R.id.cev_divider)
+        dividerView = findViewById(R.id.cev_divider)
+        codeEditorZoomLayout = findViewById(R.id.cev_editor_codeEditorView)
 
-        addView(codeEditorZoomLayout)
+        minimapZoomLayout = findViewById(R.id.cev_editor_minimap)
     }
 
     private fun readParameters(attrs: AttributeSet?, defStyleAttr: Int) {
@@ -156,6 +160,11 @@ private constructor(
                 lineNumberZoomLayout.moveTo(engine.zoom, -engine.computeHorizontalScrollRange().toFloat(), engine.panY, false)
             }
         })
+
+        codeEditorZoomLayout.addOnLayoutChangeListener { v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            val previewImage = getBitmapFromView(codeEditorZoomLayout.codeEditText)
+            minimapZoomLayout.setImageBitmap(previewImage)
+        }
 
         setOnTouchListener { view, motionEvent ->
             when (motionEvent.action) {
@@ -214,6 +223,40 @@ private constructor(
     }
 
     /**
+     * Renders a view to a bitmap
+     */
+    fun getBitmapFromView(view: View): Bitmap? {
+        if (view.measuredWidth == 0 || view.measuredHeight == 0) {
+            return null
+        }
+
+        val scaleFactor = 0.1F
+
+        // Define a bitmap with the same size as the view
+        val returnedBitmap = Bitmap.createBitmap(
+                (view.measuredWidth * scaleFactor).toInt(),
+                (view.measuredHeight * scaleFactor).toInt(),
+                Bitmap.Config.ARGB_8888)
+        // Bind a canvas to it
+        val canvas = Canvas(returnedBitmap)
+        canvas.scale(scaleFactor, scaleFactor)
+        // Get the view's background
+        val bgDrawable = view.background
+        if (bgDrawable != null)
+        // has background drawable, then draw it on the canvas
+            bgDrawable.draw(canvas)
+        else
+        // does not have background drawable, then draw white background on the canvas
+            canvas.drawColor(Color.WHITE)
+        // draw the view on the canvas
+        view.draw(canvas)
+        canvas.save()
+//         TODO: scale to minimap size
+
+        return returnedBitmap
+    }
+
+    /**
      * @return true if editable, false otherwise
      */
     fun isEditable() = codeEditorZoomLayout.isEditable()
@@ -268,15 +311,15 @@ private constructor(
         if (!visibleRect.contains(position.x.roundToInt(), position.y.roundToInt())) {
             val newX = when {
                 position.x < visibleRect.left || position.x > visibleRect.right -> -x
-                else -> panX
+                else -> codeEditorZoomLayout.panX
             }
 
             val newY = when {
                 position.y < visibleRect.top || position.y > visibleRect.bottom -> -y
-                else -> panY
+                else -> codeEditorZoomLayout.panY
             }
 
-            moveTo(zoom, newX, newY, true)
+            codeEditorZoomLayout.moveTo(codeEditorZoomLayout.zoom, newX, newY, true)
         }
     }
 
@@ -294,8 +337,8 @@ private constructor(
         val x = layout.getPrimaryHorizontal(pos)
         val y = (baseline + ascent).toFloat()
 
-        return PointF(x * realZoom + panX * realZoom + lineNumberTextView.width * realZoom,
-                y * realZoom + panY * realZoom)
+        return PointF(x * codeEditorZoomLayout.realZoom + codeEditorZoomLayout.panX * codeEditorZoomLayout.realZoom + lineNumberTextView.width * codeEditorZoomLayout.realZoom,
+                y * codeEditorZoomLayout.realZoom + codeEditorZoomLayout.panY * codeEditorZoomLayout.realZoom)
     }
 
     companion object {

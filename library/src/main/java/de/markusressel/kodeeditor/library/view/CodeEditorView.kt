@@ -22,11 +22,6 @@ open class CodeEditorView
     : ZoomLayout(context, attrs, defStyleAttr) {
 
     /**
-     * The unique (zoomable) child element of this ZoomLayout
-     */
-    lateinit var contentLayout: ViewGroup
-
-    /**
      * The actual text editor content
      */
     lateinit var codeEditText: CodeEditText
@@ -62,15 +57,15 @@ open class CodeEditorView
     }
 
     private fun inflateViews(inflater: LayoutInflater) {
-        contentLayout = inflater.inflate(R.layout.view_code_editor__inner_layout, this).findViewById(R.id.cev_editor_contentLayout)
+        inflater.inflate(R.layout.view_code_editor__inner_layout, this)
 
-        codeEditText = contentLayout.findViewById(R.id.cev_editor_codeEditText) as CodeEditText
+        codeEditText = findViewById(R.id.cev_editor_codeEditText)
         codeEditText.setViewBackgroundWithoutResettingPadding(null)
         codeEditText.post {
             codeEditText.setSelection(0)
         }
 
-        codeTextView = contentLayout.findViewById(R.id.cev_editor_codeTextView) as CodeTextView
+        codeTextView = findViewById(R.id.cev_editor_codeTextView)
         codeTextView.setViewBackgroundWithoutResettingPadding(null)
     }
 

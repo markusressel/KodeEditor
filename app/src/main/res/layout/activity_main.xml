@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -7,7 +7,7 @@
     tools:context=".MainActivity">
 
     <de.markusressel.kodeeditor.library.view.CodeEditorLayout
-        android:id="@+id/codeEditorView"
+        android:id="@+id/codeEditorLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fadeScrollbars="true"
@@ -17,4 +17,4 @@
         app:cev_editor_backgroundColor="?android:attr/windowBackground"
         app:cev_editor_maxZoom="10.0" />
 
-</LinearLayout>
+</FrameLayout>
