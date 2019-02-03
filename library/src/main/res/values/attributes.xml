@@ -8,6 +8,7 @@
         <attr name="cev_divider_color" format="reference|color" />
         <attr name="cev_editor_backgroundColor" format="reference|color" />
         <attr name="cev_editor_maxZoom" format="float" />
+        <attr name="cev_editor_showMinimap" format="boolean" />
     </declare-styleable>
 
 </resources>

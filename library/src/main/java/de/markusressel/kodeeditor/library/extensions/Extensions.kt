@@ -59,3 +59,15 @@ fun View.setViewBackgroundWithoutResettingPadding(background: Drawable?) {
     ViewCompat.setBackground(this, background)
     ViewCompat.setPaddingRelative(this, paddingStart, paddingTop, paddingEnd, paddingBottom)
 }
+
+/**
+ * Converts the given number to a px value assuming it is a dp value.
+ *
+ * @return px value
+ */
+fun Number.dpToPx(context: Context): Float {
+    return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            this.toFloat(),
+            context.resources.displayMetrics)
+}
