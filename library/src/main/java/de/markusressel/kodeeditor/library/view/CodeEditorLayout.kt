@@ -1,7 +1,9 @@
 package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
-import android.graphics.*
+import android.graphics.Matrix
+import android.graphics.PointF
+import android.graphics.Rect
 import android.os.Build
 import android.support.annotation.StringRes
 import android.text.Layout
@@ -21,6 +23,7 @@ import com.otaliastudios.zoom.ZoomImageView
 import com.otaliastudios.zoom.ZoomLayout
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodeeditor.library.R
+import de.markusressel.kodeeditor.library.extensions.createSnapshot
 import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodeeditor.library.extensions.getColor
 import de.markusressel.kodehighlighter.core.SyntaxHighlighter
@@ -213,10 +216,9 @@ constructor(
 
         codeEditorZoomLayout.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             if (showMinimap) {
-                val previewImage = getBitmapFromView(
-                        codeEditorZoomLayout.codeEditText,
+                val minimapSnapshot = codeEditorZoomLayout.codeEditText.createSnapshot(
                         dimensionLimit = 200.dpToPx(context))
-                minimapZoomLayout.setImageBitmap(previewImage)
+                minimapZoomLayout.setImageBitmap(minimapSnapshot)
             }
         }
 
@@ -238,10 +240,6 @@ constructor(
                 }
                 else -> false
             }
-        }
-
-        minimapZoomLayout.setOnClickListener {
-
         }
 
         setOnTouchListener { view, motionEvent ->
@@ -318,46 +316,6 @@ constructor(
                 updateLineNumberText(lineCount)
             }
         }
-    }
-
-    /**
-     * Renders a view to a bitmap
-     *
-     * @param view the view to render
-     * @param dimensionLimit the maximum image dimension
-     * @param backgroundColor background color in case the view doesn't have one
-     * @return the rendered image or null if the view has no measured dimensions (yet)
-     */
-    fun getBitmapFromView(view: View, dimensionLimit: Float = Float.NaN, backgroundColor: Int = Color.TRANSPARENT): Bitmap? {
-        if (view.measuredWidth == 0 || view.measuredHeight == 0) {
-            return null
-        }
-
-        val scaleFactor = if (dimensionLimit.isNaN()) {
-            1F // do not scale
-        } else {
-            // select smaller scaling factor to match dimensionLimit
-            Math.min(
-                    Math.min(dimensionLimit / view.measuredWidth,
-                            dimensionLimit / view.measuredHeight),
-                    1F)
-        }
-
-        // Define a bitmap with the target dimensions
-        val returnedBitmap = Bitmap.createBitmap(
-                (view.measuredWidth * scaleFactor).toInt(),
-                (view.measuredHeight * scaleFactor).toInt(),
-                Bitmap.Config.ARGB_8888)
-
-        // bind a canvas to the bitmap
-        Canvas(returnedBitmap).apply {
-            scale(scaleFactor, scaleFactor)
-            drawColor(backgroundColor)
-            view.background?.draw(this)
-            view.draw(this)
-        }
-
-        return returnedBitmap
     }
 
     /**
