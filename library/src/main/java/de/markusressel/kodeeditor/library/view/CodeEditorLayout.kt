@@ -220,6 +220,30 @@ constructor(
             }
         }
 
+        @Suppress("ClickableViewAccessibility")
+        minimapZoomLayout.setOnTouchListener { v, event ->
+            if (!showMinimap) return@setOnTouchListener false
+
+            when (event.action) {
+                MotionEvent.ACTION_DOWN or MotionEvent.ACTION_MOVE -> {
+                    val viewX = event.x - v.left
+                    val viewY = event.y - v.top
+                    val offsetX = minimapIndicator.width / 2F
+                    val offsetY = minimapIndicator.height / 2F
+                    val percentageX = (viewX - offsetX) / v.width
+                    val percentageY = (viewY - offsetY) / v.height
+
+                    moveEditorToPercentage(percentageX, percentageY)
+                    true
+                }
+                else -> false
+            }
+        }
+
+        minimapZoomLayout.setOnClickListener {
+
+        }
+
         setOnTouchListener { view, motionEvent ->
             when (motionEvent.action) {
                 MotionEvent.ACTION_MOVE -> {
@@ -262,6 +286,13 @@ constructor(
                 }, onError = {
                     Log.e(CodeEditorView.TAG, "Unrecoverable error while updating line numbers", it)
                 })
+    }
+
+    private fun moveEditorToPercentage(percentageX: Float, percentageY: Float) {
+        val targetX = -codeEditorZoomLayout.engine.computeHorizontalScrollRange() / codeEditorZoomLayout.engine.zoom * percentageX
+        val targetY = -codeEditorZoomLayout.engine.computeVerticalScrollRange() / codeEditorZoomLayout.engine.zoom * percentageY
+
+        codeEditorZoomLayout.moveTo(codeEditorZoomLayout.zoom, targetX, targetY, false)
     }
 
     private fun updateMinimapIndicator(engine: ZoomEngine, editorRect: Rect) {
