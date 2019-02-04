@@ -13,14 +13,18 @@ import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
-import android.widget.LinearLayout
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.TextView
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.otaliastudios.zoom.ZoomApi
 import com.otaliastudios.zoom.ZoomEngine
+import com.otaliastudios.zoom.ZoomImageView
 import com.otaliastudios.zoom.ZoomLayout
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodeeditor.library.R
+import de.markusressel.kodeeditor.library.extensions.createSnapshot
+import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodeeditor.library.extensions.getColor
 import de.markusressel.kodehighlighter.core.SyntaxHighlighter
 import io.reactivex.Observable
@@ -30,36 +34,22 @@ import io.reactivex.schedulers.Schedulers
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
+
 /**
  * Code Editor that allows pinch-to-zoom, line numbers etc.
  */
 open class CodeEditorLayout
-private constructor(
+@JvmOverloads
+constructor(
         context: Context,
-        attrs: AttributeSet?,
-        defStyleAttr: Int,
-        /**
-         * The ZoomLayout containing the [CodeEditText].
-         */
-        val codeEditorZoomLayout: CodeEditorView)
-    : LinearLayout(context, attrs, defStyleAttr),
-        ZoomApi by codeEditorZoomLayout {
+        attrs: AttributeSet? = null,
+        defStyleAttr: Int = 0)
+    : FrameLayout(context, attrs, defStyleAttr) {
 
     /**
-     * Text size in SP
+     * The ZoomLayout containing the [CodeEditText].
      */
-    private var textSizeSp: Float = DEFAULT_TEXT_SIZE_SP
-
-    /**
-     * Text size in PX
-     */
-    private var textSizePx: Float
-        get() {
-            return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, textSizeSp, context.resources.displayMetrics)
-        }
-        set(value) {
-            textSizeSp = value / resources.displayMetrics.scaledDensity
-        }
+    lateinit var codeEditorView: CodeEditorView
 
     /**
      * The view displaying line numbers.
@@ -74,11 +64,24 @@ private constructor(
     internal lateinit var lineNumberTextView: TextView
 
     /**
-     * The (optional) divider between [lineNumberZoomLayout] and [codeEditorZoomLayout]
+     * The container layout for the minimap.
+     */
+    internal lateinit var minimapContainerLayout: ViewGroup
+
+    /**
+     * The [ZoomLayout] used for the minimap.
+     */
+    internal lateinit var minimapZoomLayout: ZoomImageView
+
+    /**
+     * The rectangle on the minimap indicating the currently visible area.
+     */
+    internal lateinit var minimapIndicator: View
+
+    /**
+     * The (optional) divider between [lineNumberZoomLayout] and [codeEditorView]
      */
     internal lateinit var dividerView: View
-
-    private var currentLineCount = -1L
 
     /**
      * Controls whether to follow cursor movements or not.
@@ -86,76 +89,193 @@ private constructor(
     var isMoveWithCursorEnabled = false
     private var internalMoveWithCursorEnabled = false
 
-    @JvmOverloads
-    constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) :
-            this(context, attrs, defStyleAttr, View.inflate(context, R.layout.view_code_editor__editor, null) as CodeEditorView)
+    /**
+     * The currently set text
+     */
+    var text: String
+        set(value) {
+            codeEditorView.text = value
+            updateLineNumbers()
+            updateMinimap()
+        }
+        get() = codeEditorView.codeEditText.text.toString()
+
+    /**
+     * The currently active syntax highlighter (if any)
+     */
+    var syntaxHighlighter: SyntaxHighlighter?
+        get() = codeEditorView.syntaxHighlighter
+        set(value) {
+            codeEditorView.syntaxHighlighter = value
+        }
+
+    /**
+     * Set the text in the editor
+     *
+     * @param text string resource of the new text
+     */
+    fun setText(@StringRes text: Int) {
+        this.text = context.getString(text)
+    }
+
+    /**
+     * Controls wheter the text is editable or not.
+     */
+    var editable: Boolean
+        set(value) {
+            codeEditorView.editable = value
+        }
+        get() = codeEditorView.editable
+
+    /**
+     * Controls whether the divider between line numbers and code editor is visible.
+     */
+    var showDivider: Boolean
+        set(value) {
+            dividerView.visibility = if (value) View.VISIBLE else View.GONE
+        }
+        get() = dividerView.visibility == View.VISIBLE
+
+    /**
+     * Indicates if the minimap should be shown or not.
+     */
+    var showMinimap = DEFAULT_SHOW_MINIMAP
+        set(value) {
+            field = value
+            minimapContainerLayout.visibility = if (value) View.VISIBLE else View.GONE
+        }
+
+    /**
+     * The width & height limit of the minimap
+     */
+    var minimapMaxDimension = DEFAULT_MINIMAP_MAX_DIMENSION_DP.dpToPx(context)
+        set(value) {
+            field = value
+            updateMinimap()
+        }
+
+    private var currentDrawnLineCount = -1L
+
+    /**
+     * Text size in SP
+     */
+    private var textSizeSp: Float = DEFAULT_TEXT_SIZE_SP
+
+    /**
+     * Text size in PX
+     */
+    private var textSizePx: Float
+        get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, textSizeSp, context.resources.displayMetrics)
+        set(value) {
+            textSizeSp = value / resources.displayMetrics.scaledDensity
+        }
 
     init {
-        orientation = LinearLayout.HORIZONTAL
         inflateViews(LayoutInflater.from(context))
         readParameters(attrs, defStyleAttr)
         setListeners()
 
-        syncLineNumbersWithEditor()
+        updateLineNumbers()
     }
 
     private fun inflateViews(layoutInflater: LayoutInflater) {
-        lineNumberZoomLayout = layoutInflater.inflate(R.layout.view_code_editor__linenumbers, this).findViewById(R.id.cev_linenumbers_zoomLayout)
-        lineNumberTextView = lineNumberZoomLayout.findViewById(R.id.cev_linenumbers_textview) as TextView
+        layoutInflater.inflate(R.layout.layout_code_editor__main_layout, this)
+
+        lineNumberZoomLayout = findViewById(R.id.cel_linenumbers_zoomLayout)
+        lineNumberTextView = findViewById(R.id.cel_linenumbers_textview)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             lineNumberTextView.hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
         }
 
-        dividerView = layoutInflater.inflate(R.layout.view_code_editor__divider, this).findViewById(R.id.cev_divider)
+        dividerView = findViewById(R.id.cel_divider)
+        codeEditorView = findViewById(R.id.cel_codeEditorView)
 
-        addView(codeEditorZoomLayout)
+        minimapContainerLayout = findViewById(R.id.cel_minimap_container)
+        minimapZoomLayout = minimapContainerLayout.findViewById(R.id.cel_minimap)
+        minimapIndicator = minimapContainerLayout.findViewById(R.id.cel_minimap_indicator)
     }
 
     private fun readParameters(attrs: AttributeSet?, defStyleAttr: Int) {
-        val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0)
+        val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorLayout, defStyleAttr, 0)
 
-        val lineNumberTextColor = a.getColor(context, R.styleable.CodeEditorView_cev_lineNumbers_textColor, R.attr.cev_lineNumbers_textColor, android.R.attr.textColorPrimary)
+        val lineNumberTextColor = a.getColor(context,
+                R.styleable.CodeEditorLayout_ke_lineNumbers_textColor,
+                R.attr.ke_lineNumbers_textColor,
+                android.R.attr.textColorPrimary)
         lineNumberTextView.setTextColor(lineNumberTextColor)
 
-        val lineNumberBackgroundColor = a.getColor(context, R.styleable.CodeEditorView_cev_lineNumbers_backgroundColor, R.attr.cev_lineNumbers_backgroundColor, android.R.attr.windowBackground)
+        val lineNumberBackgroundColor = a.getColor(context,
+                R.styleable.CodeEditorLayout_ke_lineNumbers_backgroundColor,
+                R.attr.ke_lineNumbers_backgroundColor,
+                android.R.attr.windowBackground)
         lineNumberZoomLayout.setBackgroundColor(lineNumberBackgroundColor)
 
 
-        val dividerEnabled = a.getBoolean(R.styleable.CodeEditorView_cev_divider, true)
-        dividerView.visibility = when (dividerEnabled) {
-            true -> View.VISIBLE
-            else -> View.GONE
-        }
-        val dividerColor = a.getColor(context, R.styleable.CodeEditorView_cev_divider_color, R.attr.cev_divider_color, android.R.attr.textColorPrimary)
+        showDivider = a.getBoolean(R.styleable.CodeEditorLayout_ke_divider_enabled, DEFAULT_SHOW_DIVIDER)
+
+        val dividerColor = a.getColor(context,
+                R.styleable.CodeEditorLayout_ke_divider_color,
+                R.attr.ke_divider_color,
+                android.R.attr.textColorPrimary)
         dividerView.setBackgroundColor(dividerColor)
 
-        val editTextBackgroundColor = a.getColor(context, R.styleable.CodeEditorView_cev_editor_backgroundColor, R.attr.cev_editor_backgroundColor, android.R.attr.windowBackground)
-        codeEditorZoomLayout.codeEditText.setBackgroundColor(editTextBackgroundColor)
+        val editTextBackgroundColor = a.getColor(context,
+                R.styleable.CodeEditorLayout_ke_editor_backgroundColor,
+                R.attr.ke_editor_backgroundColor,
+                android.R.attr.windowBackground)
+        codeEditorView.codeEditText.setBackgroundColor(editTextBackgroundColor)
 
-        val codeEditorMaxZoom = a.getFloat(R.styleable.CodeEditorView_cev_editor_maxZoom, 10F)
+        val codeEditorMaxZoom = a.getFloat(R.styleable.CodeEditorLayout_ke_editor_maxZoom, CodeEditorView.DEFAULT_MAX_ZOOM)
         lineNumberZoomLayout.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
-        codeEditorZoomLayout.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
+        codeEditorView.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
+
+        showMinimap = a.getBoolean(R.styleable.CodeEditorLayout_ke_minimap_enabled, DEFAULT_SHOW_MINIMAP)
+        minimapMaxDimension = a.getDimensionPixelSize(R.styleable.CodeEditorLayout_ke_minimap_maxDimension, DEFAULT_MINIMAP_MAX_DIMENSION_DP).toFloat()
 
         a.recycle()
     }
 
     private fun setListeners() {
         // add listener to code editor to keep linenumbers position and zoom in sync
-        codeEditorZoomLayout.engine.addListener(object : ZoomEngine.Listener {
-            override fun onIdle(engine: ZoomEngine) {
-            }
+        codeEditorView.engine.addListener(object : ZoomEngine.Listener {
+            override fun onIdle(engine: ZoomEngine) {}
 
             override fun onUpdate(engine: ZoomEngine, matrix: Matrix) {
-                lineNumberZoomLayout.layoutParams = lineNumberZoomLayout.layoutParams.apply {
-                    val scaledWidth = lineNumberTextView.width * engine.realZoom
-                    val maxWidth = Rect().apply { codeEditorZoomLayout.getLocalVisibleRect(this) }.width() / 3F
-                    val targetWidth = Math.min(scaledWidth, maxWidth)
-                    width = targetWidth.toInt()
-                }
+                val editorRect = calculateVisibleCodeArea()
+                updateLineNumbers(editorRect, updateLineCount = false)
 
-                lineNumberZoomLayout.moveTo(engine.zoom, -engine.computeHorizontalScrollRange().toFloat(), engine.panY, false)
+                if (showMinimap) {
+                    updateMinimapIndicator(editorRect)
+                }
             }
         })
+
+
+        codeEditorView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            if (showMinimap) {
+                updateMinimap()
+            }
+        }
+
+        @Suppress("ClickableViewAccessibility")
+        minimapZoomLayout.setOnTouchListener { v, event ->
+            if (!showMinimap) return@setOnTouchListener false
+
+            when (event.action) {
+                MotionEvent.ACTION_DOWN or MotionEvent.ACTION_MOVE -> {
+                    val viewX = event.x - v.left
+                    val viewY = event.y - v.top
+                    val offsetX = minimapIndicator.width / 2F
+                    val offsetY = minimapIndicator.height / 2F
+                    val percentageX = (viewX - offsetX) / v.width
+                    val percentageY = (viewY - offsetY) / v.height
+
+                    moveEditorToPercentage(percentageX, percentageY)
+                    true
+                }
+                else -> false
+            }
+        }
 
         setOnTouchListener { view, motionEvent ->
             when (motionEvent.action) {
@@ -166,17 +286,17 @@ private constructor(
             false
         }
 
-        codeEditorZoomLayout.codeEditText.setOnClickListener {
+        codeEditorView.codeEditText.setOnClickListener {
             internalMoveWithCursorEnabled = true
         }
 
         if (isMoveWithCursorEnabled) {
-            Observable.interval(250, TimeUnit.MILLISECONDS)
+            val d = Observable.interval(250, TimeUnit.MILLISECONDS)
                     .filter { internalMoveWithCursorEnabled }
                     .bindToLifecycle(this)
                     .subscribeBy(onNext = {
                         try {
-                            moveScreenWithCursorIfNecessary()
+                            moveToCursorIfNecessary()
                         } catch (e: Throwable) {
                             Log.e(CodeEditorView.TAG, "Error moving screen with cursor", e)
                         }
@@ -185,14 +305,14 @@ private constructor(
                     })
         }
 
-        RxTextView.textChanges(codeEditorZoomLayout.codeEditText)
+        val d = RxTextView.textChanges(codeEditorView.codeEditText)
                 .debounce(50, TimeUnit.MILLISECONDS)
                 .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .bindToLifecycle(this)
                 .subscribeBy(onNext = {
                     try {
-                        syncLineNumbersWithEditor()
+                        updateLineNumbers()
                     } catch (e: Throwable) {
                         Log.e(CodeEditorView.TAG, "Error updating line numbers", e)
                     }
@@ -201,92 +321,157 @@ private constructor(
                 })
     }
 
-    private fun syncLineNumbersWithEditor() {
-        codeEditorZoomLayout.post {
-            // linenumbers always have to be the exact same size as the content
-            lineNumberTextView.height = codeEditorZoomLayout.engine.computeVerticalScrollRange()
+    /**
+     * Helper function to move the editor content to a percentage based position
+     *
+     * @param percentageX x-axis percentage
+     * @param percentageY y-axis percentage
+     */
+    private fun moveEditorToPercentage(percentageX: Float, percentageY: Float) {
+        val targetX = -codeEditorView.engine.computeHorizontalScrollRange() / codeEditorView.engine.zoom * percentageX
+        val targetY = -codeEditorView.engine.computeVerticalScrollRange() / codeEditorView.engine.zoom * percentageY
 
-            val lineCount = codeEditorZoomLayout.getLineCount()
-            if (lineCount != currentLineCount) {
-                updateLineNumberText(lineCount)
+        codeEditorView.moveTo(codeEditorView.zoom, targetX, targetY, false)
+    }
+
+    /**
+     * Updates the minimap
+     */
+    private fun updateMinimap() {
+        updateMinimapImage()
+        updateMinimapIndicator()
+    }
+
+    /**
+     * Renders the current text and applies it to the minimap
+     */
+    private fun updateMinimapImage() {
+        codeEditorView.codeEditText.apply {
+            post {
+                val minimapSnapshot = createSnapshot(
+                        dimensionLimit = minimapMaxDimension)
+                minimapZoomLayout.setImageBitmap(minimapSnapshot)
             }
         }
     }
 
     /**
-     * @return true if editable, false otherwise
-     */
-    fun isEditable() = codeEditorZoomLayout.isEditable()
-
-    /**
-     * @param editable true = user can type, false otherwise
-     */
-    fun setEditable(editable: Boolean) = codeEditorZoomLayout.setEditable(editable)
-
-    /**
-     * Set the text in the editor
+     * Updates the minimap indicator position and size
      *
-     * @param text the new text
+     * @param editorRect the dimensions of the [codeEditorView]
      */
-    fun setText(text: CharSequence) {
-        codeEditorZoomLayout.setText(text)
-        updateLineNumberText(codeEditorZoomLayout.getLineCount())
+    private fun updateMinimapIndicator(editorRect: Rect = calculateVisibleCodeArea()) {
+        val engine = codeEditorView.engine
+
+        // update minimap indicator position and size
+        (minimapIndicator.layoutParams as MarginLayoutParams).apply {
+            val minimapBorder = resources.getDimensionPixelSize(R.dimen.cev_minimap_border_size)
+            topMargin = minimapBorder + (minimapZoomLayout.height * (engine.computeVerticalScrollOffset().toFloat() / engine.computeVerticalScrollRange())).toInt()
+            leftMargin = minimapBorder + (minimapZoomLayout.width * (engine.computeHorizontalScrollOffset().toFloat() / engine.computeHorizontalScrollRange())).toInt()
+
+            width = (minimapZoomLayout.width * (editorRect.width().toFloat() / engine.computeHorizontalScrollRange())).toInt()
+            height = (minimapZoomLayout.height * (editorRect.height().toFloat() / engine.computeVerticalScrollRange())).toInt()
+            minimapIndicator.layoutParams = this
+        }
     }
 
     /**
-     * Set the text in the editor
+     * Synchronizes zoom & position of [lineNumberTextView] with the [codeEditorView],
+     * and updates the line number text.
      *
-     * @param text string resource of the new text
+     * @param updateLineCount true updates line numbers (this is quite expensive), false doesn't
      */
-    fun setText(@StringRes text: Int) = setText(context.getString(text))
+    private fun updateLineNumbers(editorRect: Rect = calculateVisibleCodeArea(),
+                                  updateLineCount: Boolean = true) {
+        if (updateLineCount) {
+            updateLineNumberText()
+        }
 
-    /**
-     * Set the syntax highlighter to use for this CodeEditor
-     *
-     * @param syntaxHighlighter
-     */
-    @Suppress("unused")
-    fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter?) {
-        codeEditorZoomLayout.setSyntaxHighlighter(syntaxHighlighter)
+        // adjust width of line numbers based on zoom
+        val engine = codeEditorView.engine
+        lineNumberZoomLayout.layoutParams.apply {
+            val scaledWidth = lineNumberTextView.width * engine.realZoom
+            val maxWidth = editorRect.width() / 3F
+            val targetWidth = Math.min(scaledWidth, maxWidth)
+            width = targetWidth.toInt()
+
+            lineNumberZoomLayout.layoutParams = this
+        }
+
+        // synchronize zoom and vertical pan to match code editor
+        lineNumberZoomLayout.moveTo(
+                engine.zoom,
+                -engine.computeHorizontalScrollRange().toFloat(),
+                engine.panY,
+                false)
     }
 
-    private fun updateLineNumberText(lines: Long) {
-        currentLineCount = lines
-        val linesToDraw = Math.max(MIN_LINES, lines)
+    /**
+     * Updates the text of the [lineNumberTextView] to match the line count in the [codeEditorView]
+     *
+     * @param lineCount the amount of lines to show
+     */
+    private fun updateLineNumberText(lineCount: Long = codeEditorView.getLineCount()) {
+        val linesToDraw = Math.max(MIN_LINES_DRAWN, lineCount)
+        if (linesToDraw == currentDrawnLineCount) {
+            return
+        }
+
+        currentDrawnLineCount = linesToDraw
         lineNumberTextView.text = createLineNumberText(linesToDraw)
+
+        codeEditorView.post {
+            // linenumbers always have to be the exact same size as the content
+            lineNumberTextView.height = codeEditorView.engine.computeVerticalScrollRange()
+        }
     }
 
+    /**
+     * Creates the text that is used on [lineNumberTextView] to show line numbers.
+     *
+     * @param lines the amount of lines
+     * @return the text to show for the given amount of lines
+     */
     private fun createLineNumberText(lines: Long): String {
         return (1..lines).joinToString(separator = "$LINE_NUMBER_SUFFIX\n",
                 postfix = LINE_NUMBER_SUFFIX)
     }
 
-    private fun moveScreenWithCursorIfNecessary() {
+    /**
+     * Moves the screen so that the cursor is visible.
+     */
+    private fun moveToCursorIfNecessary() {
         val position = calculateCursorPosition()
-        val visibleRect = calculateVisibleCodeArea()
+        val visibleArea = calculateVisibleCodeArea()
 
-        if (!visibleRect.contains(position.x.roundToInt(), position.y.roundToInt())) {
+        if (!visibleArea.contains(position.x.roundToInt(), position.y.roundToInt())) {
             val newX = when {
-                position.x < visibleRect.left || position.x > visibleRect.right -> -x
-                else -> panX
+                position.x < visibleArea.left || position.x > visibleArea.right -> -x
+                else -> codeEditorView.panX
             }
 
             val newY = when {
-                position.y < visibleRect.top || position.y > visibleRect.bottom -> -y
-                else -> panY
+                position.y < visibleArea.top || position.y > visibleArea.bottom -> -y
+                else -> codeEditorView.panY
             }
 
-            moveTo(zoom, newX, newY, true)
+            codeEditorView.moveTo(codeEditorView.zoom, newX, newY, true)
         }
     }
 
-    private fun calculateVisibleCodeArea(): Rect {
-        return Rect().apply { codeEditorZoomLayout.getLocalVisibleRect(this) }
+    /**
+     * @return the currently visible area of the [codeEditorView]
+     */
+    private fun calculateVisibleCodeArea() = Rect().apply {
+        codeEditorView.getLocalVisibleRect(this)
     }
 
+    /**
+     * @return the position of the cursor in relation to the [codeEditorView] content.
+     */
     private fun calculateCursorPosition(): PointF {
-        val pos = codeEditorZoomLayout.codeEditText.selectionStart
-        val layout = codeEditorZoomLayout.codeEditText.layout
+        val pos = codeEditorView.codeEditText.selectionStart
+        val layout = codeEditorView.codeEditText.layout
 
         val line = layout.getLineForOffset(pos)
         val baseline = layout.getLineBaseline(line)
@@ -294,14 +479,18 @@ private constructor(
         val x = layout.getPrimaryHorizontal(pos)
         val y = (baseline + ascent).toFloat()
 
-        return PointF(x * realZoom + panX * realZoom + lineNumberTextView.width * realZoom,
-                y * realZoom + panY * realZoom)
+        return PointF(x * codeEditorView.realZoom + codeEditorView.panX * codeEditorView.realZoom + lineNumberTextView.width * codeEditorView.realZoom,
+                y * codeEditorView.realZoom + codeEditorView.panY * codeEditorView.realZoom)
     }
 
     companion object {
-        const val MIN_LINES = 1L
+        const val MIN_LINES_DRAWN = 1L
         const val DEFAULT_TEXT_SIZE_SP = 12F
         const val LINE_NUMBER_SUFFIX = ":"
+
+        const val DEFAULT_SHOW_DIVIDER = true
+        const val DEFAULT_SHOW_MINIMAP = true
+        const val DEFAULT_MINIMAP_MAX_DIMENSION_DP = 150
     }
 
 }

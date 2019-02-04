@@ -47,8 +47,9 @@ dependencies {
     implementation "com.android.support:appcompat-v7:$supportLibVersion"
     implementation "com.android.support:design:$supportLibVersion"
 
-    implementation "com.github.kittinunf.fuel:fuel:1.16.0"
-    implementation "com.github.kittinunf.fuel:fuel-android:1.16.0"
+    def fuelVersion = "1.16.0"
+    implementation "com.github.kittinunf.fuel:fuel:$fuelVersion"
+    implementation "com.github.kittinunf.fuel:fuel-android:$fuelVersion"
 
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'

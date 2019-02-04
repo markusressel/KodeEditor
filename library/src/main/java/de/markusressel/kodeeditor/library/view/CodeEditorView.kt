@@ -6,6 +6,7 @@ import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import com.otaliastudios.zoom.ZoomApi
 import com.otaliastudios.zoom.ZoomLayout
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.getColor
@@ -22,11 +23,6 @@ open class CodeEditorView
     : ZoomLayout(context, attrs, defStyleAttr) {
 
     /**
-     * The unique (zoomable) child element of this ZoomLayout
-     */
-    lateinit var contentLayout: ViewGroup
-
-    /**
      * The actual text editor content
      */
     lateinit var codeEditText: CodeEditText
@@ -37,10 +33,55 @@ open class CodeEditorView
     lateinit var codeTextView: CodeTextView
 
     /**
-     * Set to true to force the width of the CodeEditorView to it's parents width
-     * TODO: currently not working
+     * The currently active syntax highlighter (if any)
      */
-    private var forceParentWidth = false
+    var syntaxHighlighter: SyntaxHighlighter?
+        get() = codeEditText.syntaxHighlighter
+        set(value) {
+            if (value != null) {
+                codeEditText.syntaxHighlighter = EditTextSyntaxHighlighter(value, codeEditText)
+                codeTextView.syntaxHighlighter = StatefulSyntaxHighlighter(value)
+            } else {
+                codeEditText.syntaxHighlighter = null
+                codeTextView.syntaxHighlighter = null
+            }
+        }
+
+    /**
+     * The current text
+     */
+    var text: String
+        get() = codeEditText.text.toString()
+        set(value) {
+            codeEditText.setText(value)
+            codeTextView.text = value
+        }
+
+    /**
+     * Set the text in the editor
+     *
+     * @param text string resource of the new text to set
+     */
+    @Suppress("unused")
+    fun setText(@StringRes text: Int) {
+        this.text = context.getString(text)
+    }
+
+    /**
+     * Controls whether the text is editable
+     */
+    var editable: Boolean
+        get() = codeEditText.visibility == View.VISIBLE
+        set(value) {
+            if (value) {
+                codeEditText.visibility = View.VISIBLE
+                codeTextView.visibility = View.GONE
+            } else {
+                codeTextView.text = codeEditText.text
+                codeEditText.visibility = View.GONE
+                codeTextView.visibility = View.VISIBLE
+            }
+        }
 
     init {
         setHasClickableChildren(true)
@@ -55,22 +96,28 @@ open class CodeEditorView
     private fun readParameters(attrs: AttributeSet?, defStyleAttr: Int) {
         val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0)
 
-        val editTextBackgroundColor = a.getColor(context, R.styleable.CodeEditorView_cev_editor_backgroundColor, R.attr.cev_editor_backgroundColor, android.R.attr.windowBackground)
+        val editTextBackgroundColor = a.getColor(context,
+                R.styleable.CodeEditorView_ke_editor_backgroundColor,
+                R.attr.ke_editor_backgroundColor,
+                android.R.attr.windowBackground)
         codeEditText.setBackgroundColor(editTextBackgroundColor)
+
+        val maxRealZoom = a.getFloat(R.styleable.CodeEditorView_ke_editor_maxZoom, DEFAULT_MAX_ZOOM)
+        setMaxZoom(maxRealZoom, ZoomApi.TYPE_REAL_ZOOM)
 
         a.recycle()
     }
 
     private fun inflateViews(inflater: LayoutInflater) {
-        contentLayout = inflater.inflate(R.layout.view_code_editor__inner_layout, this).findViewById(R.id.cev_editor_contentLayout)
+        inflater.inflate(R.layout.view_code_editor__inner_layout, this)
 
-        codeEditText = contentLayout.findViewById(R.id.cev_editor_codeEditText) as CodeEditText
+        codeEditText = findViewById(R.id.cev_editor_codeEditText)
         codeEditText.setViewBackgroundWithoutResettingPadding(null)
         codeEditText.post {
             codeEditText.setSelection(0)
         }
 
-        codeTextView = contentLayout.findViewById(R.id.cev_editor_codeTextView) as CodeTextView
+        codeTextView = findViewById(R.id.cev_editor_codeTextView)
         codeTextView.setViewBackgroundWithoutResettingPadding(null)
     }
 
@@ -82,15 +129,6 @@ open class CodeEditorView
                 firstInit = false
 
                 setMinimumDimensions()
-//                if (forceParentWidth) {
-//                    // force exact width
-//                    val params = contentLayout.layoutParams
-//                    params.width = (parent as View).height
-//                    contentLayout.layoutParams = params
-//
-//                    codeEditText.minWidth = width
-//                    codeTextView.minWidth = width
-//                }
             }
         }
     }
@@ -115,60 +153,6 @@ open class CodeEditorView
     }
 
     /**
-     * @return true if editable, false otherwise
-     */
-    fun isEditable() = codeEditText.visibility == View.VISIBLE
-
-    /**
-     * Controls whether the text is editable
-     *
-     * @param editable true = user can type, false otherwise
-     */
-    fun setEditable(editable: Boolean) {
-        if (editable) {
-            codeEditText.visibility = View.VISIBLE
-            codeTextView.visibility = View.GONE
-        } else {
-            codeTextView.text = codeEditText.text
-            codeEditText.visibility = View.GONE
-            codeTextView.visibility = View.VISIBLE
-        }
-    }
-
-    /**
-     * Set the text in the editor
-     *
-     * @param text the new text to set
-     */
-    fun setText(text: CharSequence) {
-        codeEditText.setText(text)
-        codeTextView.text = text
-    }
-
-    /**
-     * Set the text in the editor
-     *
-     * @param text string resource of the new text to set
-     */
-    @Suppress("unused")
-    fun setText(@StringRes text: Int) = setText(context.getString(text))
-
-    /**
-     * Set the syntax highlighter to use
-     *
-     * @param syntaxHighlighter the highlighter to set
-     */
-    fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter?) {
-        if (syntaxHighlighter != null) {
-            codeEditText.syntaxHighlighter = EditTextSyntaxHighlighter(syntaxHighlighter, codeEditText)
-            codeTextView.syntaxHighlighter = StatefulSyntaxHighlighter(syntaxHighlighter)
-        } else {
-            codeEditText.syntaxHighlighter = null
-            codeTextView.syntaxHighlighter = null
-        }
-    }
-
-    /**
      * @return the current count of lines of code in the editor.
      */
     fun getLineCount(): Long {
@@ -182,6 +166,8 @@ open class CodeEditorView
 
     companion object {
         const val TAG = "CodeEditorView"
+
+        const val DEFAULT_MAX_ZOOM = 10F
     }
 
 }

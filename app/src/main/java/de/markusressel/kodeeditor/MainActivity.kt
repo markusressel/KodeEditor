@@ -12,8 +12,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        codeEditorView.setSyntaxHighlighter(MarkdownSyntaxHighlighter())
-        codeEditorView.setEditable(false)
+        codeEditorLayout.syntaxHighlighter = MarkdownSyntaxHighlighter()
+        codeEditorLayout.editable = false
+        codeEditorLayout.showDivider = true
+        codeEditorLayout.showMinimap = true
 
         initEditorText()
     }
@@ -25,12 +27,11 @@ class MainActivity : AppCompatActivity() {
 
                     if (error != null || text == null) {
                         // fallback if no network is available
-                        codeEditorView.setText(R.string.demo_text)
+                        codeEditorLayout.setText(R.string.demo_text)
                     } else {
-                        codeEditorView.setText(text)
+                        codeEditorLayout.text = text
                     }
-                    codeEditorView.zoomTo(codeEditorView.realZoom, false)
-                    codeEditorView.setEditable(true)
+                    codeEditorLayout.editable = true
                 }
     }
 

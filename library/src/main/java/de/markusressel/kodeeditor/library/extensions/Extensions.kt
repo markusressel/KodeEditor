@@ -2,6 +2,9 @@ package de.markusressel.kodeeditor.library.extensions
 
 import android.content.Context
 import android.content.res.TypedArray
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.support.annotation.AttrRes
 import android.support.annotation.ColorInt
@@ -58,4 +61,55 @@ fun View.setViewBackgroundWithoutResettingPadding(background: Drawable?) {
     val paddingTop = this.paddingTop
     ViewCompat.setBackground(this, background)
     ViewCompat.setPaddingRelative(this, paddingStart, paddingTop, paddingEnd, paddingBottom)
+}
+
+/**
+ * Converts the given number to a px value assuming it is a dp value.
+ *
+ * @return px value
+ */
+fun Number.dpToPx(context: Context): Float {
+    return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            this.toFloat(),
+            context.resources.displayMetrics)
+}
+
+/**
+ * Renders a view to a bitmap
+ *
+ * @param dimensionLimit the maximum image dimension
+ * @param backgroundColor background color in case the view doesn't have one
+ * @return the rendered image or null if the view has no measured dimensions (yet)
+ */
+fun View.createSnapshot(dimensionLimit: Number = 1F, backgroundColor: Int = Color.TRANSPARENT): Bitmap? {
+    if (measuredWidth == 0 || measuredHeight == 0) {
+        // the view has no dimensions so it can't be rendered
+        return null
+    }
+
+    val limitAsFloat = dimensionLimit.toFloat()
+
+    // select smaller scaling factor to match dimensionLimit
+    val scaleFactor = Math.min(
+            Math.min(
+                    limitAsFloat / measuredWidth,
+                    limitAsFloat / measuredHeight),
+            1F)
+
+    // Define a bitmap with the target dimensions
+    val returnedBitmap = Bitmap.createBitmap(
+            (this.measuredWidth * scaleFactor).toInt(),
+            (this.measuredHeight * scaleFactor).toInt(),
+            Bitmap.Config.ARGB_8888)
+
+    // bind a canvas to the bitmap
+    Canvas(returnedBitmap).apply {
+        scale(scaleFactor, scaleFactor)
+        drawColor(backgroundColor)
+        background?.draw(this)
+        draw(this)
+    }
+
+    return returnedBitmap
 }

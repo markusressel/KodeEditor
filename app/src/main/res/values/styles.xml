@@ -8,14 +8,14 @@
         <item name="colorAccent">@color/colorAccent</item>
 
         <!-- CodeEditorView -->
-        <!--<item name="cev_divider_color">#f0f</item>-->
-        <!--<item name="cev_editor_backgroundColor">#f00</item>-->
-        <!--<item name="cev_lineNumbers_backgroundColor">#f08</item>-->
-        <!--<item name="cev_lineNumbers_textColor">#f0c</item>-->
-
-        <item name="cev_lineNumbers_backgroundColor">#ccc</item>
-        <item name="cev_lineNumbers_textColor">#000</item>
-        <item name="cev_divider">false</item>
+        <item name="ke_lineNumbers_backgroundColor">#ccc</item>
+        <item name="ke_lineNumbers_textColor">#000</item>
+        <item name="ke_divider_enabled">false</item>
+        <item name="ke_divider_color">#000</item>
+        <item name="ke_editor_backgroundColor">#fff</item>
+        <item name="ke_editor_maxZoom">10.0</item>
+        <item name="ke_minimap_enabled">true</item>
+        <item name="ke_minimap_maxDimension">200dp</item>
 
     </style>
 

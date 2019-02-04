@@ -17,6 +17,7 @@ A simple code editor with syntax highlighting and pinch to zoom
   * import languages you need
   * or simply create your own highlighter using **regex** or other techniques
   * themes
+* "Minimap" style document overview
 * Written entirely in Kotlin
 
 # How to use
@@ -52,10 +53,14 @@ To use this editor simply add something similar to this to your desired layout x
         android:id="@+id/codeEditorView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:cev_divider="true"
-        app:cev_divider_color="?android:attr/textColorPrimary"
-        app:cev_editor_backgroundColor="?android:attr/windowBackground"
-        app:cev_editor_maxZoom="10.0"
+        app:ke_divider_color="?android:attr/textColorPrimary"
+        app:ke_divider_enabled="true"
+        app:ke_editor_backgroundColor="?android:attr/windowBackground"
+        app:ke_editor_maxZoom="10.0"
+        app:ke_lineNumbers_backgroundColor="#ccc"
+        app:ke_lineNumbers_textColor="#000"
+        app:ke_minimap_enabled="true"
+        app:ke_minimap_maxDimension="200dp" 
         />
 ```
 
@@ -86,11 +91,14 @@ KodeEditor can be styled in multiple ways:
 
 | Name                      | Description                              | Type     | Default                                |
 |---------------------------|------------------------------------------|----------|----------------------------------------|
-| cev_lineNumbers_textColor | Specifies the text color of line numbers | Color    | `android.R.attr.textColorPrimary`      |
-| cev_lineNumbers_backgroundColor | Specifies the background color of the line numbers view | Color | `android.R.attr.windowBackground` |
-| cev_divider | Specifies if a divider should be drawn between line numbers and the actual code editor content | Boolean | `true` |
-| cev_divider_color | Specifies the color of the divider (has no effect if `cev_divider` is set to `false`) | Color | `android.R.attr.textColorPrimary` |
-| cev_editor_backgroundColor | Specifies the background color of the code editor view | Color | `android.R.attr.windowBackground` |
+| ke_lineNumbers_textColor | Specifies the text color of line numbers | Color    | `android.R.attr.textColorPrimary`      |
+| ke_lineNumbers_backgroundColor | Specifies the background color of the line numbers view | Color | `android.R.attr.windowBackground` |
+| ke_divider_enabled | Specifies if a divider should be drawn between line numbers and the actual code editor content | Boolean | `true` |
+| ke_divider_color | Specifies the color of the divider (has no effect if `ke_divider_enabled` is set to `false`) | Color | `android.R.attr.textColorPrimary` |
+| ke_editor_backgroundColor | Specifies the background color of the code editor view | Color | `android.R.attr.windowBackground` |
+| ke_editor_maxZoom | Specifies the maximum zoom level of the editor | Float | `10` |
+| ke_minimap_enabled | Enables the minimap | Boolean | `true` |
+| ke_minimap_maxDimension | Specifies the maximum dimension of the minimap for both axis | Dimension | `150dp` |
 
 You can either use those attributes directly on the view in your layout like this:
 
@@ -100,9 +108,15 @@ You can either use those attributes directly on the view in your layout like thi
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     [...]
-    app:cev_divider="true"
-    app:cev_divider_color="?android:attr/textColorPrimary"
-    app:cev_editor_backgroundColor="?android:attr/windowBackground"
+    app:ke_divider_color="?android:attr/textColorPrimary"
+    app:ke_divider_enabled="true"
+    app:ke_editor_backgroundColor="?android:attr/windowBackground"
+    app:ke_editor_maxZoom="10.0"
+    app:ke_lineNumbers_backgroundColor="#ccc"
+    app:ke_lineNumbers_textColor="#000"
+    app:ke_minimap_enabled="true"
+    app:ke_minimap_maxDimension="200dp" 
+    app:ke_divider="true"
     [...] />
 ```
 
@@ -118,10 +132,16 @@ or specify them in your application theme (`styles.xml` in dem app) for to apply
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
 
-        <!-- CodeEditorView specific stylings -->
-        <item name="cev_lineNumbers_backgroundColor">#ccc</item>
-        <item name="cev_lineNumbers_textColor">#000</item>
-        <item name="cev_divider">false</item>
+        <!-- CodeEditorView -->
+        <item name="ke_lineNumbers_backgroundColor">#ccc</item>
+        <item name="ke_lineNumbers_textColor">#000</item>
+        <item name="ke_divider_enabled">false</item>
+        <item name="ke_divider_color">#000</item>
+        <item name="ke_editor_backgroundColor">#fff</item>
+        <item name="ke_editor_maxZoom">10.0</item>
+        <item name="ke_minimap_enabled">true</item>
+        <item name="ke_minimap_maxDimension">200dp</item>
+         
     </style>
 
 </resources>

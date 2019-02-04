@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.otaliastudios.zoom.ZoomLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/cev_linenumbers_zoomLayout"
+    android:id="@+id/cel_linenumbers_zoomLayout"
     android:layout_width="@dimen/cev_linenumber_width"
     android:layout_height="match_parent"
     android:scrollbars="none"
@@ -14,7 +14,7 @@
     app:zoomEnabled="false">
 
     <TextView
-        android:id="@+id/cev_linenumbers_textview"
+        android:id="@+id/cel_linenumbers_textview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="4dp"
