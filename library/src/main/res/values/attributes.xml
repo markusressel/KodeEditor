@@ -7,12 +7,13 @@
     <declare-styleable name="CodeEditorLayout">
         <attr name="ke_lineNumbers_textColor" format="reference|color" />
         <attr name="ke_lineNumbers_backgroundColor" format="reference|color" />
-        <attr name="ke_divider" format="boolean" />
+        <attr name="ke_divider_enabled" format="boolean" />
         <attr name="ke_divider_color" format="reference|color" />
-        <attr name="ke_editor_showMinimap" format="boolean" />
-        <attr name="ke_minimapMaxDimension" format="dimension" />
+
         <attr name="ke_editor_backgroundColor" />
         <attr name="ke_editor_maxZoom" />
+        <attr name="ke_minimap_maxDimension" format="dimension" />
+        <attr name="ke_minimap_enabled" format="boolean" />
     </declare-styleable>
 
     <declare-styleable name="CodeEditorView">

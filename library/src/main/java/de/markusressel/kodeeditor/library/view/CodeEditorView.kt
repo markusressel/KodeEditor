@@ -33,10 +33,55 @@ open class CodeEditorView
     lateinit var codeTextView: CodeTextView
 
     /**
-     * Set to true to force the width of the CodeEditorView to it's parents width
-     * TODO: currently not working
+     * The currently active syntax highlighter (if any)
      */
-    private var forceParentWidth = false
+    var syntaxHighlighter: SyntaxHighlighter?
+        get() = codeEditText.syntaxHighlighter
+        set(value) {
+            if (value != null) {
+                codeEditText.syntaxHighlighter = EditTextSyntaxHighlighter(value, codeEditText)
+                codeTextView.syntaxHighlighter = StatefulSyntaxHighlighter(value)
+            } else {
+                codeEditText.syntaxHighlighter = null
+                codeTextView.syntaxHighlighter = null
+            }
+        }
+
+    /**
+     * The current text
+     */
+    var text: String
+        get() = codeEditText.text.toString()
+        set(value) {
+            codeEditText.setText(value)
+            codeTextView.text = value
+        }
+
+    /**
+     * Set the text in the editor
+     *
+     * @param text string resource of the new text to set
+     */
+    @Suppress("unused")
+    fun setText(@StringRes text: Int) {
+        this.text = context.getString(text)
+    }
+
+    /**
+     * Controls whether the text is editable
+     */
+    var editable: Boolean
+        get() = codeEditText.visibility == View.VISIBLE
+        set(value) {
+            if (value) {
+                codeEditText.visibility = View.VISIBLE
+                codeTextView.visibility = View.GONE
+            } else {
+                codeTextView.text = codeEditText.text
+                codeEditText.visibility = View.GONE
+                codeTextView.visibility = View.VISIBLE
+            }
+        }
 
     init {
         setHasClickableChildren(true)
@@ -84,15 +129,6 @@ open class CodeEditorView
                 firstInit = false
 
                 setMinimumDimensions()
-//                if (forceParentWidth) {
-//                    // force exact width
-//                    val params = contentLayout.layoutParams
-//                    params.width = (parent as View).height
-//                    contentLayout.layoutParams = params
-//
-//                    codeEditText.minWidth = width
-//                    codeTextView.minWidth = width
-//                }
             }
         }
     }
@@ -114,60 +150,6 @@ open class CodeEditorView
 
         codeEditText.minHeight = minimumHeight
         codeTextView.minHeight = minimumHeight
-    }
-
-    /**
-     * @return true if editable, false otherwise
-     */
-    fun isEditable() = codeEditText.visibility == View.VISIBLE
-
-    /**
-     * Controls whether the text is editable
-     *
-     * @param editable true = user can type, false otherwise
-     */
-    fun setEditable(editable: Boolean) {
-        if (editable) {
-            codeEditText.visibility = View.VISIBLE
-            codeTextView.visibility = View.GONE
-        } else {
-            codeTextView.text = codeEditText.text
-            codeEditText.visibility = View.GONE
-            codeTextView.visibility = View.VISIBLE
-        }
-    }
-
-    /**
-     * Set the text in the editor
-     *
-     * @param text the new text to set
-     */
-    fun setText(text: CharSequence) {
-        codeEditText.setText(text)
-        codeTextView.text = text
-    }
-
-    /**
-     * Set the text in the editor
-     *
-     * @param text string resource of the new text to set
-     */
-    @Suppress("unused")
-    fun setText(@StringRes text: Int) = setText(context.getString(text))
-
-    /**
-     * Set the syntax highlighter to use
-     *
-     * @param syntaxHighlighter the highlighter to set
-     */
-    fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter?) {
-        if (syntaxHighlighter != null) {
-            codeEditText.syntaxHighlighter = EditTextSyntaxHighlighter(syntaxHighlighter, codeEditText)
-            codeTextView.syntaxHighlighter = StatefulSyntaxHighlighter(syntaxHighlighter)
-        } else {
-            codeEditText.syntaxHighlighter = null
-            codeTextView.syntaxHighlighter = null
-        }
     }
 
     /**

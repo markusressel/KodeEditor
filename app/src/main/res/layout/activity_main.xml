@@ -12,10 +12,13 @@
         android:layout_height="match_parent"
         android:fadeScrollbars="true"
         android:scrollbars="vertical|horizontal"
-        app:ke_divider="true"
         app:ke_divider_color="?android:attr/textColorPrimary"
+        app:ke_divider_enabled="true"
         app:ke_editor_backgroundColor="?android:attr/windowBackground"
         app:ke_editor_maxZoom="10.0"
-        app:ke_editor_showMinimap="true" />
+        app:ke_lineNumbers_backgroundColor="#ccc"
+        app:ke_lineNumbers_textColor="#000"
+        app:ke_minimap_enabled="true"
+        app:ke_minimap_maxDimension="200dp" />
 
 </FrameLayout>

@@ -52,22 +52,6 @@ constructor(
     lateinit var codeEditorView: CodeEditorView
 
     /**
-     * Text size in SP
-     */
-    private var textSizeSp: Float = DEFAULT_TEXT_SIZE_SP
-
-    /**
-     * Text size in PX
-     */
-    private var textSizePx: Float
-        get() {
-            return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, textSizeSp, context.resources.displayMetrics)
-        }
-        set(value) {
-            textSizeSp = value / resources.displayMetrics.scaledDensity
-        }
-
-    /**
      * The view displaying line numbers.
      * This is also a [ZoomLayout] so the line numbers can be scaled and panned according to the
      * code editor's zoom and pan.
@@ -106,6 +90,44 @@ constructor(
     private var internalMoveWithCursorEnabled = false
 
     /**
+     * The currently set text
+     */
+    var text: String
+        set(value) {
+            codeEditorView.text = value
+            updateLineNumbers()
+            updateMinimap()
+        }
+        get() = codeEditorView.codeEditText.text.toString()
+
+    /**
+     * The currently active syntax highlighter (if any)
+     */
+    var syntaxHighlighter: SyntaxHighlighter?
+        get() = codeEditorView.syntaxHighlighter
+        set(value) {
+            codeEditorView.syntaxHighlighter = value
+        }
+
+    /**
+     * Set the text in the editor
+     *
+     * @param text string resource of the new text
+     */
+    fun setText(@StringRes text: Int) {
+        this.text = context.getString(text)
+    }
+
+    /**
+     * Controls wheter the text is editable or not.
+     */
+    var editable: Boolean
+        set(value) {
+            codeEditorView.editable = value
+        }
+        get() = codeEditorView.editable
+
+    /**
      * Controls whether the divider between line numbers and code editor is visible.
      */
     var showDivider: Boolean
@@ -133,6 +155,20 @@ constructor(
         }
 
     private var currentDrawnLineCount = -1L
+
+    /**
+     * Text size in SP
+     */
+    private var textSizeSp: Float = DEFAULT_TEXT_SIZE_SP
+
+    /**
+     * Text size in PX
+     */
+    private var textSizePx: Float
+        get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, textSizeSp, context.resources.displayMetrics)
+        set(value) {
+            textSizeSp = value / resources.displayMetrics.scaledDensity
+        }
 
     init {
         inflateViews(LayoutInflater.from(context))
@@ -175,7 +211,7 @@ constructor(
         lineNumberZoomLayout.setBackgroundColor(lineNumberBackgroundColor)
 
 
-        showDivider = a.getBoolean(R.styleable.CodeEditorLayout_ke_divider, DEFAULT_SHOW_DIVIDER)
+        showDivider = a.getBoolean(R.styleable.CodeEditorLayout_ke_divider_enabled, DEFAULT_SHOW_DIVIDER)
 
         val dividerColor = a.getColor(context,
                 R.styleable.CodeEditorLayout_ke_divider_color,
@@ -193,8 +229,8 @@ constructor(
         lineNumberZoomLayout.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
         codeEditorView.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
 
-        showMinimap = a.getBoolean(R.styleable.CodeEditorLayout_ke_editor_showMinimap, DEFAULT_SHOW_MINIMAP)
-        minimapMaxDimension = a.getDimensionPixelSize(R.styleable.CodeEditorLayout_ke_minimapMaxDimension, DEFAULT_MINIMAP_MAX_DIMENSION_DP).toFloat()
+        showMinimap = a.getBoolean(R.styleable.CodeEditorLayout_ke_minimap_enabled, DEFAULT_SHOW_MINIMAP)
+        minimapMaxDimension = a.getDimensionPixelSize(R.styleable.CodeEditorLayout_ke_minimap_maxDimension, DEFAULT_MINIMAP_MAX_DIMENSION_DP).toFloat()
 
         a.recycle()
     }
@@ -368,44 +404,6 @@ constructor(
                 -engine.computeHorizontalScrollRange().toFloat(),
                 engine.panY,
                 false)
-    }
-
-    /**
-     * @return true if editable, false otherwise
-     */
-    fun isEditable() = codeEditorView.isEditable()
-
-    /**
-     * @param editable true = user can type, false otherwise
-     */
-    fun setEditable(editable: Boolean) = codeEditorView.setEditable(editable)
-
-    /**
-     * Set the text in the editor
-     *
-     * @param text the new text
-     */
-    fun setText(text: CharSequence) {
-        codeEditorView.setText(text)
-        updateLineNumbers()
-        updateMinimap()
-    }
-
-    /**
-     * Set the text in the editor
-     *
-     * @param text string resource of the new text
-     */
-    fun setText(@StringRes text: Int) = setText(context.getString(text))
-
-    /**
-     * Set the syntax highlighter to use for this CodeEditor
-     *
-     * @param syntaxHighlighter
-     */
-    @Suppress("unused")
-    fun setSyntaxHighlighter(syntaxHighlighter: SyntaxHighlighter?) {
-        codeEditorView.setSyntaxHighlighter(syntaxHighlighter)
     }
 
     /**

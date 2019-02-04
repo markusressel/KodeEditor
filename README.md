@@ -17,7 +17,7 @@ A simple code editor with syntax highlighting and pinch to zoom
   * import languages you need
   * or simply create your own highlighter using **regex** or other techniques
   * themes
-* "Minimap" style overview
+* "Minimap" style document overview
 * Written entirely in Kotlin
 
 # How to use
