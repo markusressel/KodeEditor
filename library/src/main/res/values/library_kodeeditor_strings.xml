@@ -9,7 +9,7 @@
     <string name="library_kodeeditor_libraryName">KodeEditor</string>
     <string name="library_kodeeditor_libraryDescription">A simple code editor with syntax highlighting and pinch to zoom</string>
     <string name="library_kodeeditor_libraryWebsite">@string/library_kodeeditor_repositoryLink</string>
-    <string name="library_kodeeditor_libraryVersion">1.0.0</string>
+    <string name="library_kodeeditor_libraryVersion">2.0.0</string>
     <!-- OpenSource section -->
     <string name="library_kodeeditor_isOpenSource">true</string>
     <string name="library_kodeeditor_repositoryLink">https://github.com/markusressel/KodeEditor</string>
