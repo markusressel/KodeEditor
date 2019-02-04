@@ -53,11 +53,11 @@ To use this editor simply add something similar to this to your desired layout x
         android:id="@+id/codeEditorView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:cev_divider="true"
-        app:cev_divider_color="?android:attr/textColorPrimary"
-        app:cev_editor_backgroundColor="?android:attr/windowBackground"
-        app:cev_editor_maxZoom="10.0"
-        app:cev_editor_showMinimap="true"
+        app:ke_divider="true"
+        app:ke_divider_color="?android:attr/textColorPrimary"
+        app:ke_editor_backgroundColor="?android:attr/windowBackground"
+        app:ke_editor_maxZoom="10.0"
+        app:ke_editor_showMinimap="true"
         />
 ```
 
@@ -88,11 +88,11 @@ KodeEditor can be styled in multiple ways:
 
 | Name                      | Description                              | Type     | Default                                |
 |---------------------------|------------------------------------------|----------|----------------------------------------|
-| cev_lineNumbers_textColor | Specifies the text color of line numbers | Color    | `android.R.attr.textColorPrimary`      |
-| cev_lineNumbers_backgroundColor | Specifies the background color of the line numbers view | Color | `android.R.attr.windowBackground` |
-| cev_divider | Specifies if a divider should be drawn between line numbers and the actual code editor content | Boolean | `true` |
-| cev_divider_color | Specifies the color of the divider (has no effect if `cev_divider` is set to `false`) | Color | `android.R.attr.textColorPrimary` |
-| cev_editor_backgroundColor | Specifies the background color of the code editor view | Color | `android.R.attr.windowBackground` |
+| ke_lineNumbers_textColor | Specifies the text color of line numbers | Color    | `android.R.attr.textColorPrimary`      |
+| ke_lineNumbers_backgroundColor | Specifies the background color of the line numbers view | Color | `android.R.attr.windowBackground` |
+| ke_divider | Specifies if a divider should be drawn between line numbers and the actual code editor content | Boolean | `true` |
+| ke_divider_color | Specifies the color of the divider (has no effect if `ke_divider` is set to `false`) | Color | `android.R.attr.textColorPrimary` |
+| ke_editor_backgroundColor | Specifies the background color of the code editor view | Color | `android.R.attr.windowBackground` |
 
 You can either use those attributes directly on the view in your layout like this:
 
@@ -102,9 +102,9 @@ You can either use those attributes directly on the view in your layout like thi
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     [...]
-    app:cev_divider="true"
-    app:cev_divider_color="?android:attr/textColorPrimary"
-    app:cev_editor_backgroundColor="?android:attr/windowBackground"
+    app:ke_divider="true"
+    app:ke_divider_color="?android:attr/textColorPrimary"
+    app:ke_editor_backgroundColor="?android:attr/windowBackground"
     [...] />
 ```
 
@@ -120,10 +120,12 @@ or specify them in your application theme (`styles.xml` in dem app) for to apply
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
 
-        <!-- CodeEditorView specific stylings -->
-        <item name="cev_lineNumbers_backgroundColor">#ccc</item>
-        <item name="cev_lineNumbers_textColor">#000</item>
-        <item name="cev_divider">false</item>
+        <!-- CodeEditorView -->
+        <item name="ke_lineNumbers_backgroundColor">#ccc</item>
+        <item name="ke_lineNumbers_textColor">#000</item>
+        <item name="ke_divider">false</item>
+        <item name="ke_divider_color">#000</item>
+        <item name="ke_editor_backgroundColor">#fff</item>
     </style>
 
 </resources>

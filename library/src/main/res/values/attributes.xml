@@ -1,14 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <attr name="ke_editor_backgroundColor" format="reference|color" />
+    <attr name="ke_editor_maxZoom" format="float" />
+
+    <declare-styleable name="CodeEditorLayout">
+        <attr name="ke_lineNumbers_textColor" format="reference|color" />
+        <attr name="ke_lineNumbers_backgroundColor" format="reference|color" />
+        <attr name="ke_divider" format="boolean" />
+        <attr name="ke_divider_color" format="reference|color" />
+        <attr name="ke_editor_showMinimap" format="boolean" />
+        <attr name="ke_minimapMaxDimension" format="dimension" />
+        <attr name="ke_editor_backgroundColor" />
+        <attr name="ke_editor_maxZoom" />
+    </declare-styleable>
+
     <declare-styleable name="CodeEditorView">
-        <attr name="cev_lineNumbers_textColor" format="reference|color" />
-        <attr name="cev_lineNumbers_backgroundColor" format="reference|color" />
-        <attr name="cev_divider" format="boolean" />
-        <attr name="cev_divider_color" format="reference|color" />
-        <attr name="cev_editor_backgroundColor" format="reference|color" />
-        <attr name="cev_editor_maxZoom" format="float" />
-        <attr name="cev_editor_showMinimap" format="boolean" />
+        <attr name="ke_editor_backgroundColor" />
+        <attr name="ke_editor_maxZoom" />
     </declare-styleable>
 
 </resources>

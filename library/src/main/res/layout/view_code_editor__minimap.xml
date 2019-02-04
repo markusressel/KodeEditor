@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/cev_minimap_container"
+    android:id="@+id/cel_minimap_container"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_gravity="top|end"
@@ -9,7 +9,7 @@
     android:background="@drawable/minimap_background">
 
     <com.otaliastudios.zoom.ZoomImageView
-        android:id="@+id/cev_minimap"
+        android:id="@+id/cel_minimap"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="@dimen/cev_minimap_border_size"
@@ -27,7 +27,7 @@
         app:transformationGravity="top|left" />
 
     <View
-        android:id="@+id/cev_minimap_indicator"
+        android:id="@+id/cel_minimap_indicator"
         android:layout_width="50dp"
         android:layout_height="50dp"
         android:background="@drawable/minimap_indicator" />

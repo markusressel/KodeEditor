@@ -29,7 +29,6 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         codeEditorLayout.setText(text)
                     }
-                    codeEditorLayout.codeEditorZoomLayout.zoomTo(codeEditorLayout.codeEditorZoomLayout.realZoom, false)
                     codeEditorLayout.setEditable(true)
                 }
     }

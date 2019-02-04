@@ -82,20 +82,20 @@ fun Number.dpToPx(context: Context): Float {
  * @param backgroundColor background color in case the view doesn't have one
  * @return the rendered image or null if the view has no measured dimensions (yet)
  */
-fun View.createSnapshot(dimensionLimit: Float = Float.NaN, backgroundColor: Int = Color.TRANSPARENT): Bitmap? {
+fun View.createSnapshot(dimensionLimit: Number = 1F, backgroundColor: Int = Color.TRANSPARENT): Bitmap? {
     if (measuredWidth == 0 || measuredHeight == 0) {
+        // the view has no dimensions so it can't be rendered
         return null
     }
 
-    val scaleFactor = if (dimensionLimit.isNaN()) {
-        1F // do not scale
-    } else {
-        // select smaller scaling factor to match dimensionLimit
-        Math.min(
-                Math.min(dimensionLimit / measuredWidth,
-                        dimensionLimit / measuredHeight),
-                1F)
-    }
+    val limitAsFloat = dimensionLimit.toFloat()
+
+    // select smaller scaling factor to match dimensionLimit
+    val scaleFactor = Math.min(
+            Math.min(
+                    limitAsFloat / measuredWidth,
+                    limitAsFloat / measuredHeight),
+            1F)
 
     // Define a bitmap with the target dimensions
     val returnedBitmap = Bitmap.createBitmap(
