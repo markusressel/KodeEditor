@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Matrix
 import android.graphics.PointF
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.support.annotation.ColorInt
 import android.support.annotation.StringRes
@@ -156,6 +157,49 @@ constructor(
             updateMinimap()
         }
 
+    /**
+     * The width of the border around the minimap
+     */
+    var minimapBorderWidth: Number = 2.dpToPx(context)
+        set(value) {
+            field = value
+
+            val valueAsInt = field.toFloat().roundToInt()
+            (minimapZoomLayout.layoutParams as MarginLayoutParams).apply {
+                setMargins(valueAsInt, valueAsInt, valueAsInt, valueAsInt)
+            }
+
+            minimapContainerLayout.background = GradientDrawable().apply {
+                setStroke(field.toInt(), minimapBorderColor)
+            }
+        }
+
+    /**
+     * The color of the minimap border
+     */
+    @ColorInt
+    var minimapBorderColor: Int = 0
+        set(value) {
+            field = value
+
+            minimapContainerLayout.background = GradientDrawable().apply {
+                setStroke(minimapBorderWidth.toInt(), field)
+            }
+        }
+
+    /**
+     * The color of the minimap indicator
+     */
+    @ColorInt
+    var minimapIndicatorColor: Int = 0
+        set(value) {
+            field = value
+
+            minimapIndicator.background = GradientDrawable().apply {
+                setStroke(minimapBorderWidth.toInt(), field)
+            }
+        }
+
     private var currentDrawnLineCount = -1L
 
     /**
@@ -236,6 +280,15 @@ constructor(
 
         showMinimap = a.getBoolean(R.styleable.CodeEditorLayout_ke_minimap_enabled, DEFAULT_SHOW_MINIMAP)
         minimapMaxDimension = a.getDimensionPixelSize(R.styleable.CodeEditorLayout_ke_minimap_maxDimension, DEFAULT_MINIMAP_MAX_DIMENSION_DP).toFloat()
+        minimapBorderColor = a.getColor(context,
+                R.styleable.CodeEditorLayout_ke_minimap_borderColor,
+                R.attr.ke_minimap_borderColor,
+                android.R.attr.textColorPrimary)
+
+        minimapIndicatorColor = a.getColor(context,
+                R.styleable.CodeEditorLayout_ke_minimap_indicatorColor,
+                R.attr.ke_minimap_indicatorColor,
+                android.R.attr.textColorPrimary)
 
         a.recycle()
     }
@@ -368,17 +421,23 @@ constructor(
      * @param editorRect the dimensions of the [codeEditorView]
      */
     private fun updateMinimapIndicator(editorRect: Rect = calculateVisibleCodeArea()) {
-        val engine = codeEditorView.engine
+        codeEditorView.post {
+            val engine = codeEditorView.engine
 
-        // update minimap indicator position and size
-        (minimapIndicator.layoutParams as MarginLayoutParams).apply {
-            val minimapBorder = resources.getDimensionPixelSize(R.dimen.cev_minimap_border_size)
-            topMargin = minimapBorder + (minimapZoomLayout.height * (engine.computeVerticalScrollOffset().toFloat() / engine.computeVerticalScrollRange())).toInt()
-            leftMargin = minimapBorder + (minimapZoomLayout.width * (engine.computeHorizontalScrollOffset().toFloat() / engine.computeHorizontalScrollRange())).toInt()
+            // update minimap indicator position and size
+            (minimapIndicator.layoutParams as MarginLayoutParams).apply {
+                val minimapBorder = minimapBorderWidth.toFloat()
+                topMargin = (minimapBorder +
+                        (minimapZoomLayout.height *
+                                (engine.computeVerticalScrollOffset().toFloat() / engine.computeVerticalScrollRange()))).roundToInt()
+                leftMargin = (minimapBorder +
+                        (minimapZoomLayout.width *
+                                (engine.computeHorizontalScrollOffset().toFloat() / engine.computeHorizontalScrollRange()))).roundToInt()
 
-            width = (minimapZoomLayout.width * (editorRect.width().toFloat() / engine.computeHorizontalScrollRange())).toInt()
-            height = (minimapZoomLayout.height * (editorRect.height().toFloat() / engine.computeVerticalScrollRange())).toInt()
-            minimapIndicator.layoutParams = this
+                width = (minimapZoomLayout.width * (editorRect.width().toFloat() / engine.computeHorizontalScrollRange())).roundToInt()
+                height = (minimapZoomLayout.height * (editorRect.height().toFloat() / engine.computeVerticalScrollRange())).roundToInt()
+                minimapIndicator.layoutParams = this
+            }
         }
     }
 

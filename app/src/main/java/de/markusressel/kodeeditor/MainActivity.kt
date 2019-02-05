@@ -1,8 +1,10 @@
 package de.markusressel.kodeeditor
 
+import android.graphics.Color
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import com.github.kittinunf.fuel.Fuel
+import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodehighlighter.language.markdown.MarkdownSyntaxHighlighter
 import kotlinx.android.synthetic.main.activity_main.*
 
@@ -12,10 +14,16 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        codeEditorLayout.syntaxHighlighter = MarkdownSyntaxHighlighter()
-        codeEditorLayout.editable = false
-        codeEditorLayout.showDivider = true
-        codeEditorLayout.showMinimap = true
+        codeEditorLayout.apply {
+            syntaxHighlighter = MarkdownSyntaxHighlighter()
+            editable = false
+            showDivider = true
+            showMinimap = true
+            minimapBorderWidth = 1.dpToPx(context)
+            minimapBorderColor = Color.BLACK
+            minimapIndicatorColor = Color.GREEN
+            minimapMaxDimension = 150.dpToPx(context)
+        }
 
         initEditorText()
     }
