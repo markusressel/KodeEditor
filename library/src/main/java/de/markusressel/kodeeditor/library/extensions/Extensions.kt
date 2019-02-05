@@ -18,13 +18,14 @@ import android.view.View
  * Get a color from this TypedArray or use the first default that is found
  *
  * @param context view context
+ * @param defaultColor default if none of the styleable or attribute values was found
  * @param styleableRes styleable resource
  * @param attr theme attribute resource
  */
 @ColorInt
-fun TypedArray.getColor(context: Context, @StyleableRes styleableRes: Int, @AttrRes vararg attr: Int): Int {
+fun TypedArray.getColor(context: Context, @ColorInt defaultColor: Int = Color.BLACK, @StyleableRes styleableRes: Int, @AttrRes vararg attr: Int): Int {
     return getColor(styleableRes, attr.find { context.getThemeAttrColor(it) != null }
-            ?: context.getThemeAttrColor(attr.last())!!)
+            ?: defaultColor)
 }
 
 /**
