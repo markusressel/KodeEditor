@@ -60,7 +60,9 @@ To use this editor simply add something similar to this to your desired layout x
         app:ke_lineNumbers_backgroundColor="#ccc"
         app:ke_lineNumbers_textColor="#000"
         app:ke_minimap_enabled="true"
-        app:ke_minimap_maxDimension="200dp" 
+        app:ke_minimap_maxDimension="200dp"
+        app:ke_minimap_borderColor="#000"
+        app:ke_minimap_indicatorColor="#f00"
         />
 ```
 
@@ -99,6 +101,8 @@ KodeEditor can be styled in multiple ways:
 | ke_editor_maxZoom | Specifies the maximum zoom level of the editor | Float | `10` |
 | ke_minimap_enabled | Enables the minimap | Boolean | `true` |
 | ke_minimap_maxDimension | Specifies the maximum dimension of the minimap for both axis | Dimension | `150dp` |
+| ke_minimap_borderColor | Specifies the border color of the minimap | Color | `Color.BLACK` |
+| ke_minimap_indicatorColor | Specifies the color of the minimap indicator | Color | `Color.RED` |
 
 You can either use those attributes directly on the view in your layout like this:
 
@@ -141,6 +145,7 @@ or specify them in your application theme (`styles.xml` in dem app) for to apply
         <item name="ke_editor_maxZoom">10.0</item>
         <item name="ke_minimap_enabled">true</item>
         <item name="ke_minimap_maxDimension">200dp</item>
+        [...]
          
     </style>
 

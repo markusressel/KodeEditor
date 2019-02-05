@@ -156,8 +156,26 @@ constructor(
             updateMinimap()
         }
 
-    var minimapBorderWidth = 2.dpToPx(context)
+    /**
+     * The width of the border around the minimap
+     */
+    var minimapBorderWidth: Number = 2.dpToPx(context)
+        set(value) {
+            field = value
 
+            val valueAsInt = field.toFloat().roundToInt()
+            (minimapZoomLayout.layoutParams as MarginLayoutParams).apply {
+                setMargins(valueAsInt, valueAsInt, valueAsInt, valueAsInt)
+            }
+
+            minimapContainerLayout.background = GradientDrawable().apply {
+                setStroke(field.toInt(), minimapBorderColor)
+            }
+        }
+
+    /**
+     * The color of the minimap border
+     */
     @ColorInt
     var minimapBorderColor: Int = 0
         set(value) {
@@ -168,6 +186,9 @@ constructor(
             }
         }
 
+    /**
+     * The color of the minimap indicator
+     */
     @ColorInt
     var minimapIndicatorColor: Int = 0
         set(value) {
@@ -394,17 +415,23 @@ constructor(
      * @param editorRect the dimensions of the [codeEditorView]
      */
     private fun updateMinimapIndicator(editorRect: Rect = calculateVisibleCodeArea()) {
-        val engine = codeEditorView.engine
+        codeEditorView.post {
+            val engine = codeEditorView.engine
 
-        // update minimap indicator position and size
-        (minimapIndicator.layoutParams as MarginLayoutParams).apply {
-            val minimapBorder = resources.getDimensionPixelSize(R.dimen.cev_minimap_border_size)
-            topMargin = minimapBorder + (minimapZoomLayout.height * (engine.computeVerticalScrollOffset().toFloat() / engine.computeVerticalScrollRange())).toInt()
-            leftMargin = minimapBorder + (minimapZoomLayout.width * (engine.computeHorizontalScrollOffset().toFloat() / engine.computeHorizontalScrollRange())).toInt()
+            // update minimap indicator position and size
+            (minimapIndicator.layoutParams as MarginLayoutParams).apply {
+                val minimapBorder = minimapBorderWidth.toFloat()
+                topMargin = (minimapBorder +
+                        (minimapZoomLayout.height *
+                                (engine.computeVerticalScrollOffset().toFloat() / engine.computeVerticalScrollRange()))).roundToInt()
+                leftMargin = (minimapBorder +
+                        (minimapZoomLayout.width *
+                                (engine.computeHorizontalScrollOffset().toFloat() / engine.computeHorizontalScrollRange()))).roundToInt()
 
-            width = (minimapZoomLayout.width * (editorRect.width().toFloat() / engine.computeHorizontalScrollRange())).toInt()
-            height = (minimapZoomLayout.height * (editorRect.height().toFloat() / engine.computeVerticalScrollRange())).toInt()
-            minimapIndicator.layoutParams = this
+                width = (minimapZoomLayout.width * (editorRect.width().toFloat() / engine.computeHorizontalScrollRange())).roundToInt()
+                height = (minimapZoomLayout.height * (editorRect.height().toFloat() / engine.computeVerticalScrollRange())).roundToInt()
+                minimapIndicator.layoutParams = this
+            }
         }
     }
 

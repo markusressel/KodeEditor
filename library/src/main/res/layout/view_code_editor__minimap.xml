@@ -11,7 +11,6 @@
         android:id="@+id/cel_minimap"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="@dimen/cev_minimap_border_size"
         android:scrollbars="none"
         app:alignment="left|top"
         app:hasClickableChildren="true"

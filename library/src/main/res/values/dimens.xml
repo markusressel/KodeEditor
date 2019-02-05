@@ -3,5 +3,4 @@
     <dimen name="cev_linenumber_width">36dp</dimen>
     <dimen name="cev_editor_text_margin">4dp</dimen>
     <dimen name="cev_editor_text_size">12sp</dimen>
-    <dimen name="cev_minimap_border_size">2dp</dimen>
 </resources>
