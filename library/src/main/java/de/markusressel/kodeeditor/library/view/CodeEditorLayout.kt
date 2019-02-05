@@ -5,6 +5,7 @@ import android.graphics.Matrix
 import android.graphics.PointF
 import android.graphics.Rect
 import android.os.Build
+import android.support.annotation.ColorInt
 import android.support.annotation.StringRes
 import android.text.Layout
 import android.util.AttributeSet
@@ -124,6 +125,7 @@ constructor(
     var editable: Boolean
         set(value) {
             codeEditorView.editable = value
+            updateMinimap()
         }
         get() = codeEditorView.editable
 
@@ -169,6 +171,9 @@ constructor(
         set(value) {
             textSizeSp = value / resources.displayMetrics.scaledDensity
         }
+
+    @ColorInt
+    private var editorBackgroundColor: Int = 0
 
     init {
         inflateViews(LayoutInflater.from(context))
@@ -219,11 +224,11 @@ constructor(
                 android.R.attr.textColorPrimary)
         dividerView.setBackgroundColor(dividerColor)
 
-        val editTextBackgroundColor = a.getColor(context,
+        editorBackgroundColor = a.getColor(context,
                 R.styleable.CodeEditorLayout_ke_editor_backgroundColor,
                 R.attr.ke_editor_backgroundColor,
                 android.R.attr.windowBackground)
-        codeEditorView.codeEditText.setBackgroundColor(editTextBackgroundColor)
+        codeEditorView.setBackgroundColor(editorBackgroundColor)
 
         val codeEditorMaxZoom = a.getFloat(R.styleable.CodeEditorLayout_ke_editor_maxZoom, CodeEditorView.DEFAULT_MAX_ZOOM)
         lineNumberZoomLayout.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
@@ -346,10 +351,12 @@ constructor(
      * Renders the current text and applies it to the minimap
      */
     private fun updateMinimapImage() {
-        codeEditorView.codeEditText.apply {
+        val targetView: View = if (editable) codeEditorView.codeEditText else codeEditorView.codeTextView
+        targetView.apply {
             post {
                 val minimapSnapshot = createSnapshot(
-                        dimensionLimit = minimapMaxDimension)
+                        dimensionLimit = minimapMaxDimension,
+                        backgroundColor = editorBackgroundColor)
                 minimapZoomLayout.setImageBitmap(minimapSnapshot)
             }
         }
