@@ -1,6 +1,7 @@
 package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
+import android.graphics.Color
 import android.support.annotation.StringRes
 import android.util.AttributeSet
 import android.view.LayoutInflater
@@ -97,9 +98,10 @@ open class CodeEditorView
         val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0)
 
         val editTextBackgroundColor = a.getColor(context,
-                R.styleable.CodeEditorView_ke_editor_backgroundColor,
-                R.attr.ke_editor_backgroundColor,
-                android.R.attr.windowBackground)
+                defaultColor = Color.WHITE,
+                styleableRes = R.styleable.CodeEditorView_ke_editor_backgroundColor,
+                attr = *intArrayOf(R.attr.ke_editor_backgroundColor,
+                        android.R.attr.windowBackground))
         codeEditText.setBackgroundColor(editTextBackgroundColor)
 
         val maxRealZoom = a.getFloat(R.styleable.CodeEditorView_ke_editor_maxZoom, DEFAULT_MAX_ZOOM)
