@@ -16,6 +16,8 @@
         <item name="ke_editor_maxZoom">10.0</item>
         <item name="ke_minimap_enabled">true</item>
         <item name="ke_minimap_maxDimension">200dp</item>
+        <item name="ke_minimap_borderColor">#0f0</item>
+        <item name="ke_minimap_indicatorColor">#f00</item>
 
     </style>
 

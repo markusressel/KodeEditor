@@ -4,7 +4,9 @@ import android.content.Context
 import android.graphics.Matrix
 import android.graphics.PointF
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.support.annotation.ColorInt
 import android.support.annotation.StringRes
 import android.text.Layout
 import android.util.AttributeSet
@@ -154,6 +156,28 @@ constructor(
             updateMinimap()
         }
 
+    var minimapBorderWidth = 2.dpToPx(context)
+
+    @ColorInt
+    var minimapBorderColor: Int = 0
+        set(value) {
+            field = value
+
+            minimapContainerLayout.background = GradientDrawable().apply {
+                setStroke(minimapBorderWidth.toInt(), field)
+            }
+        }
+
+    @ColorInt
+    var minimapIndicatorColor: Int = 0
+        set(value) {
+            field = value
+
+            minimapIndicator.background = GradientDrawable().apply {
+                setStroke(minimapBorderWidth.toInt(), field)
+            }
+        }
+
     private var currentDrawnLineCount = -1L
 
     /**
@@ -231,6 +255,15 @@ constructor(
 
         showMinimap = a.getBoolean(R.styleable.CodeEditorLayout_ke_minimap_enabled, DEFAULT_SHOW_MINIMAP)
         minimapMaxDimension = a.getDimensionPixelSize(R.styleable.CodeEditorLayout_ke_minimap_maxDimension, DEFAULT_MINIMAP_MAX_DIMENSION_DP).toFloat()
+        minimapBorderColor = a.getColor(context,
+                R.styleable.CodeEditorLayout_ke_minimap_borderColor,
+                R.attr.ke_minimap_borderColor,
+                android.R.attr.textColorPrimary)
+
+        minimapIndicatorColor = a.getColor(context,
+                R.styleable.CodeEditorLayout_ke_minimap_indicatorColor,
+                R.attr.ke_minimap_indicatorColor,
+                android.R.attr.textColorPrimary)
 
         a.recycle()
     }

@@ -5,8 +5,7 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_gravity="top|end"
-    android:layout_margin="16dp"
-    android:background="@drawable/minimap_background">
+    android:layout_margin="16dp">
 
     <com.otaliastudios.zoom.ZoomImageView
         android:id="@+id/cel_minimap"
@@ -28,8 +27,7 @@
 
     <View
         android:id="@+id/cel_minimap_indicator"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:background="@drawable/minimap_indicator" />
+        android:layout_width="1dp"
+        android:layout_height="1dp" />
 
 </FrameLayout>
