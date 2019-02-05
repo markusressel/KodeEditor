@@ -170,7 +170,7 @@ constructor(
             }
 
             minimapContainerLayout.background = GradientDrawable().apply {
-                setStroke(field.toInt(), minimapBorderColor)
+                setStroke(valueAsInt, minimapBorderColor)
             }
         }
 
@@ -183,7 +183,7 @@ constructor(
             field = value
 
             minimapContainerLayout.background = GradientDrawable().apply {
-                setStroke(minimapBorderWidth.toInt(), field)
+                setStroke(minimapBorderWidth.toFloat().roundToInt(), field)
             }
         }
 
@@ -196,7 +196,7 @@ constructor(
             field = value
 
             minimapIndicator.background = GradientDrawable().apply {
-                setStroke(minimapBorderWidth.toInt(), field)
+                setStroke(minimapBorderWidth.toFloat().roundToInt(), field)
             }
         }
 
@@ -459,7 +459,7 @@ constructor(
             val scaledWidth = lineNumberTextView.width * engine.realZoom
             val maxWidth = editorRect.width() / 3F
             val targetWidth = Math.min(scaledWidth, maxWidth)
-            width = targetWidth.toInt()
+            width = targetWidth.roundToInt()
 
             lineNumberZoomLayout.layoutParams = this
         }
