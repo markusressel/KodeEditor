@@ -163,7 +163,7 @@ some of those methods you need to access the matching property of the `KodeEdito
 | Name | Description | Type |
 |------|-------------|------|
 | text | Sets the given text in the editor. | String |
-| setText(@StringRes) | Sets the given strint resource as the text in the editor. | Int |
+| setText(@StringRes) | Sets the given string resource as the text in the editor. | Int |
 | syntaxHighlighter | Gets/Sets the active syntax highlighter. Use `null` to disable highlighting altogether. | SyntaxHighlighter? |
 | editable | Gets/Sets if the editor content is editable. | Boolean |
 
@@ -190,7 +190,7 @@ To acces these API methods use the `codeEditorLayout.codeEditorView` property.
 | Name | Description | Type |
 |------|-------------|------|
 | text | Sets the given text in the editor. | String |
-| setText(@StringRes) | Sets the given strint resource as the text in the editor. | Int |
+| setText(@StringRes) | Sets the given string resource as the text in the editor. | Int |
 | getLineCount() | Returns the current line count. | Long |
 | syntaxHighlighter | Gets/Sets the active syntax highlighter. Use `null` to disable highlighting altogether. | SyntaxHighlighter? |
 | editable | Gets/Sets if the editor content is editable. | Boolean |
