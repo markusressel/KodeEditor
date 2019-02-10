@@ -2,9 +2,11 @@ package de.markusressel.kodeeditor
 
 import android.graphics.Color
 import android.os.Bundle
+import android.support.annotation.RawRes
 import android.support.v7.app.AppCompatActivity
 import com.github.kittinunf.fuel.Fuel
 import de.markusressel.kodeeditor.library.extensions.dpToPx
+import de.markusressel.kodeeditor.library.view.SelectionChangedListener
 import de.markusressel.kodehighlighter.language.markdown.MarkdownSyntaxHighlighter
 import kotlinx.android.synthetic.main.activity_main.*
 
@@ -25,6 +27,10 @@ class MainActivity : AppCompatActivity() {
             minimapMaxDimension = 150.dpToPx(context)
         }
 
+        codeEditorLayout.codeEditorView.selectionChangedListener = object : SelectionChangedListener {
+            override fun onSelectionChanged(start: Int, end: Int, hasSelection: Boolean) {}
+        }
+
         initEditorText()
     }
 
@@ -35,12 +41,17 @@ class MainActivity : AppCompatActivity() {
 
                     if (error != null || text == null) {
                         // fallback if no network is available
-                        codeEditorLayout.setText(R.string.demo_text)
+                        val sampleText = readResourceFileAsText(R.raw.sample_text)
+                        codeEditorLayout.text = sampleText
                     } else {
                         codeEditorLayout.text = text
                     }
                     codeEditorLayout.editable = true
                 }
+    }
+
+    private fun readResourceFileAsText(@RawRes resourceId: Int): String {
+        return resources.openRawResource(resourceId).bufferedReader().readText()
     }
 
 }
