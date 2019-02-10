@@ -2,11 +2,13 @@ package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
 import android.graphics.Color
+import android.support.annotation.CallSuper
 import android.support.annotation.StringRes
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import com.otaliastudios.zoom.ZoomApi
 import com.otaliastudios.zoom.ZoomLayout
 import de.markusressel.kodeeditor.library.R
@@ -21,7 +23,7 @@ import de.markusressel.kodehighlighter.core.SyntaxHighlighter
  */
 open class CodeEditorView
 @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0)
-    : ZoomLayout(context, attrs, defStyleAttr) {
+    : ZoomLayout(context, attrs, defStyleAttr), SelectionChangedListener {
 
     /**
      * The actual text editor content
@@ -49,6 +51,11 @@ open class CodeEditorView
         }
 
     /**
+     * Listener for selection changes
+     */
+    var selectionChangedListener: SelectionChangedListener? = null
+
+    /**
      * The current text
      */
     var text: String
@@ -56,6 +63,27 @@ open class CodeEditorView
         set(value) {
             codeEditText.setText(value)
             codeTextView.text = value
+        }
+
+    /** The start index of the current selection */
+    val selectionStart: Int
+        get() {
+            val activeView: TextView = if (editable) codeEditText else codeTextView
+            return activeView.selectionStart
+        }
+
+    /** The end index of the current selection */
+    val selectionEnd: Int
+        get() {
+            val activeView: TextView = if (editable) codeEditText else codeTextView
+            return activeView.selectionEnd
+        }
+
+    /** True when a range is selected */
+    val hasSelection: Boolean
+        get() {
+            val activeView: TextView = if (editable) codeEditText else codeTextView
+            return activeView.hasSelection()
         }
 
     /**
@@ -118,9 +146,11 @@ open class CodeEditorView
         codeEditText.post {
             codeEditText.setSelection(0)
         }
+        codeEditText.selectionChangedListener = this
 
         codeTextView = findViewById(R.id.cev_editor_codeTextView)
         codeTextView.setViewBackgroundWithoutResettingPadding(null)
+        codeTextView.selectionChangedListener = this
     }
 
     private var firstInit = true
@@ -164,6 +194,15 @@ open class CodeEditorView
         } else {
             0L
         }
+    }
+
+    /**
+     * Called when the selection changes.
+     * Override this if you are interested in such events.
+     */
+    @CallSuper
+    override fun onSelectionChanged(start: Int, end: Int, hasSelection: Boolean) {
+        selectionChangedListener?.onSelectionChanged(start, end, hasSelection)
     }
 
     companion object {

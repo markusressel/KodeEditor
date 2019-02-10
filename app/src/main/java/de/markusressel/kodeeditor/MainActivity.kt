@@ -6,6 +6,7 @@ import android.support.annotation.RawRes
 import android.support.v7.app.AppCompatActivity
 import com.github.kittinunf.fuel.Fuel
 import de.markusressel.kodeeditor.library.extensions.dpToPx
+import de.markusressel.kodeeditor.library.view.SelectionChangedListener
 import de.markusressel.kodehighlighter.language.markdown.MarkdownSyntaxHighlighter
 import kotlinx.android.synthetic.main.activity_main.*
 
@@ -24,6 +25,10 @@ class MainActivity : AppCompatActivity() {
             minimapBorderColor = Color.BLACK
             minimapIndicatorColor = Color.GREEN
             minimapMaxDimension = 150.dpToPx(context)
+        }
+
+        codeEditorLayout.codeEditorView.selectionChangedListener = object : SelectionChangedListener {
+            override fun onSelectionChanged(start: Int, end: Int, hasSelection: Boolean) {}
         }
 
         initEditorText()

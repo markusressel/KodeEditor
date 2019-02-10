@@ -152,6 +152,54 @@ or specify them in your application theme (`styles.xml` in dem app) for to apply
 </resources>
 ```
 
+# APIs
+
+All styling attributes can also be specified using code. Since `KodeEditorLayout`
+is just a wrapper to extend the `CodeEditorView` with line numbers and the minimap to use
+some of those methods you need to access the matching property of the `KodeEditorLayout` first.
+
+## KodeEditorLayout
+
+| Name | Description | Type |
+|------|-------------|------|
+| text | Sets the given text in the editor. | String |
+| setText(@StringRes) | Sets the given strint resource as the text in the editor. | Int |
+| syntaxHighlighter | Gets/Sets the active syntax highlighter. Use `null` to disable highlighting altogether. | SyntaxHighlighter? |
+| editable | Gets/Sets if the editor content is editable. | Boolean |
+
+### Line numbers
+
+| Name | Description | Type |
+|------|-------------|------|
+| showDivider | Gets/Sets if the divider between line numbers and code editor is shown. | Boolean |
+
+### Minimap
+
+| Name | Description | Type |
+|------|-------------|------|
+| showMinimap | Gets/Sets if the minimap is shown. | Boolean |
+| minimapMaxDimension | Gets/Sets the maximum dimension of the minimap in pixels. | Float |
+| minimapBorderWidth | Gets/Sets the minimap border size in in pixels. | Number |
+| minimapBorderColor | Gets/Sets the minimap border color. | @ColorInt |
+| minimapIndicatorColor | Gets/Sets the minimap indicator color. | @ColorInt |
+
+## CodeEditorView
+
+To acces these API methods use the `codeEditorLayout.codeEditorView` property.
+
+| Name | Description | Type |
+|------|-------------|------|
+| text | Sets the given text in the editor. | String |
+| setText(@StringRes) | Sets the given strint resource as the text in the editor. | Int |
+| getLineCount() | Returns the current line count. | Long |
+| syntaxHighlighter | Gets/Sets the active syntax highlighter. Use `null` to disable highlighting altogether. | SyntaxHighlighter? |
+| editable | Gets/Sets if the editor content is editable. | Boolean |
+| hasSelection | True when a range is selected. | Boolean |
+| selectionStart | The start index of the current selection. | Int |
+| selectionEnd | The end index of the current selection. | Int |
+| selectionChangedListener | Gets/Sets the Listener for selection changes. | SelectionChangedListener? |
+
+
 # Contributing
 
 GitHub is for social coding: if you want to write code, I encourage contributions through pull requests from forks

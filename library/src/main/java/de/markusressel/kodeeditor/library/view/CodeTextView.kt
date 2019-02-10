@@ -42,6 +42,11 @@ constructor(context: Context,
             initSyntaxHighlighter()
         }
 
+    /**
+     * Listener for selection changes
+     */
+    var selectionChangedListener: SelectionChangedListener? = null
+
     private var highlightingTimeout = 50L to TimeUnit.MILLISECONDS
     private var highlightingDisposable: Disposable? = null
 
@@ -117,6 +122,11 @@ constructor(context: Context,
         syntaxHighlighter?.apply {
             highlight(text as Spannable)
         }
+    }
+
+    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+        super.onSelectionChanged(selStart, selEnd)
+        selectionChangedListener?.onSelectionChanged(selStart, selEnd, hasSelection())
     }
 
     companion object {
