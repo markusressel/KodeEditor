@@ -1,5 +1,6 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
+apply plugin: 'org.jetbrains.dokka-android'
 
 apply plugin: 'com.github.dcendents.android-maven'
 group = rootProject.ext.group
@@ -69,20 +70,12 @@ task sourcesJar(type: Jar) {
     classifier = 'sources'
 }
 
-task javadoc(type: Javadoc) {
-    failOnError false
-    source = android.sourceSets.main.java.sourceFiles
-    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
-    classpath += configurations.compile
-}
-
-// build a jar with javadoc
-task javadocJar(type: Jar, dependsOn: javadoc) {
+task dokkaJar(type: Jar, dependsOn: dokka) {
     classifier = 'javadoc'
-    from javadoc.destinationDir
+    from dokka.outputDirectory
 }
 
 artifacts {
     archives sourcesJar
-    archives javadocJar
+    archives dokkaJar
 }
