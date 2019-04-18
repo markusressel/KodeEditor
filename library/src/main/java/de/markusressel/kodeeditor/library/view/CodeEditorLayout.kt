@@ -263,6 +263,7 @@ constructor(
                 styleableRes = R.styleable.CodeEditorLayout_ke_editor_backgroundColor,
                 attr = *intArrayOf(R.attr.ke_editor_backgroundColor))
         codeEditorView.setBackgroundColor(editorBackgroundColor)
+        isMoveWithCursorEnabled = a.getBoolean(R.styleable.CodeEditorLayout_ke_editor_followCursor, true)
 
         val codeEditorMaxZoom = a.getFloat(R.styleable.CodeEditorLayout_ke_editor_maxZoom, CodeEditorView.DEFAULT_MAX_ZOOM)
         lineNumberZoomLayout.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
