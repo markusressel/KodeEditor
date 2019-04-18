@@ -516,7 +516,7 @@ constructor(
 
         if (!targetArea.contains(cursorPosition.x.roundToInt(), cursorPosition.y.roundToInt())) {
             val targetLocation = calculateTargetPoint(cursorPosition, targetArea)
-            codeEditorView.moveTo(codeEditorView.zoom, targetLocation.x, targetLocation.y, true)
+            codeEditorView.moveTo(codeEditorView.zoom, targetLocation.x, targetLocation.y, false)
         }
     }
 
