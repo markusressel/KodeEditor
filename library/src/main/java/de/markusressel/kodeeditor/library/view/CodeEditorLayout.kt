@@ -20,17 +20,13 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.jakewharton.rxbinding2.widget.RxTextView
-import com.otaliastudios.zoom.ZoomApi
-import com.otaliastudios.zoom.ZoomEngine
-import com.otaliastudios.zoom.ZoomImageView
-import com.otaliastudios.zoom.ZoomLayout
+import com.otaliastudios.zoom.*
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.createSnapshot
 import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodeeditor.library.extensions.getColor
 import de.markusressel.kodehighlighter.core.SyntaxHighlighter
-import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.subscribeBy
 import io.reactivex.schedulers.Schedulers
@@ -89,7 +85,7 @@ constructor(
     /**
      * Controls whether to follow cursor movements or not.
      */
-    var isMoveWithCursorEnabled = false
+    var isMoveWithCursorEnabled = true
     private var internalMoveWithCursorEnabled = false
 
     /**
@@ -336,19 +332,17 @@ constructor(
             internalMoveWithCursorEnabled = true
         }
 
-        if (isMoveWithCursorEnabled) {
-            val d = Observable.interval(250, TimeUnit.MILLISECONDS)
-                    .filter { internalMoveWithCursorEnabled }
-                    .bindToLifecycle(this)
-                    .subscribeBy(onNext = {
-                        try {
-                            moveToCursorIfNecessary()
-                        } catch (e: Throwable) {
-                            Log.e(CodeEditorView.TAG, "Error moving screen with cursor", e)
-                        }
-                    }, onError = {
-                        Log.e(CodeEditorView.TAG, "Unrecoverable error while moving screen with cursor", it)
-                    })
+        codeEditorView.selectionChangedListener = object : SelectionChangedListener {
+            override fun onSelectionChanged(start: Int, end: Int, hasSelection: Boolean) {
+                if (isMoveWithCursorEnabled) {
+                    internalMoveWithCursorEnabled = true
+                    try {
+                        moveToCursorIfNecessary()
+                    } catch (e: Throwable) {
+                        Log.e(CodeEditorView.TAG, "Error moving screen with cursor", e)
+                    }
+                }
+            }
         }
 
         val d = RxTextView.textChanges(codeEditorView.codeEditText)
@@ -513,22 +507,46 @@ constructor(
      * Moves the screen so that the cursor is visible.
      */
     private fun moveToCursorIfNecessary() {
-        val position = calculateCursorPosition()
-        val visibleArea = calculateVisibleCodeArea()
+        val cursorPosition = getCursorScreenPosition()
+        val targetArea = calculateVisibleCodeArea()
+        val padding = (32 * codeEditorView.realZoom).toInt()
+        targetArea.inset(padding, padding)
+        targetArea.offset(0, -padding)
 
-        if (!visibleArea.contains(position.x.roundToInt(), position.y.roundToInt())) {
-            val newX = when {
-                position.x < visibleArea.left || position.x > visibleArea.right -> -x
-                else -> codeEditorView.panX
-            }
-
-            val newY = when {
-                position.y < visibleArea.top || position.y > visibleArea.bottom -> -y
-                else -> codeEditorView.panY
-            }
-
-            codeEditorView.moveTo(codeEditorView.zoom, newX, newY, true)
+        if (!targetArea.contains(cursorPosition.x.roundToInt(), cursorPosition.y.roundToInt())) {
+            val targetLocation = calculateTargetPoint(cursorPosition, targetArea)
+            codeEditorView.moveTo(codeEditorView.zoom, targetLocation.x, targetLocation.y, true)
         }
+    }
+
+    /**
+     * Calculates the new top-left point to show the cursor on screen.
+     *
+     * @param cursorPosition the position of the cursor
+     * @param targetArea the target area the cursor position should be in
+     */
+    private fun calculateTargetPoint(cursorPosition: PointF, targetArea: Rect): AbsolutePoint {
+        val newX = when {
+            cursorPosition.x < targetArea.left -> {
+                codeEditorView.panX + (targetArea.left - cursorPosition.x) / codeEditorView.realZoom
+            }
+            cursorPosition.x > targetArea.right -> {
+                codeEditorView.panX + (targetArea.right - cursorPosition.x) / codeEditorView.realZoom
+            }
+            else -> codeEditorView.panX
+        }
+
+        val newY = when {
+            cursorPosition.y < targetArea.top -> {
+                codeEditorView.panY + (targetArea.top - cursorPosition.y) / codeEditorView.realZoom
+            }
+            cursorPosition.y > targetArea.bottom -> {
+                codeEditorView.panY + (targetArea.bottom - cursorPosition.y) / codeEditorView.realZoom
+            }
+            else -> codeEditorView.panY
+        }
+
+        return AbsolutePoint(newX, newY)
     }
 
     /**
@@ -541,7 +559,7 @@ constructor(
     /**
      * @return the position of the cursor in relation to the [codeEditorView] content.
      */
-    private fun calculateCursorPosition(): PointF {
+    private fun getCursorScreenPosition(): PointF {
         val pos = codeEditorView.codeEditText.selectionStart
         val layout = codeEditorView.codeEditText.layout
 
@@ -551,8 +569,8 @@ constructor(
         val x = layout.getPrimaryHorizontal(pos)
         val y = (baseline + ascent).toFloat()
 
-        return PointF(x * codeEditorView.realZoom + codeEditorView.panX * codeEditorView.realZoom + lineNumberTextView.width * codeEditorView.realZoom,
-                y * codeEditorView.realZoom + codeEditorView.panY * codeEditorView.realZoom)
+        return PointF((x + codeEditorView.panX) * codeEditorView.realZoom,
+                (y + codeEditorView.panY) * codeEditorView.realZoom)
     }
 
     companion object {
