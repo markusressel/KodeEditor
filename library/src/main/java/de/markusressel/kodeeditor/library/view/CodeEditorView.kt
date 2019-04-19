@@ -173,7 +173,7 @@ open class CodeEditorView
         val containerWidth = width - (paddingLeft + paddingRight)
         val containerHeight = height - (paddingTop + paddingBottom)
 
-        val codeEditTextLayoutParams = (codeEditText.layoutParams as ViewGroup.MarginLayoutParams)
+        val codeEditTextLayoutParams = (codeEditText.layoutParams as MarginLayoutParams)
         val minimumWidth = containerWidth + (codeEditTextLayoutParams.leftMargin + codeEditTextLayoutParams.rightMargin)
         val minimumHeight = containerHeight - (codeEditTextLayoutParams.topMargin + codeEditTextLayoutParams.bottomMargin)
 
