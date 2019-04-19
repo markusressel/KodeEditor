@@ -12,6 +12,8 @@
 
         <attr name="ke_editor_backgroundColor" />
         <attr name="ke_editor_maxZoom" />
+        <attr name="ke_editor_followCursor" format="boolean" />
+
         <attr name="ke_minimap_enabled" format="boolean" />
         <attr name="ke_minimap_maxDimension" format="dimension" />
         <attr name="ke_minimap_borderColor" format="reference|color" />

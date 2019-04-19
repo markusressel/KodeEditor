@@ -143,6 +143,7 @@ or specify them in your application theme (`styles.xml` in dem app) for to apply
         <item name="ke_divider_color">#000</item>
         <item name="ke_editor_backgroundColor">#fff</item>
         <item name="ke_editor_maxZoom">10.0</item>
+        <item name="ke_editor_followCursor">true</item>
         <item name="ke_minimap_enabled">true</item>
         <item name="ke_minimap_maxDimension">200dp</item>
         [...]
