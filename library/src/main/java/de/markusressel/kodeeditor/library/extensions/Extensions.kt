@@ -31,9 +31,7 @@ fun TypedArray.getColor(context: Context, @ColorInt defaultColor: Int = Color.BL
 /**
  * Get Color from Theme attribute
  *
- * @param context Activity context
  * @param attr    Attribute resource ID
- *
  * @return Color as Int
  */
 @ColorInt
