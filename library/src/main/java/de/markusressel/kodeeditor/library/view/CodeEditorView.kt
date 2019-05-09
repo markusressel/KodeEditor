@@ -7,7 +7,6 @@ import android.support.annotation.StringRes
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import android.widget.TextView
 import com.otaliastudios.zoom.ZoomApi
 import com.otaliastudios.zoom.ZoomLayout
@@ -59,7 +58,7 @@ open class CodeEditorView
      * The current text
      */
     var text: String
-        get() = codeEditText.text.toString()
+        get() = codeEditText.text?.toString() ?: ""
         set(value) {
             codeEditText.setText(value)
             codeTextView.text = value

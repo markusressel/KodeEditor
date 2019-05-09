@@ -97,7 +97,7 @@ constructor(
             updateLineNumbers()
             updateMinimap()
         }
-        get() = codeEditorView.codeEditText.text.toString()
+        get() = codeEditorView.text
 
     /**
      * The currently active syntax highlighter (if any)
