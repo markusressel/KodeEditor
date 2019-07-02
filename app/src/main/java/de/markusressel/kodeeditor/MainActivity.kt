@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun initEditorText() {
         Fuel.get("https://raw.githubusercontent.com/markusressel/KodeEditor/master/README.md")
+                .timeout(1)
                 .responseString { _, _, result ->
                     val (text, error) = result
 
