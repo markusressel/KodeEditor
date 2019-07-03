@@ -31,6 +31,8 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.subscribeBy
 import io.reactivex.schedulers.Schedulers
 import java.util.concurrent.TimeUnit
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 
@@ -406,14 +408,17 @@ constructor(
         if (!showMinimap) return
 
         val valueAsInt = minimapBorderWidth.toFloat().roundToInt()
-
-        minimapContainerLayout.setPadding(valueAsInt, valueAsInt, valueAsInt, valueAsInt)
-        updateMinimapBorderColor(valueAsInt)
+        minimapContainerLayout.post {
+            minimapContainerLayout.setPadding(valueAsInt, valueAsInt, valueAsInt, valueAsInt)
+            updateMinimapBorderColor(valueAsInt)
+        }
     }
 
     private fun updateMinimapBorderColor(width: Int) {
-        minimapContainerLayout.background = GradientDrawable().apply {
-            setStroke(width, minimapBorderColor)
+        minimapContainerLayout.post {
+            minimapContainerLayout.background = GradientDrawable().apply {
+                setStroke(width, minimapBorderColor)
+            }
         }
     }
 
@@ -454,23 +459,25 @@ constructor(
             updateLineNumberText()
         }
 
-        // adjust width of line numbers based on zoom
-        val engine = codeEditorView.engine
+        codeEditorView.post {
+            // adjust width of line numbers based on zoom
+            val engine = codeEditorView.engine
 
-        val scaledWidth = lineNumberTextView.width * engine.realZoom
-        val maxWidth = editorRect.width() / 3F
-        val targetWidth = Math.min(scaledWidth, maxWidth).roundToInt()
-        lineNumberZoomLayout.layoutParams.apply {
-            width = targetWidth
-            lineNumberZoomLayout.layoutParams = this
+            val scaledWidth = lineNumberTextView.width * engine.realZoom
+            val maxWidth = editorRect.width() / 3F
+            val targetWidth = min(scaledWidth, maxWidth).roundToInt()
+            lineNumberZoomLayout.layoutParams.apply {
+                width = targetWidth
+                lineNumberZoomLayout.layoutParams = this
+            }
+
+            // synchronize zoom and vertical pan to match code editor
+            lineNumberZoomLayout.moveTo(
+                    engine.zoom,
+                    -engine.computeHorizontalScrollRange().toFloat(),
+                    engine.panY,
+                    false)
         }
-
-        // synchronize zoom and vertical pan to match code editor
-        lineNumberZoomLayout.moveTo(
-                engine.zoom,
-                -engine.computeHorizontalScrollRange().toFloat(),
-                engine.panY,
-                false)
     }
 
     /**
@@ -479,7 +486,7 @@ constructor(
      * @param lineCount the amount of lines to show
      */
     private fun updateLineNumberText(lineCount: Long = codeEditorView.getLineCount()) {
-        val linesToDraw = Math.max(MIN_LINES_DRAWN, lineCount)
+        val linesToDraw = max(MIN_LINES_DRAWN, lineCount)
         if (linesToDraw == currentDrawnLineCount) {
             return
         }
@@ -508,15 +515,17 @@ constructor(
      * Moves the screen so that the cursor is visible.
      */
     private fun moveToCursorIfNecessary() {
-        val cursorPosition = getCursorScreenPosition()
-        val targetArea = calculateVisibleCodeArea()
-        val padding = (32 * codeEditorView.realZoom).toInt()
-        targetArea.inset(padding, padding)
-        targetArea.offset(0, -padding)
+        codeEditorView.post {
+            val cursorPosition = getCursorScreenPosition()
+            val targetArea = calculateVisibleCodeArea()
+            val padding = (32 * codeEditorView.realZoom).toInt()
+            targetArea.inset(padding, padding)
+            targetArea.offset(0, -padding)
 
-        if (!targetArea.contains(cursorPosition.x.roundToInt(), cursorPosition.y.roundToInt())) {
-            val targetLocation = calculateTargetPoint(cursorPosition, targetArea)
-            codeEditorView.moveTo(codeEditorView.zoom, targetLocation.x, targetLocation.y, false)
+            if (!targetArea.contains(cursorPosition.x.roundToInt(), cursorPosition.y.roundToInt())) {
+                val targetLocation = calculateTargetPoint(cursorPosition, targetArea)
+                codeEditorView.moveTo(codeEditorView.zoom, targetLocation.x, targetLocation.y, false)
+            }
         }
     }
 
