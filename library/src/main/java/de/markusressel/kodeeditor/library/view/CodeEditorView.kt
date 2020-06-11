@@ -2,12 +2,12 @@ package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
 import android.graphics.Color
-import android.support.annotation.CallSuper
-import android.support.annotation.StringRes
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
+import androidx.annotation.CallSuper
+import androidx.annotation.StringRes
 import com.otaliastudios.zoom.ZoomApi
 import com.otaliastudios.zoom.ZoomLayout
 import de.markusressel.kodeeditor.library.R

@@ -2,12 +2,12 @@ package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
 import android.os.Build
-import android.support.v7.widget.AppCompatTextView
 import android.text.Layout
 import android.text.Spannable
 import android.text.SpannableString
 import android.util.AttributeSet
 import android.util.Log
+import androidx.appcompat.widget.AppCompatTextView
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodehighlighter.core.StatefulSyntaxHighlighter

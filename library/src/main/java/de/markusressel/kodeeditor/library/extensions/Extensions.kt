@@ -6,13 +6,13 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.Drawable
-import android.support.annotation.AttrRes
-import android.support.annotation.ColorInt
-import android.support.annotation.StyleableRes
-import android.support.v4.content.ContextCompat
-import android.support.v4.view.ViewCompat
 import android.util.TypedValue
 import android.view.View
+import androidx.annotation.AttrRes
+import androidx.annotation.ColorInt
+import androidx.annotation.StyleableRes
+import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
 
 /**
  * Get a color from this TypedArray or use the first default that is found

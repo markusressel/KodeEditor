@@ -52,7 +52,7 @@ dependencies {
     implementation "com.android.support:appcompat-v7:$supportLibVersion"
     implementation "com.android.support:design:$supportLibVersion"
 
-    def fuelVersion = "2.1.0"
+    def fuelVersion = "2.2.3"
     implementation "com.github.kittinunf.fuel:fuel:$fuelVersion"
     implementation "com.github.kittinunf.fuel:fuel-android:$fuelVersion"
 

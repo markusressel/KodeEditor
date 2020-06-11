@@ -2,8 +2,8 @@ package de.markusressel.kodeeditor
 
 import android.graphics.Color
 import android.os.Bundle
-import android.support.annotation.RawRes
-import android.support.v7.app.AppCompatActivity
+import androidx.annotation.RawRes
+import androidx.appcompat.app.AppCompatActivity
 import com.github.kittinunf.fuel.Fuel
 import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodehighlighter.language.markdown.MarkdownSyntaxHighlighter

@@ -7,8 +7,6 @@ import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
-import android.support.annotation.ColorInt
-import android.support.annotation.StringRes
 import android.text.Layout
 import android.util.AttributeSet
 import android.util.Log
@@ -19,6 +17,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.annotation.ColorInt
+import androidx.annotation.StringRes
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.otaliastudios.zoom.*
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
@@ -516,7 +516,7 @@ constructor(
      */
     private fun moveToCursorIfNecessary() {
         codeEditorView.post {
-            val cursorPosition = getCursorScreenPosition()
+            val cursorPosition = getCursorScreenPosition() ?: return@post
             val targetArea = calculateVisibleCodeArea()
             val padding = (32 * codeEditorView.realZoom).toInt()
             targetArea.inset(padding, padding)
@@ -569,9 +569,9 @@ constructor(
     /**
      * @return the position of the cursor in relation to the [codeEditorView] content.
      */
-    private fun getCursorScreenPosition(): PointF {
+    private fun getCursorScreenPosition(): PointF? {
         val pos = codeEditorView.codeEditText.selectionStart
-        val layout = codeEditorView.codeEditText.layout
+        val layout = codeEditorView.codeEditText.layout ?: return null
 
         val line = layout.getLineForOffset(pos)
         val baseline = layout.getLineBaseline(line)
