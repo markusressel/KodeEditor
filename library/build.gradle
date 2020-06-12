@@ -55,7 +55,7 @@ dependencies {
     api("com.github.markusressel.KodeHighlighter:core:$kodeHighlighterVersion")
 
     // Zoom Layout Container
-    api 'com.otaliastudios:zoomlayout:1.6.1'
+    api 'com.otaliastudios:zoomlayout:1.7.1'
 
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
