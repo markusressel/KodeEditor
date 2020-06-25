@@ -7,10 +7,10 @@ A simple code editor with syntax highlighting and pinch to zoom
 
 # Build Status
 
-| Master | Dev |
-|--------|-----|
-| [![Master](https://travis-ci.org/markusressel/KodeEditor.svg?branch=master)](https://travis-ci.org/markusressel/KodeEditor/branches) | [![Master](https://travis-ci.org/markusressel/KutePreferences.svg?branch=dev)](https://travis-ci.org/markusressel/KodeEditor/branches) |
-| [![codebeat badge](https://codebeat.co/badges/f7fa8602-1d15-457e-904d-cb585e984952)](https://codebeat.co/projects/github-com-markusressel-kodeeditor-master) | [![codebeat badge](https://codebeat.co/badges/19447977-bc96-4519-90b1-e532139ae1a5)](https://codebeat.co/projects/github-com-markusressel-kodeeditor-dev) |
+| Master |
+|--------|
+| [![Master](https://travis-ci.org/markusressel/KodeEditor.svg?branch=master)](https://travis-ci.org/markusressel/KodeEditor/branches) |
+| [![codebeat badge](https://codebeat.co/badges/f7fa8602-1d15-457e-904d-cb585e984952)](https://codebeat.co/projects/github-com-markusressel-kodeeditor-master) |
 
 # Features
 * Pinch-To-Zoom
