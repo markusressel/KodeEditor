@@ -13,9 +13,9 @@ import com.otaliastudios.zoom.ZoomLayout
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.getColor
 import de.markusressel.kodeeditor.library.extensions.setViewBackgroundWithoutResettingPadding
-import de.markusressel.kodehighlighter.core.EditTextSyntaxHighlighter
-import de.markusressel.kodehighlighter.core.StatefulSyntaxHighlighter
-import de.markusressel.kodehighlighter.core.SyntaxHighlighter
+import de.markusressel.kodehighlighter.core.LanguageRuleBook
+import de.markusressel.kodehighlighter.core.util.EditTextHighlighter
+import de.markusressel.kodehighlighter.core.util.StatefulSpannableHighlighter
 
 /**
  * Code Editor that allows pinch-to-zoom
@@ -37,15 +37,15 @@ open class CodeEditorView
     /**
      * The currently active syntax highlighter (if any)
      */
-    var syntaxHighlighter: SyntaxHighlighter?
-        get() = codeEditText.syntaxHighlighter
+    var languageRuleBook: LanguageRuleBook?
+        get() = codeEditText.highlighter?.languageRuleBook
         set(value) {
             if (value != null) {
-                codeEditText.syntaxHighlighter = EditTextSyntaxHighlighter(value, codeEditText)
-                codeTextView.syntaxHighlighter = StatefulSyntaxHighlighter(value)
+                codeEditText.highlighter = EditTextHighlighter(value, target = codeEditText)
+                codeTextView.highlighter = StatefulSpannableHighlighter(value, value.defaultColorScheme)
             } else {
-                codeEditText.syntaxHighlighter = null
-                codeTextView.syntaxHighlighter = null
+                codeEditText.highlighter = null
+                codeTextView.highlighter = null
             }
         }
 

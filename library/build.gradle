@@ -54,6 +54,9 @@ dependencies {
     // Syntax Highlighting
     api("com.github.markusressel.KodeHighlighter:core:$kodeHighlighterVersion")
 
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.0"
+
     // Zoom Layout Container
     api 'com.otaliastudios:zoomlayout:1.7.1'
 

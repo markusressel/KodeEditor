@@ -10,11 +10,14 @@ import android.util.Log
 import androidx.appcompat.widget.AppCompatTextView
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
-import de.markusressel.kodehighlighter.core.StatefulSyntaxHighlighter
+import de.markusressel.kodehighlighter.core.util.StatefulSpannableHighlighter
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 import io.reactivex.rxkotlin.subscribeBy
 import io.reactivex.schedulers.Schedulers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 /**
@@ -30,7 +33,7 @@ constructor(context: Context,
     /**
      * The current syntax highlighter
      */
-    var syntaxHighlighter: StatefulSyntaxHighlighter? = null
+    var highlighter: StatefulSpannableHighlighter? = null
         set(value) {
             // clear any old style
             field?.clearAppliedStyles(text as Spannable)
@@ -65,7 +68,7 @@ constructor(context: Context,
     private fun initSyntaxHighlighter() {
         highlightingDisposable?.dispose()
 
-        if (syntaxHighlighter != null) {
+        if (highlighter != null) {
             refreshSyntaxHighlighting()
 
             highlightingDisposable = RxTextView
@@ -115,12 +118,15 @@ constructor(context: Context,
      */
     @Synchronized
     fun refreshSyntaxHighlighting() {
-        if (syntaxHighlighter == null) {
+        if (highlighter == null) {
             Log.w(TAG, "No syntax highlighter is set!")
         }
 
-        syntaxHighlighter?.apply {
-            highlight(text as Spannable)
+        highlighter?.apply {
+            // TODO: rework all of this to use coroutines
+            CoroutineScope(Dispatchers.Main).launch {
+                highlight(text as Spannable)
+            }
         }
     }
 

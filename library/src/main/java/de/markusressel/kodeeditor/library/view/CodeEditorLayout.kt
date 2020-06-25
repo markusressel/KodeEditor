@@ -26,7 +26,7 @@ import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.createSnapshot
 import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodeeditor.library.extensions.getColor
-import de.markusressel.kodehighlighter.core.SyntaxHighlighter
+import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.subscribeBy
 import io.reactivex.schedulers.Schedulers
@@ -104,10 +104,10 @@ constructor(
     /**
      * The currently active syntax highlighter (if any)
      */
-    var syntaxHighlighter: SyntaxHighlighter?
-        get() = codeEditorView.syntaxHighlighter
+    var languageRuleBook: LanguageRuleBook?
+        get() = codeEditorView.languageRuleBook
         set(value) {
-            codeEditorView.syntaxHighlighter = value
+            codeEditorView.languageRuleBook = value
         }
 
     /**

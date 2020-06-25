@@ -8,7 +8,7 @@ import android.util.Log
 import androidx.appcompat.widget.AppCompatEditText
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.trello.rxlifecycle2.kotlin.bindToLifecycle
-import de.markusressel.kodehighlighter.core.EditTextSyntaxHighlighter
+import de.markusressel.kodehighlighter.core.util.EditTextHighlighter
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 import io.reactivex.rxkotlin.subscribeBy
@@ -28,7 +28,7 @@ constructor(context: Context,
     /**
      * The current syntax highlighter
      */
-    var syntaxHighlighter: EditTextSyntaxHighlighter? = null
+    var highlighter: EditTextHighlighter? = null
         set(value) {
             // clear any old style
             field?.clearAppliedStyles()
@@ -65,7 +65,7 @@ constructor(context: Context,
     private fun initSyntaxHighlighter() {
         highlightingDisposable?.dispose()
 
-        syntaxHighlighter?.let {
+        highlighter?.let {
             refreshSyntaxHighlighting()
 
             highlightingDisposable = RxTextView
@@ -116,7 +116,7 @@ constructor(context: Context,
      */
     @Synchronized
     fun refreshSyntaxHighlighting() {
-        syntaxHighlighter?.refreshHighlighting()
+        highlighter?.refreshHighlighting()
                 ?: Log.w(TAG, "No syntax highlighter is set!")
     }
 
