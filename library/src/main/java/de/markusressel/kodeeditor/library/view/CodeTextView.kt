@@ -123,7 +123,6 @@ constructor(context: Context,
         }
 
         highlighter?.apply {
-            // TODO: rework all of this to use coroutines
             CoroutineScope(Dispatchers.Main).launch {
                 highlight(text as Spannable)
             }
