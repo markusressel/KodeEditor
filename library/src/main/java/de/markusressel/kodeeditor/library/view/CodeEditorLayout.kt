@@ -19,18 +19,20 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.StringRes
-import com.jakewharton.rxbinding2.widget.RxTextView
 import com.otaliastudios.zoom.*
-import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.createSnapshot
 import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodeeditor.library.extensions.getColor
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
-import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.rxkotlin.subscribeBy
-import io.reactivex.schedulers.Schedulers
-import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import reactivecircus.flowbinding.android.widget.textChanges
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -348,20 +350,18 @@ constructor(
             }
         }
 
-        val d = RxTextView.textChanges(codeEditorView.codeEditText)
-                .debounce(50, TimeUnit.MILLISECONDS)
-                .subscribeOn(Schedulers.computation())
-                .observeOn(AndroidSchedulers.mainThread())
-                .bindToLifecycle(this)
-                .subscribeBy(onNext = {
+        codeEditorView.codeEditText.textChanges()
+                .debounce(50)
+                .onEach {
                     try {
                         updateLineNumbers()
                     } catch (e: Throwable) {
                         Log.e(CodeEditorView.TAG, "Error updating line numbers", e)
                     }
-                }, onError = {
+                }
+                .catch {
                     Log.e(CodeEditorView.TAG, "Unrecoverable error while updating line numbers", it)
-                })
+                }.launchIn(CoroutineScope(Job() + Dispatchers.Main))
     }
 
     /**

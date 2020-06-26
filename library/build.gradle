@@ -32,24 +32,12 @@ dependencies {
     implementation "com.android.support:appcompat-v7:$supportLibVersion"
     implementation "com.android.support:support-annotations:$supportLibVersion"
 
+    // RxFlow
+    implementation "io.github.reactivecircus.flowbinding:flowbinding-android:$flowBindingVersion"
 
-    // RxJava (RxKotlin actually)
-    implementation "io.reactivex.rxjava2:rxjava:2.2.19"
-    implementation 'io.reactivex.rxjava2:rxandroid:2.1.0'
-    implementation "io.reactivex.rxjava2:rxkotlin:${rootProject.ext.rxKotlinVersion}"
-
-    // RxBinding
-    // RxJava binding APIs for Android UI widgets from the platform and support libraries.
-    implementation "com.jakewharton.rxbinding2:rxbinding:${rootProject.ext.rxBindingVersion}"
-    implementation "com.jakewharton.rxbinding2:rxbinding-support-v4:${rootProject.ext.rxBindingVersion}"
-    implementation "com.jakewharton.rxbinding2:rxbinding-design:${rootProject.ext.rxBindingVersion}"
-
-    // RxLifecycle to prevent memory leaks
-    def rxLifecycleVersion = rootProject.ext.rxLifecycleVersion
-    implementation "com.trello.rxlifecycle2:rxlifecycle:$rxLifecycleVersion"
-    implementation "com.trello.rxlifecycle2:rxlifecycle-kotlin:$rxLifecycleVersion"
-    implementation "com.trello.rxlifecycle2:rxlifecycle-android:$rxLifecycleVersion"
-    implementation "com.trello.rxlifecycle2:rxlifecycle-android-lifecycle-kotlin:$rxLifecycleVersion"
+    // Lifecycle
+    def lifecycle_version = "2.2.0"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycle_version"
 
     // Syntax Highlighting
     api("com.github.markusressel.KodeHighlighter:core:$kodeHighlighterVersion")

@@ -6,13 +6,13 @@ import android.text.Layout
 import android.util.AttributeSet
 import android.util.Log
 import androidx.appcompat.widget.AppCompatEditText
-import com.jakewharton.rxbinding2.widget.RxTextView
-import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodehighlighter.core.util.EditTextHighlighter
-import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.disposables.Disposable
-import io.reactivex.rxkotlin.subscribeBy
-import io.reactivex.schedulers.Schedulers
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import reactivecircus.flowbinding.android.widget.textChanges
 import java.util.concurrent.TimeUnit
 
 /**
@@ -46,7 +46,7 @@ constructor(context: Context,
     var selectionChangedListener: SelectionChangedListener? = null
 
     private var highlightingTimeout = 50L to TimeUnit.MILLISECONDS
-    private var highlightingDisposable: Disposable? = null
+    private var highlightingJob: Job? = null
 
     init {
         reInit()
@@ -62,24 +62,21 @@ constructor(context: Context,
         isFocusableInTouchMode = true
     }
 
+    @OptIn(FlowPreview::class)
     private fun initSyntaxHighlighter() {
-        highlightingDisposable?.dispose()
+        highlightingJob?.cancel("Reinitializing")
 
         highlighter?.let {
             refreshSyntaxHighlighting()
-
-            highlightingDisposable = RxTextView
-                    .afterTextChangeEvents(this)
-                    .debounce(highlightingTimeout.first, highlightingTimeout.second)
-                    .subscribeOn(Schedulers.io())
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .bindToLifecycle(this)
-                    .subscribeBy(onNext = {
-                        // syntax highlighting
+            highlightingJob = textChanges()
+                    .debounce(highlightingTimeout.second.toMillis(highlightingTimeout.first))
+                    .onEach {
                         refreshSyntaxHighlighting()
-                    }, onError = {
-                        Log.e(TAG, "Error while refreshing syntax highlighting", it)
-                    })
+                    }
+                    .catch {
+                        Log.e(CodeTextView.TAG, "Error while refreshing syntax highlighting", it)
+                    }
+                    .launchIn(CoroutineScope(Job() + Dispatchers.Main))
         }
 
     }
