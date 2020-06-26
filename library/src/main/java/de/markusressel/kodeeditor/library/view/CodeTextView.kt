@@ -56,7 +56,7 @@ constructor(context: Context,
         }
     }
 
-    private suspend fun reInit() {
+    private fun reInit() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
         }
@@ -99,7 +99,7 @@ constructor(context: Context,
      * @param timeUnit the time unit to use
      */
     @Suppress("unused")
-    suspend fun setHighlightingTimeout(timeout: Long, timeUnit: TimeUnit) {
+    fun setHighlightingTimeout(timeout: Long, timeUnit: TimeUnit) {
         highlightingTimeout = timeout to timeUnit
         reInit()
     }
@@ -118,13 +118,15 @@ constructor(context: Context,
      * Force a refresh of the syntax highlighting
      */
     @Synchronized
-    suspend fun refreshSyntaxHighlighting() {
+    fun refreshSyntaxHighlighting() {
         if (highlighter == null) {
             Log.w(TAG, "No syntax highlighter is set!")
         }
 
         highlighter?.apply {
-            highlight(text as Spannable)
+            CoroutineScope(Dispatchers.Main).launch {
+                highlight(text as Spannable)
+            }
         }
     }
 
