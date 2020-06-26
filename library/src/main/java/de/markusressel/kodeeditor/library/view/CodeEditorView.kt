@@ -41,7 +41,7 @@ open class CodeEditorView
         get() = codeEditText.highlighter?.languageRuleBook
         set(value) {
             if (value != null) {
-                codeEditText.highlighter = EditTextHighlighter(value, target = codeEditText)
+                codeEditText.highlighter = EditTextHighlighter(codeEditText, value)
                 codeTextView.highlighter = StatefulSpannableHighlighter(value, value.defaultColorScheme)
             } else {
                 codeEditText.highlighter = null

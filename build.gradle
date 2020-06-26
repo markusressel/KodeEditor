@@ -18,8 +18,8 @@ buildscript {
 
         // DEPENDENCIES
 
-//        kodeHighlighterVersion = "v1.2.2"
-        kodeHighlighterVersion = "master-SNAPSHOT"
+        kodeHighlighterVersion = "v2.0.0"
+//        kodeHighlighterVersion = "master-SNAPSHOT"
 
         androidKtxVersion = "0.3"
         supportLibVersion = "28.0.0"
