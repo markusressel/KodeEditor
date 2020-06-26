@@ -8,16 +8,13 @@ import android.text.SpannableString
 import android.util.AttributeSet
 import android.util.Log
 import androidx.appcompat.widget.AppCompatTextView
-import com.jakewharton.rxbinding2.widget.RxTextView
-import com.trello.rxlifecycle2.kotlin.bindToLifecycle
 import de.markusressel.kodehighlighter.core.util.StatefulSpannableHighlighter
-import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.disposables.Disposable
-import io.reactivex.rxkotlin.subscribeBy
-import io.reactivex.schedulers.Schedulers
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import reactivecircus.flowbinding.android.widget.textChanges
 import java.util.concurrent.TimeUnit
 
 /**
@@ -51,10 +48,12 @@ constructor(context: Context,
     var selectionChangedListener: SelectionChangedListener? = null
 
     private var highlightingTimeout = 50L to TimeUnit.MILLISECONDS
-    private var highlightingDisposable: Disposable? = null
+    private var highlightingJob: Job? = null
 
     init {
-        reInit()
+        CoroutineScope(Job() + Dispatchers.Main).launch {
+            reInit()
+        }
     }
 
     private fun reInit() {
@@ -65,30 +64,32 @@ constructor(context: Context,
         initSyntaxHighlighter()
     }
 
+    @OptIn(FlowPreview::class)
     private fun initSyntaxHighlighter() {
-        highlightingDisposable?.dispose()
+        highlightingJob?.cancel("Reinitializing")
 
         if (highlighter != null) {
-            refreshSyntaxHighlighting()
+            CoroutineScope(Dispatchers.Main).launch {
+                refreshSyntaxHighlighting()
+            }
 
-            highlightingDisposable = RxTextView
-                    .afterTextChangeEvents(this)
-                    .debounce(highlightingTimeout.first, highlightingTimeout.second)
-                    .subscribeOn(Schedulers.io())
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .bindToLifecycle(this)
-                    .subscribeBy(onNext = {
-                        // syntax highlighting
+            highlightingJob = textChanges()
+                    .debounce(highlightingTimeout.second.toMillis(highlightingTimeout.first))
+                    .onEach {
                         refreshSyntaxHighlighting()
-                    }, onError = {
+                    }
+                    .catch {
                         Log.e(TAG, "Error while refreshing syntax highlighting", it)
-                    })
+                    }
+                    .launchIn(CoroutineScope(Job() + Dispatchers.Main))
         }
     }
 
     override fun setText(text: CharSequence?, type: BufferType?) {
         super.setText(SpannableString.valueOf(text), BufferType.SPANNABLE)
-        refreshSyntaxHighlighting()
+        CoroutineScope(Job() + Dispatchers.Default).launch {
+            refreshSyntaxHighlighting()
+        }
     }
 
     /**
