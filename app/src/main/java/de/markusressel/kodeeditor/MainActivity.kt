@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor
 
 import android.graphics.Color
 import android.os.Bundle
+import android.view.Gravity
 import androidx.annotation.RawRes
 import androidx.appcompat.app.AppCompatActivity
 import com.github.kittinunf.fuel.Fuel
@@ -24,6 +25,7 @@ class MainActivity : AppCompatActivity() {
             minimapBorderColor = Color.BLACK
             minimapIndicatorColor = Color.GREEN
             minimapMaxDimension = 150.dpToPx(context)
+            minimapGravity = Gravity.BOTTOM or Gravity.END
         }
 
         initEditorText()
