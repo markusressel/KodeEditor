@@ -11,10 +11,7 @@ import android.text.Layout
 import android.util.AttributeSet
 import android.util.Log
 import android.util.TypedValue
-import android.view.LayoutInflater
-import android.view.MotionEvent
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.annotation.ColorInt
@@ -190,6 +187,16 @@ constructor(
             minimapIndicator.background = GradientDrawable().apply {
                 setStroke(2.dpToPx(context).roundToInt(), field)
             }
+        }
+
+    /**
+     * The positioning gravity of the minimap
+     */
+    var minimapGravity: Int = Gravity.TOP or Gravity.END
+        set(value) {
+            field = value
+            (minimapContainerLayout.layoutParams as LayoutParams).gravity = field
+            minimapContainerLayout.requestLayout()
         }
 
     private var currentDrawnLineCount = -1L

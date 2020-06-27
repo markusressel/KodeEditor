@@ -185,6 +185,7 @@ some of those methods you need to access the matching property of the `KodeEdito
 | minimapBorderWidth | Gets/Sets the minimap border size in in pixels. | Number |
 | minimapBorderColor | Gets/Sets the minimap border color. | @ColorInt |
 | minimapIndicatorColor | Gets/Sets the minimap indicator color. | @ColorInt |
+| minimapGravity | Gets/Sets the minimap positioning gravity. | Int |
 
 ## CodeEditorView
 
