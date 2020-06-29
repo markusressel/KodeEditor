@@ -403,10 +403,12 @@ constructor(
         val targetView: View = if (editable) codeEditorView.codeEditText else codeEditorView.codeTextView
         targetView.apply {
             post {
-                val minimapSnapshot = createSnapshot(
+                createSnapshot(
                         dimensionLimit = minimapMaxDimension,
-                        backgroundColor = editorBackgroundColor)
-                minimapZoomLayout.setImageBitmap(minimapSnapshot)
+                        backgroundColor = editorBackgroundColor
+                )?.let {
+                    minimapZoomLayout.setImageBitmap(it)
+                }
             }
         }
     }
