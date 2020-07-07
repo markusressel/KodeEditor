@@ -28,9 +28,6 @@ buildscript {
         aboutlibrariesVersion = "8.2.0"
 
         flowBindingVersion = "0.12.0"
-        rxKotlinVersion = "2.3.0"
-        rxBindingVersion = "2.2.0"
-        rxLifecycleVersion = "2.2.2"
 
         timberKtVersion = "1.5.1"
     }
