@@ -40,7 +40,7 @@ dependencies {
     ...
 
     def codeEditorVersion = "v3.0.2"
-    implementation("com.github.markusressel.KodeEditor:${codeEditorVersion}")
+    implementation("com.github.markusressel:KodeEditor:${codeEditorVersion}")
 }
 ```
 
