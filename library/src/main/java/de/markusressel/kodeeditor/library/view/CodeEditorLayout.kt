@@ -64,6 +64,14 @@ constructor(
     internal lateinit var lineNumberTextView: TextView
 
     /**
+     * Set how the lines number are generated based on total
+     * number of lines
+     */
+    var lineNumberGenerator: (Long) -> List<String> = { lines ->
+        (1..lines).map { "$it$LINE_NUMBER_SUFFIX" }
+    }
+
+    /**
      * The container layout for the minimap.
      */
     internal lateinit var minimapContainerLayout: ViewGroup
@@ -516,8 +524,7 @@ constructor(
      * @return the text to show for the given amount of lines
      */
     private fun createLineNumberText(lines: Long): String {
-        return (1..lines).joinToString(separator = "$LINE_NUMBER_SUFFIX\n",
-                postfix = LINE_NUMBER_SUFFIX)
+        return lineNumberGenerator(lines).joinToString(separator = "\n")
     }
 
     /**

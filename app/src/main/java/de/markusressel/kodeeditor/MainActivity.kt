@@ -18,6 +18,9 @@ class MainActivity : AppCompatActivity() {
 
         codeEditorLayout.apply {
             languageRuleBook = MarkdownRuleBook()
+            lineNumberGenerator = { lines ->
+                (1..lines).map { " $it " }
+            }
             editable = false
             showDivider = true
             showMinimap = true
