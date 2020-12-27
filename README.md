@@ -175,6 +175,7 @@ some of those methods you need to access the matching property of the `KodeEdito
 | Name | Description | Type |
 |------|-------------|------|
 | showDivider | Gets/Sets if the divider between line numbers and code editor is shown. | Boolean |
+| lineNumberGenerator | Sets text to show for line number based on total number of lines | (Long) -> List<String> |
 
 ### Minimap
 
