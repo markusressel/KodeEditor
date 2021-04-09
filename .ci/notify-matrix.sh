@@ -5,7 +5,7 @@ APK_FILE=$2
 
 BASE_URL="https://${MATRIX_HOMESERVER}"
 
-if [[ -z "${APK_FILE}" ]]; then
+if [[ -n "${APK_FILE}" ]]; then
   echo "Sending apk file..."
 
   # TODO: send to matrix chat

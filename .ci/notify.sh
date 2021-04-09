@@ -16,7 +16,7 @@ else
   RESULT_EMOJI="🔥"
 fi
 
-if [[ -z "${GITHUB_HEAD_REF}" ]]; then
+if [[ -n "${GITHUB_HEAD_REF}" ]]; then
   # this is a PR
 
   COMMITS_INVOLVED=$(git log --oneline ^"${GITHUB_BASE_REF}" HEAD)
@@ -52,12 +52,12 @@ fi
 # find compiled .apk file
 APK_FILE=$(find "./app/build/outputs/apk/debug" -type f -name "*.apk")
 
-if [[ -z "${TELEGRAM_CHAT_ID}" ]]; then
-  ./.ci/notify-telegram.sh "$MESSAGE" "$APK_FILE"
+if [[ -n "${TELEGRAM_CHAT_ID}" ]]; then
+  ./.ci/notify-telegram.sh "${MESSAGE}" "${APK_FILE}"
 fi
 
-if [[ -z "${MATRIX_HOMESERVER}" ]]; then
-  ./.ci/notify-matrix.sh "$MESSAGE" "$APK_FILE"
+if [[ -n "${MATRIX_HOMESERVER}" ]]; then
+  ./.ci/notify-matrix.sh "${MESSAGE}" "${APK_FILE}"
 fi
 
 
