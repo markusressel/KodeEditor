@@ -41,3 +41,14 @@ jobs:
         with:
           name: apk-files
           path: app/build/outputs/apk/**/*.apk
+
+      - name: Notify
+        # make sure this step runs, regardless of whether the preceding steps were successful or not
+        if: always()
+        env:
+          # "failure", "success" or "cancelled"
+          # see: https://docs.github.com/en/actions/reference/context-and-expression-syntax-for-github-actions#job-context
+          RUN_RESULT: ${{ job.status }}
+          MATRIX_HOMESERVER: ${{ secrets.MATRIX_HOMESERVER }}
+          MATRIX_ACCESS_TOKEN: ${{ secrets.MATRIX_ACCESS_TOKEN }}
+        run: .ci/notify.sh
