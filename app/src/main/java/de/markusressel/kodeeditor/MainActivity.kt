@@ -6,17 +6,21 @@ import android.view.Gravity
 import androidx.annotation.RawRes
 import androidx.appcompat.app.AppCompatActivity
 import com.github.kittinunf.fuel.Fuel
+import de.markusressel.kodeeditor.databinding.ActivityMainBinding
 import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
-import kotlinx.android.synthetic.main.activity_main.*
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var binding: ActivityMainBinding
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        val view = binding.root
+        setContentView(view)
 
-        codeEditorLayout.apply {
+        binding.codeEditorLayout.apply {
             languageRuleBook = MarkdownRuleBook()
             lineNumberGenerator = { lines ->
                 (1..lines).map { " $it " }
@@ -43,11 +47,11 @@ class MainActivity : AppCompatActivity() {
                     if (error != null || text == null) {
                         // fallback if no network is available
                         val sampleText = readResourceFileAsText(R.raw.sample_text)
-                        codeEditorLayout.text = sampleText
+                        binding.codeEditorLayout.text = sampleText
                     } else {
-                        codeEditorLayout.text = text
+                        binding.codeEditorLayout.text = text
                     }
-                    codeEditorLayout.editable = true
+                    binding.codeEditorLayout.editable = true
                 }
     }
 
