@@ -127,7 +127,7 @@ open class CodeEditorView
         val editTextBackgroundColor = a.getColor(context,
                 defaultColor = Color.WHITE,
                 styleableRes = R.styleable.CodeEditorView_ke_editor_backgroundColor,
-                attr = *intArrayOf(R.attr.ke_editor_backgroundColor,
+                attr = intArrayOf(R.attr.ke_editor_backgroundColor,
                         android.R.attr.windowBackground))
         codeEditText.setBackgroundColor(editTextBackgroundColor)
 

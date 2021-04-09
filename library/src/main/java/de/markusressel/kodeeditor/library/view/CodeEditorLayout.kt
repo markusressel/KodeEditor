@@ -258,13 +258,13 @@ constructor(
         val lineNumberTextColor = a.getColor(context,
                 defaultColor = Color.BLACK,
                 styleableRes = R.styleable.CodeEditorLayout_ke_lineNumbers_textColor,
-                attr = *intArrayOf(R.attr.ke_lineNumbers_textColor))
+                attr = intArrayOf(R.attr.ke_lineNumbers_textColor))
         lineNumberTextView.setTextColor(lineNumberTextColor)
 
         val lineNumberBackgroundColor = a.getColor(context,
                 defaultColor = Color.WHITE,
                 styleableRes = R.styleable.CodeEditorLayout_ke_lineNumbers_backgroundColor,
-                attr = *intArrayOf(R.attr.ke_lineNumbers_backgroundColor,
+                attr = intArrayOf(R.attr.ke_lineNumbers_backgroundColor,
                         android.R.attr.windowBackground))
         lineNumberZoomLayout.setBackgroundColor(lineNumberBackgroundColor)
 
@@ -274,13 +274,13 @@ constructor(
         val dividerColor = a.getColor(context,
                 defaultColor = Color.BLACK,
                 styleableRes = R.styleable.CodeEditorLayout_ke_divider_color,
-                attr = *intArrayOf(R.attr.ke_divider_color))
+                attr = intArrayOf(R.attr.ke_divider_color))
         dividerView.setBackgroundColor(dividerColor)
 
         editorBackgroundColor = a.getColor(context,
                 defaultColor = Color.WHITE,
                 styleableRes = R.styleable.CodeEditorLayout_ke_editor_backgroundColor,
-                attr = *intArrayOf(R.attr.ke_editor_backgroundColor))
+                attr = intArrayOf(R.attr.ke_editor_backgroundColor))
         codeEditorView.setBackgroundColor(editorBackgroundColor)
         isMoveWithCursorEnabled = a.getBoolean(R.styleable.CodeEditorLayout_ke_editor_followCursor, true)
 
@@ -293,12 +293,12 @@ constructor(
         minimapBorderColor = a.getColor(context,
                 defaultColor = Color.BLACK,
                 styleableRes = R.styleable.CodeEditorLayout_ke_minimap_borderColor,
-                attr = *intArrayOf(R.attr.ke_minimap_borderColor))
+                attr = intArrayOf(R.attr.ke_minimap_borderColor))
 
         minimapIndicatorColor = a.getColor(context,
                 defaultColor = Color.RED,
                 styleableRes = R.styleable.CodeEditorLayout_ke_minimap_indicatorColor,
-                attr = *intArrayOf(R.attr.ke_minimap_indicatorColor))
+                attr = intArrayOf(R.attr.ke_minimap_indicatorColor))
 
         a.recycle()
     }
