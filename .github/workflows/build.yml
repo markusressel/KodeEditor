@@ -33,9 +33,14 @@ jobs:
       - uses: actions/setup-java@v1
         with:
           java-version: 1.8
+
+      - name: Setup custom keystore file
+        run:
+          - mkdir -p $HOME/.android
+          - cp ./.ci/debug.keystore $HOME/.android/debug.keystore
+
       - name: Execute APK build
         run: ./gradlew app:assembleDebug --stacktrace
-      # TODO: send notification message with artifact
 
       - uses: actions/upload-artifact@v2
         with:
