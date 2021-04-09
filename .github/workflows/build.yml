@@ -35,9 +35,9 @@ jobs:
           java-version: 1.8
 
       - name: Setup custom keystore file
-        run:
-          - mkdir -p $HOME/.android
-          - cp ./.ci/debug.keystore $HOME/.android/debug.keystore
+        run: |
+          mkdir -p $HOME/.android
+          cp ./.ci/debug.keystore $HOME/.android/debug.keystore
 
       - name: Execute APK build
         run: ./gradlew app:assembleDebug --stacktrace
