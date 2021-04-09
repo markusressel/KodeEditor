@@ -3,7 +3,7 @@
 MESSAGE=$1
 APK_FILE=$2
 
-BASE_URL="https://api.telegram.org/bot${TELEGRAM_TOKEN}"
+BASE_URL="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
 
 if [[ -z "${APK_FILE}" ]]; then
   echo "Sending apk file..."

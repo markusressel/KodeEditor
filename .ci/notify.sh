@@ -53,11 +53,11 @@ fi
 APK_FILE=$(find "./app/build/outputs/apk/debug" -type f -name "*.apk")
 
 if [[ -z "${TELEGRAM_CHAT_ID}" ]]; then
-  ./notify-telegram.sh "$MESSAGE" "$APK_FILE"
+  ./.ci/notify-telegram.sh "$MESSAGE" "$APK_FILE"
 fi
 
 if [[ -z "${MATRIX_HOMESERVER}" ]]; then
-  ./notify-matrix.sh "$MESSAGE" "$APK_FILE"
+  ./.ci/notify-matrix.sh "$MESSAGE" "$APK_FILE"
 fi
 
 
