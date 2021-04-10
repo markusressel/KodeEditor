@@ -51,8 +51,12 @@ constructor(
      */
     lateinit var codeEditorView: CodeEditorView
 
-    /** Indicates whether the engine has fully initialized */
-    private var engineInitialized = false
+    /**
+     * Indicates whether the engine has fully initialized
+     **/
+    private val isEngineInitialized: Boolean
+        get() = codeEditorView.engine.computeVerticalScrollRange() > 0
+                && codeEditorView.engine.computeHorizontalScrollRange() > 0
 
     /**
      * The view displaying line numbers.
@@ -307,21 +311,19 @@ constructor(
             override fun onIdle(engine: ZoomEngine) {}
 
             override fun onUpdate(engine: ZoomEngine, matrix: Matrix) {
-                if (!engineInitialized) {
-                    engineInitialized = true
-                    updateLineNumbers()
-                    updateMinimapBorder()
-                } else {
-                    val editorRect = calculateVisibleCodeArea()
-                    updateLineNumbers(editorRect, updateLineCount = false)
-                    updateMinimapIndicator(editorRect)
-                }
+                if (!isEngineInitialized) return
+
+                val editorRect = calculateVisibleCodeArea()
+                updateLineNumbers(editorRect, updateLineCount = false)
+                updateMinimapIndicator(editorRect)
             }
         })
 
         codeEditorView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            if (!isEngineInitialized) return@addOnLayoutChangeListener
             // linenumbers always have to be the exact same size as the content
             lineNumberTextView.height = codeEditorView.engine.computeVerticalScrollRange()
+            updateLineNumbers()
             updateMinimap()
         }
 
@@ -361,7 +363,6 @@ constructor(
         codeEditorView.selectionChangedListener = object : SelectionChangedListener {
             override fun onSelectionChanged(start: Int, end: Int, hasSelection: Boolean) {
                 if (!isMoveWithCursorEnabled) return
-                if (!engineInitialized) return
 
                 internalMoveWithCursorEnabled = true
                 try {
@@ -386,14 +387,6 @@ constructor(
                 }.launchIn(CoroutineScope(Job() + Dispatchers.Main))
     }
 
-    override fun onVisibilityChanged(changedView: View, visibility: Int) {
-        super.onVisibilityChanged(changedView, visibility)
-//        if (visibility == VISIBLE) {
-//            updateMinimap()
-//            updateLineNumbers()
-//        }
-    }
-
     /**
      * Helper function to move the editor content to a percentage based position
      *
@@ -412,6 +405,7 @@ constructor(
      */
     private fun updateMinimap() {
         if (!showMinimap) return
+        if (!isEngineInitialized) return
 
         updateMinimapImage()
         updateMinimapIndicator()
@@ -461,7 +455,6 @@ constructor(
      */
     private fun updateMinimapIndicator(editorRect: Rect = calculateVisibleCodeArea()) {
         if (!showMinimap) return
-        if (!engineInitialized) return
 
         val engine = codeEditorView.engine
 
@@ -486,7 +479,6 @@ constructor(
      */
     private fun updateLineNumbers(editorRect: Rect = calculateVisibleCodeArea(),
                                   updateLineCount: Boolean = true) {
-        if (!engineInitialized) return
         if (updateLineCount) {
             updateLineNumberText()
         }
