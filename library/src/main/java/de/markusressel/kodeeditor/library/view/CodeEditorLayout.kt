@@ -52,6 +52,13 @@ constructor(
     lateinit var codeEditorView: CodeEditorView
 
     /**
+     * Indicates whether the engine has fully initialized
+     **/
+    private val isEngineInitialized: Boolean
+        get() = codeEditorView.engine.computeVerticalScrollRange() > 0
+                && codeEditorView.engine.computeHorizontalScrollRange() > 0
+
+    /**
      * The view displaying line numbers.
      * This is also a [ZoomLayout] so the line numbers can be scaled and panned according to the
      * code editor's zoom and pan.
@@ -103,8 +110,6 @@ constructor(
     var text: String
         set(value) {
             codeEditorView.text = value
-            updateLineNumbers()
-            updateMinimap()
         }
         get() = codeEditorView.text
 
@@ -230,9 +235,6 @@ constructor(
         inflateViews(LayoutInflater.from(context))
         readParameters(attrs, defStyleAttr)
         setListeners()
-
-        updateLineNumbers()
-        updateMinimapBorder()
     }
 
     private fun inflateViews(layoutInflater: LayoutInflater) {
@@ -309,6 +311,8 @@ constructor(
             override fun onIdle(engine: ZoomEngine) {}
 
             override fun onUpdate(engine: ZoomEngine, matrix: Matrix) {
+                if (!isEngineInitialized) return
+
                 val editorRect = calculateVisibleCodeArea()
                 updateLineNumbers(editorRect, updateLineCount = false)
                 updateMinimapIndicator(editorRect)
@@ -316,6 +320,10 @@ constructor(
         })
 
         codeEditorView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            if (!isEngineInitialized) return@addOnLayoutChangeListener
+            // linenumbers always have to be the exact same size as the content
+            lineNumberTextView.height = codeEditorView.engine.computeVerticalScrollRange()
+            updateLineNumbers()
             updateMinimap()
         }
 
@@ -354,13 +362,13 @@ constructor(
 
         codeEditorView.selectionChangedListener = object : SelectionChangedListener {
             override fun onSelectionChanged(start: Int, end: Int, hasSelection: Boolean) {
-                if (isMoveWithCursorEnabled) {
-                    internalMoveWithCursorEnabled = true
-                    try {
-                        moveToCursorIfNecessary()
-                    } catch (e: Throwable) {
-                        Log.e(CodeEditorView.TAG, "Error moving screen with cursor", e)
-                    }
+                if (!isMoveWithCursorEnabled) return
+
+                internalMoveWithCursorEnabled = true
+                try {
+                    moveToCursorIfNecessary()
+                } catch (e: Throwable) {
+                    Log.e(CodeEditorView.TAG, "Error moving screen with cursor", e)
                 }
             }
         }
@@ -397,6 +405,7 @@ constructor(
      */
     private fun updateMinimap() {
         if (!showMinimap) return
+        if (!isEngineInitialized) return
 
         updateMinimapImage()
         updateMinimapIndicator()
@@ -447,20 +456,18 @@ constructor(
     private fun updateMinimapIndicator(editorRect: Rect = calculateVisibleCodeArea()) {
         if (!showMinimap) return
 
-        codeEditorView.post {
-            val engine = codeEditorView.engine
+        val engine = codeEditorView.engine
 
-            // update minimap indicator position and size
-            (minimapIndicator.layoutParams as MarginLayoutParams).apply {
-                topMargin = ((minimapZoomLayout.height *
-                        (engine.computeVerticalScrollOffset().toFloat() / engine.computeVerticalScrollRange()))).roundToInt()
-                leftMargin = ((minimapZoomLayout.width *
-                        (engine.computeHorizontalScrollOffset().toFloat() / engine.computeHorizontalScrollRange()))).roundToInt()
+        // update minimap indicator position and size
+        (minimapIndicator.layoutParams as MarginLayoutParams).apply {
+            topMargin = ((minimapZoomLayout.height *
+                    (engine.computeVerticalScrollOffset().toFloat() / engine.computeVerticalScrollRange()))).roundToInt()
+            leftMargin = ((minimapZoomLayout.width *
+                    (engine.computeHorizontalScrollOffset().toFloat() / engine.computeHorizontalScrollRange()))).roundToInt()
 
-                width = (minimapZoomLayout.width * (editorRect.width().toFloat() / engine.computeHorizontalScrollRange())).roundToInt()
-                height = (minimapZoomLayout.height * (editorRect.height().toFloat() / engine.computeVerticalScrollRange())).roundToInt()
-                minimapIndicator.layoutParams = this
-            }
+            width = (minimapZoomLayout.width * (editorRect.width().toFloat() / engine.computeHorizontalScrollRange())).roundToInt()
+            height = (minimapZoomLayout.height * (editorRect.height().toFloat() / engine.computeVerticalScrollRange())).roundToInt()
+            minimapIndicator.layoutParams = this
         }
     }
 
@@ -476,25 +483,23 @@ constructor(
             updateLineNumberText()
         }
 
-        codeEditorView.post {
-            // adjust width of line numbers based on zoom
-            val engine = codeEditorView.engine
+        // adjust width of line numbers based on zoom
+        val engine = codeEditorView.engine
 
-            val scaledWidth = lineNumberTextView.width * engine.realZoom
-            val maxWidth = editorRect.width() / 3F
-            val targetWidth = min(scaledWidth, maxWidth).roundToInt()
-            lineNumberZoomLayout.layoutParams.apply {
-                width = targetWidth
-                lineNumberZoomLayout.layoutParams = this
-            }
-
-            // synchronize zoom and vertical pan to match code editor
-            lineNumberZoomLayout.moveTo(
-                    engine.zoom,
-                    -engine.computeHorizontalScrollRange().toFloat(),
-                    engine.panY,
-                    false)
+        val scaledWidth = lineNumberTextView.width * engine.realZoom
+        val maxWidth = editorRect.width() / 3F
+        val targetWidth = min(scaledWidth, maxWidth).roundToInt()
+        lineNumberZoomLayout.layoutParams.apply {
+            width = targetWidth
+            lineNumberZoomLayout.layoutParams = this
         }
+
+        // synchronize zoom and vertical pan to match code editor
+        lineNumberZoomLayout.moveTo(
+                engine.zoom,
+                -engine.computeHorizontalScrollRange().toFloat(),
+                engine.panY,
+                false)
     }
 
     /**
@@ -510,11 +515,6 @@ constructor(
 
         currentDrawnLineCount = linesToDraw
         lineNumberTextView.text = createLineNumberText(linesToDraw)
-
-        codeEditorView.post {
-            // linenumbers always have to be the exact same size as the content
-            lineNumberTextView.height = codeEditorView.engine.computeVerticalScrollRange()
-        }
     }
 
     /**
@@ -531,17 +531,15 @@ constructor(
      * Moves the screen so that the cursor is visible.
      */
     private fun moveToCursorIfNecessary() {
-        codeEditorView.post {
-            val cursorPosition = getCursorScreenPosition() ?: return@post
-            val targetArea = calculateVisibleCodeArea()
-            val padding = (32 * codeEditorView.realZoom).toInt()
-            targetArea.inset(padding, padding)
-            targetArea.offset(0, -padding)
+        val cursorPosition = getCursorScreenPosition() ?: return
+        val targetArea = calculateVisibleCodeArea()
+        val padding = (32 * codeEditorView.realZoom).toInt()
+        targetArea.inset(padding, padding)
+        targetArea.offset(0, -padding)
 
-            if (!targetArea.contains(cursorPosition.x.roundToInt(), cursorPosition.y.roundToInt())) {
-                val targetLocation = calculateTargetPoint(cursorPosition, targetArea)
-                codeEditorView.moveTo(codeEditorView.zoom, targetLocation.x, targetLocation.y, false)
-            }
+        if (!targetArea.contains(cursorPosition.x.roundToInt(), cursorPosition.y.roundToInt())) {
+            val targetLocation = calculateTargetPoint(cursorPosition, targetArea)
+            codeEditorView.moveTo(codeEditorView.zoom, targetLocation.x, targetLocation.y, false)
         }
     }
 
