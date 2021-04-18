@@ -12,14 +12,14 @@ A simple code editor with syntax highlighting and pinch to zoom
 | [![codebeat badge](https://codebeat.co/badges/f7fa8602-1d15-457e-904d-cb585e984952)](https://codebeat.co/projects/github-com-markusressel-kodeeditor-master) |
 
 # Features
-* Pinch-To-Zoom
-* Line numbers
-* Syntax highlighting
-  * import languages you need
-  * or simply create your own highlighter using **regex** or other techniques
-  * themes
-* "Minimap" style document overview
-* Written entirely in Kotlin
+* [x] Pinch-To-Zoom
+* [x] Line numbers
+* [x] Syntax highlighting
+  * [x] import languages you need
+  * [x] or simply create your own highlighter using **regex** or other techniques
+  * [x] themes
+* [x] "Minimap" style document overview
+* [x] Written entirely in Kotlin
 
 # How to use
 Have a look at the demo app (`app`  module) for a complete sample.
