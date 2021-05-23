@@ -282,7 +282,8 @@ constructor(
         editorBackgroundColor = a.getColor(context,
                 defaultColor = Color.WHITE,
                 styleableRes = R.styleable.CodeEditorLayout_ke_editor_backgroundColor,
-                attr = intArrayOf(R.attr.ke_editor_backgroundColor))
+                attr = intArrayOf(R.attr.ke_editor_backgroundColor,
+                        android.R.attr.windowBackground))
         codeEditorView.setBackgroundColor(editorBackgroundColor)
         isMoveWithCursorEnabled = a.getBoolean(R.styleable.CodeEditorLayout_ke_editor_followCursor, true)
 
