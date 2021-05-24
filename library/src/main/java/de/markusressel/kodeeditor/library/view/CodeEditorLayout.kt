@@ -260,7 +260,8 @@ constructor(
         val lineNumberTextColor = a.getColor(context,
                 defaultColor = Color.BLACK,
                 styleableRes = R.styleable.CodeEditorLayout_ke_lineNumbers_textColor,
-                attr = intArrayOf(R.attr.ke_lineNumbers_textColor))
+                attr = intArrayOf(R.attr.ke_lineNumbers_textColor,
+                        android.R.attr.textColorPrimary))
         lineNumberTextView.setTextColor(lineNumberTextColor)
 
         val lineNumberBackgroundColor = a.getColor(context,
@@ -276,7 +277,8 @@ constructor(
         val dividerColor = a.getColor(context,
                 defaultColor = Color.BLACK,
                 styleableRes = R.styleable.CodeEditorLayout_ke_divider_color,
-                attr = intArrayOf(R.attr.ke_divider_color))
+                attr = intArrayOf(R.attr.ke_divider_color,
+                        android.R.attr.textColorPrimary))
         dividerView.setBackgroundColor(dividerColor)
 
         editorBackgroundColor = a.getColor(context,
