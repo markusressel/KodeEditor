@@ -1,19 +1,19 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    ext.kotlin_version = '1.5.0'
+    ext.kotlin_version = '1.6.10'
 
     ext {
         group = 'com.github.markusressel'
 
-        gradle_plugin_version = '4.2.1'
+        gradle_plugin_version = '7.0.4'
 
         minSdkVersion = 19
         versionName = "4.0.1"
         versionCode = 1
 
-        compileSdkVersion = 30
-        targetSdkVersion = 30
+        compileSdkVersion = 31
+        targetSdkVersion = 31
         buildToolsVersion = "30.0.3"
 
         // DEPENDENCIES
@@ -29,11 +29,11 @@ buildscript {
         timberKtVersion = "1.5.1"
     }
 
-
     repositories {
         google()
         jcenter()
     }
+
     dependencies {
         classpath "com.android.tools.build:gradle:$gradle_plugin_version"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
@@ -43,12 +43,6 @@ buildscript {
 }
 
 allprojects {
-    repositories {
-        google()
-        jcenter()
-        maven { url 'https://jitpack.io' }
-    }
-
     configurations.all() {
         resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
 
