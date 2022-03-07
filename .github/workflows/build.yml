@@ -14,7 +14,7 @@ jobs:
         with:
           java-version: 11
       - name: Perform base checks
-        run: ./gradlew app:assembleDebug library:dokka --stacktrace
+        run: ./gradlew app:assembleDebug library:sourcesJar library:dokkaJar --stacktrace
   ANDROID_UNIT_TESTS:
     name: Unit Tests
     runs-on: ubuntu-latest

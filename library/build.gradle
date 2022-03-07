@@ -1,6 +1,6 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-apply plugin: 'org.jetbrains.dokka-android'
+apply plugin: 'org.jetbrains.dokka'
 
 group = rootProject.ext.group
 
@@ -64,9 +64,17 @@ task sourcesJar(type: Jar) {
     classifier = 'sources'
 }
 
-task dokkaJar(type: Jar, dependsOn: dokka) {
+task dokkaJar(type: Jar, dependsOn: dokkaHtml) {
     classifier = 'javadoc'
-    from dokka.outputDirectory
+    from dokkaHtml.outputDirectory
+}
+
+dokkaHtml.configure {
+    dokkaSourceSets {
+        named("main") {
+            noAndroidSdkLink.set(false)
+        }
+    }
 }
 
 artifacts {
