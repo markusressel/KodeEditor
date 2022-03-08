@@ -9,7 +9,7 @@ buildscript {
 
         gradle_plugin_version = '7.0.4'
 
-        minSdkVersion = 19
+        minSdkVersion = 21
         versionName = "4.0.1"
         versionCode = 1
 
@@ -28,6 +28,7 @@ buildscript {
         flowBindingVersion = "1.0.0"
 
         timberKtVersion = "1.5.1"
+        compose_version = '1.1.1'
     }
 
     repositories {
