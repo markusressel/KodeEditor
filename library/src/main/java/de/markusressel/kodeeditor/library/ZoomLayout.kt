@@ -1,12 +1,9 @@
 package de.markusressel.kodeeditor.library
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,7 +13,6 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
@@ -28,11 +24,21 @@ fun ZoomLayoutPreview() {
             .padding(16.dp)
             .background(Color.White)
     ) {
-        Image(
-            modifier = Modifier.size(1000.dp),
-            painter = painterResource(id = android.R.drawable.zoom_plate),
-            contentDescription = "",
-        )
+        Column(modifier = Modifier) {
+            for (i in 1..10) {
+                Row(modifier = Modifier) {
+                    for (j in 1..10) {
+                        val k = j + i % 2
+                        Surface(
+                            modifier = Modifier.size(20.dp), color = when {
+                            k % 2 == 0 -> Color.Black
+                            else -> Color.White
+                        }) {
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -41,10 +47,11 @@ fun ZoomLayout(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    Box(modifier = modifier.wrapContentSize(
-        align = Alignment.TopStart,
-        unbounded = true
-    )
+    Box(
+        modifier = modifier.wrapContentSize(
+            align = Alignment.TopStart,
+            unbounded = true
+        )
     ) {
         val configuration = LocalConfiguration.current
 
