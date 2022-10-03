@@ -40,14 +40,9 @@ android {
     }
 
     packagingOptions {
-        pickFirst 'META-INF/proguard/androidx-annotations.pro'
-        exclude 'LICENSE.txt'
-        exclude 'META-INF/DEPENDENCIES'
-        exclude 'META-INF/ASL2.0'
-        exclude 'META-INF/NOTICE'
-        exclude 'META-INF/LICENSE'
         resources {
-            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+            excludes += ['/META-INF/{AL2.0,LGPL2.1}', 'LICENSE.txt', 'META-INF/DEPENDENCIES', 'META-INF/ASL2.0', 'META-INF/NOTICE', 'META-INF/LICENSE']
+            pickFirsts += ['META-INF/proguard/androidx-annotations.pro']
         }
     }
     kotlinOptions {
@@ -56,6 +51,7 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion compose_version
     }
+    namespace 'de.markusressel.kodeeditor'
 }
 
 dependencies {
@@ -67,7 +63,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 
     implementation 'androidx.appcompat:appcompat:1.4.1'
-    implementation 'com.google.android.material:material:1.5.0'
+    implementation 'com.google.android.material:material:1.6.0'
     implementation "androidx.compose.ui:ui:$compose_version"
     implementation "androidx.compose.material:material:$compose_version"
     implementation "androidx.compose.ui:ui-tooling-preview:$compose_version"

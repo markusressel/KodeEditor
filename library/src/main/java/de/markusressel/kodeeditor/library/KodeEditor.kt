@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.Scaffold
@@ -43,10 +44,13 @@ fun KodeEditor(
 
     val visualTransformation = HighlightingTransformation(languageRuleBook, colorScheme)
 
-    Scaffold(modifier = Modifier.background(Color.Black), backgroundColor = Color.Black) {
-
+    Scaffold(
+            modifier = Modifier.background(Color.Black),
+            backgroundColor = Color.Black
+    ) { contentPadding ->
         BasicTextField(
                 modifier = Modifier
+                        .padding(contentPadding)
                         .wrapContentSize(
                                 align = Alignment.TopStart,
                                 unbounded = true

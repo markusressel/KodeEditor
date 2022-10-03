@@ -19,9 +19,10 @@ class ComposeMainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             KodeEditorTheme {
-                // A surface container using the 'background' color from the theme
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
-
+                Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colors.background
+                ) {
                     val sampleText = readResourceFileAsText(R.raw.sample_text)
                     KodeEditor(
                             languageRuleBook = MarkdownRuleBook(),
@@ -32,9 +33,7 @@ class ComposeMainActivity : ComponentActivity() {
         }
     }
 
-    private fun readResourceFileAsText(@RawRes resourceId: Int): String {
-        return resources.openRawResource(resourceId).bufferedReader().readText()
-    }
+    private fun readResourceFileAsText(@RawRes resourceId: Int) = resources.openRawResource(resourceId).bufferedReader().readText()
 
 }
 
