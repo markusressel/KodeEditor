@@ -28,10 +28,10 @@ fun ZoomLayoutPreview() {
             for (i in 1..10) {
                 Row(modifier = Modifier) {
                     for (j in 1..10) {
-                        val k = j + i % 2
+                        val k = (i + j) % 2
                         Surface(
-                            modifier = Modifier.size(20.dp), color = when {
-                            k % 2 == 0 -> Color.Black
+                            modifier = Modifier.size(20.dp), color = when (k) {
+                            1 -> Color.Black
                             else -> Color.White
                         }) {
                         }
