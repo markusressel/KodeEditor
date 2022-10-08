@@ -19,8 +19,8 @@ buildscript {
 
         // DEPENDENCIES
 
-        kodeHighlighterVersion = "v3.0.0"
-//        kodeHighlighterVersion = "master-SNAPSHOT"
+//        kodeHighlighterVersion = "v3.0.0"
+        kodeHighlighterVersion = "master-SNAPSHOT"
 
         javaxAnnotationVersion = "10.0-b28"
         aboutlibrariesVersion = "8.2.0"

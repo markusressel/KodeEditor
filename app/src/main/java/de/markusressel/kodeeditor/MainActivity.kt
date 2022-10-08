@@ -9,6 +9,7 @@ import com.github.kittinunf.fuel.Fuel
 import de.markusressel.kodeeditor.databinding.ActivityMainBinding
 import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
+import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorScheme
 
 class MainActivity : AppCompatActivity() {
 
@@ -22,6 +23,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.codeEditorLayout.apply {
             languageRuleBook = MarkdownRuleBook()
+            colorScheme = DarkBackgroundColorScheme()
             lineNumberGenerator = { lines ->
                 (1..lines).map { " $it " }
             }

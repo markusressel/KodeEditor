@@ -8,6 +8,7 @@ import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.Layout
+import android.text.style.CharacterStyle
 import android.util.AttributeSet
 import android.util.Log
 import android.util.TypedValue
@@ -22,6 +23,7 @@ import de.markusressel.kodeeditor.library.extensions.createSnapshot
 import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodeeditor.library.extensions.getColor
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
+import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -120,6 +122,15 @@ constructor(
         get() = codeEditorView.languageRuleBook
         set(value) {
             codeEditorView.languageRuleBook = value
+        }
+
+    /**
+     * The currently active syntax highlighter (if any)
+     */
+    var colorScheme: ColorScheme<CharacterStyle>?
+        get() = codeEditorView.colorScheme
+        set(value) {
+            codeEditorView.colorScheme = value
         }
 
     /**
