@@ -64,7 +64,6 @@ fun ZoomLayout(
                     align = Alignment.TopStart,
                     unbounded = true
                 )
-                .background(Color.White)
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, pan, gestureZoom, gestureRotate ->
 
