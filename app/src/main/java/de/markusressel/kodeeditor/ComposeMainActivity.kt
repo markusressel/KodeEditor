@@ -4,16 +4,21 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RawRes
-import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.Button
+import androidx.compose.material.Text
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.sp
 import de.markusressel.kodeeditor.library.compose.KodeEditor
+import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
 import de.markusressel.kodeeditor.ui.theme.KodeEditorTheme
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
@@ -23,24 +28,36 @@ class ComposeMainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             KodeEditorTheme {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .width(IntrinsicSize.Max)
-                        .height(IntrinsicSize.Max),
-                ) {
+                var fontSize by remember {
+                    mutableStateOf(14)
+                }
+                Column {
+                    Row {
+                        Button(onClick = { fontSize++ }) {
+                            Text(text = "+")
+                        }
+
+                        Button(onClick = { fontSize-- }) {
+                            Text(text = "-")
+                        }
+                    }
+
                     var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
                         val initialText = readResourceFileAsText(R.raw.sample_text)
                         mutableStateOf(TextFieldValue(initialText))
                     }
 
                     KodeEditor(
-                        modifier = Modifier
-                            .matchParentSize(),
+                        modifier = Modifier.fillMaxSize(),
                         languageRuleBook = MarkdownRuleBook(),
                         colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
                         text = text,
-                        onValueChange = { text = it }
+                        onValueChange = { text = it },
+                        textStyle = TextStyle(fontSize = fontSize.sp),
+                        colors = KodeEditorDefaults.editorColors(
+                            lineNumberTextColor = Color.Black,
+                            lineNumberBackgroundColor = Color.White,
+                        )
                     )
                 }
             }
@@ -55,7 +72,7 @@ class ComposeMainActivity : ComponentActivity() {
 
 @Preview(showBackground = true)
 @Composable
-fun DefaultPreview() {
+private fun DefaultPreview() {
     KodeEditorTheme {
         var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
             val initialText = """

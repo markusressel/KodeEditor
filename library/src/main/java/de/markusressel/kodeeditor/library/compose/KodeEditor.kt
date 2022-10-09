@@ -1,16 +1,19 @@
 package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.material.LocalTextStyle
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.ui.KodeTextField
@@ -19,7 +22,7 @@ import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgro
 
 @Preview
 @Composable
-fun KodeEditorPreview() {
+private fun KodeEditorPreview() {
     var text by remember {
         val initialText = """
             # Hello World
@@ -47,6 +50,14 @@ fun KodeEditorPreview() {
 
 /**
  * Compose version of the KodeEditorLayout
+ *
+ * @param modifier compose modifiers
+ * @param text the current text of the editor
+ * @param languageRuleBook the language rule book to use for highlighting
+ * @param onValueChange callback for changes to the text and/or cursor selection
+ * @param colors the color scheme to use for highlighting
+ * @param textStyle the text style used for the editor text
+ * @param enabled whether the editor is enabled
  */
 @Composable
 fun KodeEditor(
@@ -56,18 +67,50 @@ fun KodeEditor(
     colorScheme: ColorScheme<SpanStyle>,
     onValueChange: (TextFieldValue) -> Unit,
     colors: KodeEditorColors = KodeEditorDefaults.editorColors(),
+    textStyle: TextStyle = LocalTextStyle.current,
     enabled: Boolean = true,
 ) {
-    ZoomLayout(modifier = modifier) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var zoom by remember { mutableStateOf(1f) }
+
+    Row(modifier = modifier) {
+        // Line Numbers
+        ZoomLayout(
+            modifier = Modifier.zIndex(1f),
+            offset = offset.copy(x = 0f),
+            zoom = zoom,
+            onOffsetChanged = {},
+            onZoomChanged = {},
         ) {
             LineNumbers(
                 text = text.text,
+                textStyle = textStyle,
                 textColor = colors.lineNumberTextColor().value,
                 backgroundColor = colors.lineNumberBackgroundColor().value,
             )
+        }
 
+//        val configuration = LocalConfiguration.current
+
+        // Text Editor
+        ZoomLayout(
+            modifier = Modifier.zIndex(0f),
+            offset = offset,
+            zoom = zoom,
+            onOffsetChanged = {
+//                val newOffset = Offset(
+//                    x = (offset + it).x.coerceIn(0f, (size.width.toFloat() - (configuration.screenWidthDp.dp.toPx() / newScale)).coerceAtLeast(0f)),
+//                    y = (offset + it).y.coerceIn(0f, (size.height.toFloat() - (configuration.screenHeightDp.dp.toPx() / newScale)).coerceAtLeast(0f)),
+//                )
+
+                val newOffset = offset + (it / zoom)
+                offset = newOffset.copy(
+                    x = newOffset.x.coerceAtLeast(0f),
+                    y = newOffset.y.coerceAtLeast(0f)
+                )
+            },
+            onZoomChanged = { zoom *= it },
+        ) {
             KodeTextField(
                 modifier = Modifier
                     .wrapContentSize(
@@ -80,6 +123,7 @@ fun KodeEditor(
                 colorScheme = colorScheme,
                 onValueChange = onValueChange,
                 colors = colors.textFieldColors(enabled = enabled).value,
+                textStyle = textStyle,
             )
         }
     }
