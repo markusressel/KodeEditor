@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
@@ -15,8 +14,6 @@ import androidx.compose.ui.unit.dp
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.ui.KodeTextField
-import de.markusressel.kodehighlighter.core.ui.KodeTextFieldColors
-import de.markusressel.kodehighlighter.core.ui.KodeTextFieldDefaults
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
 
@@ -58,7 +55,7 @@ fun KodeEditor(
     languageRuleBook: LanguageRuleBook,
     colorScheme: ColorScheme<SpanStyle>,
     onValueChange: (TextFieldValue) -> Unit,
-    colors: KodeTextFieldColors = KodeTextFieldDefaults.textFieldColors(),
+    colors: KodeEditorColors = KodeEditorDefaults.editorColors(),
     enabled: Boolean = true,
 ) {
     ZoomLayout(modifier = modifier) {
@@ -67,8 +64,8 @@ fun KodeEditor(
         ) {
             LineNumbers(
                 text = text.text,
-                textColor = Color.White,
-                backgroundColor = colors.backgroundColor(enabled = enabled).value,
+                textColor = colors.lineNumberTextColor().value,
+                backgroundColor = colors.lineNumberBackgroundColor().value,
             )
 
             KodeTextField(
@@ -82,7 +79,7 @@ fun KodeEditor(
                 languageRuleBook = languageRuleBook,
                 colorScheme = colorScheme,
                 onValueChange = onValueChange,
-                colors = colors,
+                colors = colors.textFieldColors(enabled = enabled).value,
             )
         }
     }
