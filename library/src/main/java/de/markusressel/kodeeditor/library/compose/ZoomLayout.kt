@@ -1,4 +1,4 @@
-package de.markusressel.kodeeditor.library
+package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures

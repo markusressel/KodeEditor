@@ -13,7 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
-import de.markusressel.kodeeditor.library.KodeEditor
+import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.ui.theme.KodeEditorTheme
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle

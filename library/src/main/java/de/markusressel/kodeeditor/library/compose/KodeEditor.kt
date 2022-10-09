@@ -1,22 +1,52 @@
-package de.markusressel.kodeeditor.library
+package de.markusressel.kodeeditor.library.compose
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.ui.KodeTextField
 import de.markusressel.kodehighlighter.core.ui.KodeTextFieldColors
 import de.markusressel.kodehighlighter.core.ui.KodeTextFieldDefaults
+import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
+import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
+
+@Preview
+@Composable
+fun KodeEditorPreview() {
+    var text by remember {
+        val initialText = """
+            # Hello World
+            Code: `readResourceFileAsText(R.raw.sample_text)`
+        """.trimIndent()
+        mutableStateOf(TextFieldValue(
+            text = initialText
+        ))
+    }
+
+    val languageRuleBook by remember {
+        mutableStateOf(MarkdownRuleBook())
+    }
+    val colorScheme by remember {
+        mutableStateOf(DarkBackgroundColorSchemeWithSpanStyle())
+    }
+
+    KodeEditor(
+        text = text,
+        languageRuleBook = languageRuleBook,
+        colorScheme = colorScheme,
+        onValueChange = { text = it }
+    )
+}
 
 /**
  * Compose version of the KodeEditorLayout
@@ -37,8 +67,8 @@ fun KodeEditor(
         ) {
             LineNumbers(
                 text = text.text,
-                colors = colors,
-                enabled = enabled,
+                textColor = Color.White,
+                backgroundColor = colors.backgroundColor(enabled = enabled).value,
             )
 
             KodeTextField(
@@ -57,25 +87,3 @@ fun KodeEditor(
         }
     }
 }
-
-@Composable
-fun LineNumbers(
-    text: String,
-    colors: KodeTextFieldColors,
-    enabled: Boolean,
-) {
-    val lineNumbers by produceState("") {
-        val lineCount = text.lines().size
-        value = (1..lineCount).joinToString(separator = "\n")
-    }
-
-    Text(
-        modifier = Modifier
-            .wrapContentWidth()
-            .background(color = colors.backgroundColor(enabled = enabled).value)
-            .padding(start = 4.dp, end = 4.dp),
-        text = lineNumbers,
-        textAlign = TextAlign.End,
-    )
-}
-
