@@ -13,7 +13,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import de.markusressel.kodeeditor.library.KodeEditor
 import de.markusressel.kodeeditor.ui.theme.KodeEditorTheme
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
@@ -37,8 +36,7 @@ class ComposeMainActivity : ComponentActivity() {
 
                     KodeEditor(
                         modifier = Modifier
-                            .matchParentSize()
-                            .padding(8.dp),
+                            .matchParentSize(),
                         languageRuleBook = MarkdownRuleBook(),
                         colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
                         text = text,
