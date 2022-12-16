@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
@@ -15,10 +16,35 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
+import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
+import de.markusressel.kodehighlighter.core.rule.LanguageRule
+import de.markusressel.kodehighlighter.core.rule.RuleHelper
+import de.markusressel.kodehighlighter.core.rule.RuleMatch
 import de.markusressel.kodehighlighter.core.ui.KodeTextField
-import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
-import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
+
+data class DummyData(
+    val headingRule: LanguageRule = object : LanguageRule {
+        override fun findMatches(text: CharSequence): List<RuleMatch> {
+            val PATTERN = "^\\s{0,3}#{1,6} .+".toRegex(RegexOption.MULTILINE)
+            return RuleHelper.findRegexMatches(text, PATTERN)
+        }
+    },
+
+    val dummyRuleBook: LanguageRuleBook = object : LanguageRuleBook {
+        override fun getRules() = listOf(
+            headingRule
+        )
+    },
+
+    val colorScheme: ColorScheme<SpanStyle> = object : ColorScheme<SpanStyle> {
+        override fun getStyles(type: LanguageRule): Set<StyleFactory<SpanStyle>> {
+            return setOf { SpanStyle(Color(0xFFFF6D00)) }
+        }
+    }
+)
+
+private val dummyData = DummyData()
 
 @Preview
 @Composable
@@ -34,10 +60,10 @@ private fun KodeEditorPreview() {
     }
 
     val languageRuleBook by remember {
-        mutableStateOf(MarkdownRuleBook())
+        mutableStateOf(dummyData.dummyRuleBook)
     }
     val colorScheme by remember {
-        mutableStateOf(DarkBackgroundColorSchemeWithSpanStyle())
+        mutableStateOf(dummyData.colorScheme)
     }
 
     KodeEditor(
