@@ -42,12 +42,12 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.5.1'
     implementation 'androidx.annotation:annotation:1.5.0'
 
-    implementation "androidx.compose.ui:ui:1.2.1"
-    implementation "androidx.compose.material:material:1.2.1"
-    implementation "androidx.compose.ui:ui-tooling-preview:1.2.1"
+    implementation "androidx.compose.ui:ui:1.3.2"
+    implementation "androidx.compose.material:material:1.3.1"
+    implementation "androidx.compose.ui:ui-tooling-preview:1.3.2"
 
-    debugImplementation "androidx.compose.ui:ui-tooling:1.2.1"
-    implementation "androidx.compose.ui:ui-tooling-preview:1.2.1"
+    debugImplementation "androidx.compose.ui:ui-tooling:1.3.2"
+    implementation "androidx.compose.ui:ui-tooling-preview:1.3.2"
 
     // RxFlow
     implementation "io.github.reactivecircus.flowbinding:flowbinding-android:$flowBindingVersion"
@@ -57,7 +57,7 @@ dependencies {
 
     // Syntax Highlighting
     api("com.github.markusressel.KodeHighlighter:core:$kodeHighlighterVersion") {
-        changing = true
+        changing = false
     }
 
     debugImplementation "com.github.markusressel.KodeHighlighter:markdown:$kodeHighlighterVersion"
