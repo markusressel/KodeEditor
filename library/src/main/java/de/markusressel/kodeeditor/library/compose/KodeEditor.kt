@@ -84,6 +84,7 @@ private fun KodeEditorPreview() {
  * @param colors the color scheme to use for highlighting
  * @param textStyle the text style used for the editor text
  * @param enabled whether the editor is enabled
+ * @param readOnly whether the contents of the editor can be changed by the user
  */
 @Composable
 fun KodeEditor(
