@@ -95,6 +95,7 @@ fun KodeEditor(
     colors: KodeEditorColors = KodeEditorDefaults.editorColors(),
     textStyle: TextStyle = LocalTextStyle.current,
     enabled: Boolean = true,
+    readOnly: Boolean = enabled,
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableStateOf(1f) }
@@ -150,6 +151,8 @@ fun KodeEditor(
                 onValueChange = onValueChange,
                 colors = colors.textFieldColors(enabled = enabled).value,
                 textStyle = textStyle,
+                enabled = enabled,
+                readOnly = readOnly,
             )
         }
     }
