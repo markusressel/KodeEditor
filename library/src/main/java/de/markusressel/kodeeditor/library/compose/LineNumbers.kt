@@ -1,8 +1,8 @@
 package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.LocalTextStyle
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +30,7 @@ private fun LineNumbersPreview() {
 
 @Composable
 fun LineNumbers(
+    modifier: Modifier = Modifier,
     text: String,
     textStyle: TextStyle = LocalTextStyle.current,
     backgroundColor: Color,
@@ -41,15 +42,16 @@ fun LineNumbers(
         mutableStateOf(lineText)
     }
 
-    Text(
-        modifier = Modifier
-            .wrapContentWidth()
-            .background(color = backgroundColor)
-            .padding(start = 4.dp, end = 4.dp),
-        text = lineNumbers,
-        fontSize = textStyle.fontSize,
-        color = textColor,
-        textAlign = TextAlign.End,
-    )
+    Box(modifier = modifier) {
+        Text(
+            modifier = Modifier
+                .background(color = backgroundColor)
+                .padding(start = 4.dp, end = 4.dp),
+            text = lineNumbers,
+            fontSize = textStyle.fontSize,
+            color = textColor,
+            textAlign = TextAlign.End,
+        )
+    }
 }
 

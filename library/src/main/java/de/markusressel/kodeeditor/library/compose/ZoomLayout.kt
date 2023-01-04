@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 private fun ZoomLayoutPreview() {
     var offset by remember { mutableStateOf(Offset.Zero) }
-    var zoom by remember { mutableStateOf(1f) }
+    var zoom by remember { mutableStateOf(2f) }
 
     ZoomLayout(
         modifier = Modifier
@@ -51,6 +51,8 @@ private fun ZoomLayoutPreview() {
 fun ZoomLayout(
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
+    minZoom: Float = 0.01f,
+    maxZoom: Float = 10f,
     offset: Offset = Offset.Zero,
     onOffsetChanged: (Offset) -> Unit,
     onZoomChanged: (Float) -> Unit,
@@ -76,7 +78,7 @@ fun ZoomLayout(
                         onOffsetChanged(tOffset)
                     }
 
-                    val newZoom = (newScale).coerceIn(0.01f, 10f)
+                    val newZoom = (newScale).coerceIn(minZoom, maxZoom)
                     if (zoom != newZoom) {
                         onZoomChanged(newZoom)
                     }

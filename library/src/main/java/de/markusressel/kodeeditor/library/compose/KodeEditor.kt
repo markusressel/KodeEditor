@@ -1,14 +1,15 @@
 package de.markusressel.kodeeditor.library.compose
 
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.LocalTextStyle
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
@@ -80,6 +81,7 @@ private fun KodeEditorPreview() {
  * @param modifier compose modifiers
  * @param text the current text of the editor
  * @param languageRuleBook the language rule book to use for highlighting
+ * @param colorScheme the color scheme to apply
  * @param onValueChange callback for changes to the text and/or cursor selection
  * @param colors the color scheme to use for highlighting
  * @param textStyle the text style used for the editor text
@@ -99,16 +101,28 @@ fun KodeEditor(
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableStateOf(1f) }
 
-    Row(modifier = modifier) {
+    Row(modifier = Modifier
+        .clipToBounds()
+        .then(modifier)
+    ) {
         // Line Numbers
-        ZoomLayout(
+        Box(
             modifier = Modifier.zIndex(1f),
-            offset = offset.copy(x = 0f),
-            zoom = zoom,
-            onOffsetChanged = {},
-            onZoomChanged = {},
         ) {
             LineNumbers(
+                modifier = Modifier
+                    .height(IntrinsicSize.Max)
+                    .wrapContentWidth()
+                    .wrapContentSize(
+                        align = Alignment.TopStart,
+                        unbounded = true
+                    )
+                    .graphicsLayer(
+                        transformOrigin = TransformOrigin(0f, 0f),
+                        scaleX = zoom, scaleY = zoom,
+                        translationX = 0f,
+                        translationY = -offset.y * zoom,
+                    ),
                 text = text.text,
                 textStyle = textStyle,
                 textColor = colors.lineNumberTextColor().value,
