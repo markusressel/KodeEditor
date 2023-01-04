@@ -10,6 +10,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
@@ -101,12 +103,16 @@ fun KodeEditor(
     readOnly: Boolean = enabled,
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
-    var zoom by remember { mutableStateOf(1f) }
+    var zoom by remember { mutableStateOf(4f) }
 
     Row(modifier = Modifier
         .clipToBounds()
         .then(modifier)
     ) {
+        var lineNumberWidth by remember {
+            mutableStateOf(0)
+        }
+
         // Line Numbers
         Box(
             modifier = Modifier.zIndex(1f),
@@ -119,6 +125,9 @@ fun KodeEditor(
                         align = Alignment.TopStart,
                         unbounded = true
                     )
+                    .onGloballyPositioned {
+                        lineNumberWidth = it.size.width
+                    }
                     .graphicsLayer(
                         transformOrigin = TransformOrigin(0f, 0f),
                         scaleX = zoom, scaleY = zoom,
@@ -159,7 +168,10 @@ fun KodeEditor(
                         align = Alignment.TopStart,
                         unbounded = true
                     )
-                    .padding(horizontal = 4.dp),
+                    .padding(
+                        start = LocalDensity.current.run { lineNumberWidth.toDp() } + 4.dp,
+                        end = 4.dp
+                    ),
                 value = text,
                 languageRuleBook = languageRuleBook,
                 colorScheme = colorScheme,
