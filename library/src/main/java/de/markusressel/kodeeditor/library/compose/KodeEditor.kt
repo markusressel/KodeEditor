@@ -103,7 +103,7 @@ fun KodeEditor(
     readOnly: Boolean = enabled,
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
-    var zoom by remember { mutableStateOf(4f) }
+    var zoom by remember { mutableStateOf(1f) }
 
     Row(modifier = Modifier
         .clipToBounds()
