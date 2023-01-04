@@ -86,6 +86,7 @@ private fun KodeEditorPreview() {
  * @param colors the color scheme to use for highlighting
  * @param textStyle the text style used for the editor text
  * @param enabled whether the editor is enabled
+ * @param readOnly whether the contents of the editor can be changed by the user
  */
 @Composable
 fun KodeEditor(
@@ -97,6 +98,7 @@ fun KodeEditor(
     colors: KodeEditorColors = KodeEditorDefaults.editorColors(),
     textStyle: TextStyle = LocalTextStyle.current,
     enabled: Boolean = true,
+    readOnly: Boolean = enabled,
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableStateOf(1f) }
@@ -164,6 +166,8 @@ fun KodeEditor(
                 onValueChange = onValueChange,
                 colors = colors.textFieldColors(enabled = enabled).value,
                 textStyle = textStyle,
+                enabled = enabled,
+                readOnly = readOnly,
             )
         }
     }
