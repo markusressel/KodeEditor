@@ -127,7 +127,6 @@ fun KodeEditor(
         var lineNumberWidth by remember {
             mutableStateOf(0)
         }
-// Line Numbers
         LineNumbers(
             modifier = Modifier
                 .zIndex(1f)
@@ -152,11 +151,7 @@ fun KodeEditor(
             backgroundColor = colors.lineNumberBackgroundColor().value,
         )
 
-//        val configuration = LocalConfiguration.current
-
-
         val computedPadding = LocalDensity.current.run {
-            //(lineNumberWidth + (lineNumberWidth - (lineNumberWidth / zoom))).coerceAtLeast(0f).toDp()
             (lineNumberWidth).coerceAtLeast(0).toDp()
         }
 
