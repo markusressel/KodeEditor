@@ -4,18 +4,21 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RawRes
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.Button
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
@@ -31,16 +34,14 @@ class ComposeMainActivity : ComponentActivity() {
                 var fontSize by remember {
                     mutableStateOf(14)
                 }
-                Column {
-                    Row {
-                        Button(onClick = { fontSize++ }) {
-                            Text(text = "+")
-                        }
-
-                        Button(onClick = { fontSize-- }) {
-                            Text(text = "-")
-                        }
-                    }
+                Column(
+                    modifier = Modifier.background(MaterialTheme.colors.background),
+                ) {
+                    KodeEditorConfigurationMenu(
+                        fontSize = fontSize,
+                        onIncreaseFontSize = { fontSize++ },
+                        onDecreaseFontSize = { fontSize-- },
+                    )
 
                     var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
                         val initialText = readResourceFileAsText(R.raw.sample_text)
@@ -48,18 +49,46 @@ class ComposeMainActivity : ComponentActivity() {
                     }
 
                     KodeEditor(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .border(BorderStroke(1.dp, MaterialTheme.colors.primary)),
                         languageRuleBook = MarkdownRuleBook(),
                         colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
                         text = text,
                         onValueChange = { text = it },
-                        textStyle = TextStyle(fontSize = fontSize.sp),
-                        colors = KodeEditorDefaults.editorColors(
-                            lineNumberTextColor = Color.Black,
-                            lineNumberBackgroundColor = Color.White,
-                        )
+                        textStyle = TextStyle(fontSize = fontSize.sp).copy(
+                            color = MaterialTheme.colors.onSurface,
+                        ),
+                        colors = KodeEditorDefaults.editorColors()
                     )
                 }
+            }
+        }
+    }
+
+    @Composable
+    private fun KodeEditorConfigurationMenu(
+        fontSize: Int,
+        onIncreaseFontSize: () -> Unit,
+        onDecreaseFontSize: () -> Unit,
+    ) {
+        Row(
+            modifier = Modifier.padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                modifier = Modifier.weight(1f),
+                text = "Font Size: $fontSize"
+            )
+
+            Button(onClick = onIncreaseFontSize) {
+                Text(text = "+")
+            }
+
+            Spacer(modifier = Modifier.size(4.dp))
+
+            Button(onClick = onDecreaseFontSize) {
+                Text(text = "-")
             }
         }
     }

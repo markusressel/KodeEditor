@@ -60,7 +60,7 @@ object KodeEditorDefaults {
     fun editorColors(
         textFieldColors: KodeTextFieldColors = KodeTextFieldDefaults.textFieldColors(),
         textFieldBackgroundColor: Color = MaterialTheme.colors.surface,
-        lineNumberTextColor: Color = Color.Unspecified,
+        lineNumberTextColor: Color = MaterialTheme.colors.onSurface,
         lineNumberBackgroundColor: Color = MaterialTheme.colors.surface,
     ): KodeEditorColors =
         DefaultKodeEditorColors(
