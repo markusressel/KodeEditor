@@ -26,6 +26,12 @@ interface KodeEditorColors {
     fun textFieldColors(enabled: Boolean): State<KodeTextFieldColors>
 
     /**
+     * Represents the color used for the background of the editor text.
+     */
+    @Composable
+    fun textFieldBackgroundColor(): State<Color>
+
+    /**
      * Represents the color used for line numbers text.
      */
     @Composable
@@ -53,11 +59,13 @@ object KodeEditorDefaults {
     @Composable
     fun editorColors(
         textFieldColors: KodeTextFieldColors = KodeTextFieldDefaults.textFieldColors(),
+        textFieldBackgroundColor: Color = MaterialTheme.colors.surface,
         lineNumberTextColor: Color = Color.Unspecified,
         lineNumberBackgroundColor: Color = MaterialTheme.colors.onSurface,
     ): KodeEditorColors =
         DefaultKodeEditorColors(
             textFieldColors = textFieldColors,
+            textFieldBackgroundColor = textFieldBackgroundColor,
             lineNumberTextColor = lineNumberTextColor,
             lineNumberBackgroundColor = lineNumberBackgroundColor,
         )
@@ -66,6 +74,7 @@ object KodeEditorDefaults {
 
 private data class DefaultKodeEditorColors(
     private val textFieldColors: KodeTextFieldColors,
+    private val textFieldBackgroundColor: Color,
     private val lineNumberTextColor: Color,
     private val lineNumberBackgroundColor: Color,
 ) : KodeEditorColors {
@@ -73,6 +82,11 @@ private data class DefaultKodeEditorColors(
     @Composable
     override fun textFieldColors(enabled: Boolean): State<KodeTextFieldColors> {
         return rememberUpdatedState(textFieldColors)
+    }
+
+    @Composable
+    override fun textFieldBackgroundColor(): State<Color> {
+        return rememberUpdatedState(textFieldBackgroundColor)
     }
 
     @Composable

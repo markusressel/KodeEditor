@@ -57,7 +57,7 @@ dependencies {
 
     // Syntax Highlighting
     api("com.github.markusressel.KodeHighlighter:core:$kodeHighlighterVersion") {
-        changing = false
+        changing = true
     }
 
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4"
@@ -67,8 +67,8 @@ dependencies {
     api 'com.otaliastudios:zoomlayout:1.9.0'
 
     testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.4'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.0'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
 
 configurations.all {

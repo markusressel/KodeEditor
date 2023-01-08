@@ -56,7 +56,7 @@ fun ZoomLayout(
     offset: Offset = Offset.Zero,
     onOffsetChanged: (Offset) -> Unit,
     onZoomChanged: (Float) -> Unit,
-    content: @Composable () -> Unit,
+    content: @Composable BoxScope.() -> Unit,
 ) {
     Box(
         modifier = Modifier

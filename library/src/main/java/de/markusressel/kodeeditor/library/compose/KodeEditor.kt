@@ -1,5 +1,6 @@
 package de.markusressel.kodeeditor.library.compose
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.LocalTextStyle
 import androidx.compose.runtime.*
@@ -100,7 +101,7 @@ fun KodeEditor(
     colors: KodeEditorColors = KodeEditorDefaults.editorColors(),
     textStyle: TextStyle = LocalTextStyle.current,
     enabled: Boolean = true,
-    readOnly: Boolean = enabled,
+    readOnly: Boolean = enabled.not(),
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableStateOf(1f) }
@@ -168,6 +169,7 @@ fun KodeEditor(
                         align = Alignment.TopStart,
                         unbounded = true
                     )
+                    .background(colors.textFieldBackgroundColor().value)
                     .padding(
                         start = LocalDensity.current.run { lineNumberWidth.toDp() } + 4.dp,
                         end = 4.dp
