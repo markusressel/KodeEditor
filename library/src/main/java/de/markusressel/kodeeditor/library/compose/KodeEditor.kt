@@ -57,6 +57,20 @@ private fun KodeEditorPreview() {
         val initialText = """
             # Hello World
             Code: `readResourceFileAsText(R.raw.sample_text)`
+            
+            ## Secondary headline
+            
+            This is a listing:
+            
+            * 1
+            * 2
+            * 3
+            
+            # Code Block
+            
+            ```
+            This is a code block.
+            ```
         """.trimIndent()
         mutableStateOf(TextFieldValue(
             text = initialText
@@ -163,6 +177,8 @@ fun KodeEditor(
             },
             onZoomChanged = { zoom *= it },
         ) {
+            val additionPaddingBecauseOfZoom = (LocalDensity.current.run { lineNumberWidth.toDp() }) - (LocalDensity.current.run { lineNumberWidth.toDp() } / zoom)
+
             KodeTextField(
                 modifier = Modifier
                     .wrapContentSize(
@@ -171,7 +187,7 @@ fun KodeEditor(
                     )
                     .background(colors.textFieldBackgroundColor().value)
                     .padding(
-                        start = LocalDensity.current.run { lineNumberWidth.toDp() } + 4.dp,
+                        start = additionPaddingBecauseOfZoom + 4.dp,
                         end = 4.dp
                     ),
                 value = text,
