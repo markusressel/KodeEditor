@@ -31,16 +31,17 @@ class ComposeMainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             KodeEditorTheme {
-                var fontSize by remember {
+                var currentFontSize by remember {
                     mutableStateOf(14)
                 }
+
                 Column(
                     modifier = Modifier.background(MaterialTheme.colors.background),
                 ) {
                     KodeEditorConfigurationMenu(
-                        fontSize = fontSize,
-                        onIncreaseFontSize = { fontSize++ },
-                        onDecreaseFontSize = { fontSize-- },
+                        currentFontSize = currentFontSize,
+                        onIncreaseFontSize = { currentFontSize++ },
+                        onDecreaseFontSize = { currentFontSize-- },
                     )
 
                     var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -56,7 +57,7 @@ class ComposeMainActivity : ComponentActivity() {
                         colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
                         text = text,
                         onValueChange = { text = it },
-                        textStyle = TextStyle(fontSize = fontSize.sp).copy(
+                        textStyle = TextStyle(fontSize = currentFontSize.sp).copy(
                             color = MaterialTheme.colors.onSurface,
                         ),
                         colors = KodeEditorDefaults.editorColors()
@@ -68,27 +69,31 @@ class ComposeMainActivity : ComponentActivity() {
 
     @Composable
     private fun KodeEditorConfigurationMenu(
-        fontSize: Int,
+        currentFontSize: Int,
         onIncreaseFontSize: () -> Unit,
         onDecreaseFontSize: () -> Unit,
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(
-                modifier = Modifier.weight(1f),
-                text = "Font Size: $fontSize"
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    modifier = Modifier.weight(1f),
+                    text = "Font Size: $currentFontSize"
+                )
 
-            Button(onClick = onIncreaseFontSize) {
-                Text(text = "+")
-            }
+                Button(onClick = onIncreaseFontSize) {
+                    Text(text = "+")
+                }
 
-            Spacer(modifier = Modifier.size(4.dp))
+                Spacer(modifier = Modifier.size(4.dp))
 
-            Button(onClick = onDecreaseFontSize) {
-                Text(text = "-")
+                Button(onClick = onDecreaseFontSize) {
+                    Text(text = "-")
+                }
             }
         }
     }
