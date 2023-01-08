@@ -120,47 +120,53 @@ fun KodeEditor(
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableStateOf(1f) }
 
-    Row(modifier = Modifier
+    Box(modifier = Modifier
         .clipToBounds()
         .then(modifier)
     ) {
         var lineNumberWidth by remember {
             mutableStateOf(0)
         }
-
-        // Line Numbers
-        Box(
-            modifier = Modifier.zIndex(1f),
-        ) {
-            LineNumbers(
-                modifier = Modifier
-                    .height(IntrinsicSize.Max)
-                    .wrapContentWidth()
-                    .wrapContentSize(
-                        align = Alignment.TopStart,
-                        unbounded = true
-                    )
-                    .onGloballyPositioned {
-                        lineNumberWidth = it.size.width
-                    }
-                    .graphicsLayer(
-                        transformOrigin = TransformOrigin(0f, 0f),
-                        scaleX = zoom, scaleY = zoom,
-                        translationX = 0f,
-                        translationY = -offset.y * zoom,
-                    ),
-                text = text.text,
-                textStyle = textStyle,
-                textColor = colors.lineNumberTextColor().value,
-                backgroundColor = colors.lineNumberBackgroundColor().value,
-            )
-        }
+// Line Numbers
+        LineNumbers(
+            modifier = Modifier
+                .zIndex(1f)
+                .height(IntrinsicSize.Max)
+                .wrapContentWidth()
+                .wrapContentSize(
+                    align = Alignment.TopStart,
+                    unbounded = true
+                )
+                .onGloballyPositioned {
+                    lineNumberWidth = it.size.width
+                }
+                .graphicsLayer(
+                    transformOrigin = TransformOrigin(0f, 0f),
+                    scaleX = zoom, scaleY = zoom,
+                    translationX = 0f,
+                    translationY = -offset.y * zoom,
+                ),
+            text = text.text,
+            textStyle = textStyle,
+            textColor = colors.lineNumberTextColor().value,
+            backgroundColor = colors.lineNumberBackgroundColor().value,
+        )
 
 //        val configuration = LocalConfiguration.current
 
+
+        val computedPadding = LocalDensity.current.run {
+            //(lineNumberWidth + (lineNumberWidth - (lineNumberWidth / zoom))).coerceAtLeast(0f).toDp()
+            (lineNumberWidth).coerceAtLeast(0).toDp()
+        }
+
         // Text Editor
         ZoomLayout(
-            modifier = Modifier.zIndex(0f),
+            modifier = Modifier
+                .zIndex(0f)
+                .padding(
+                    start = computedPadding,
+                ),
             offset = offset,
             zoom = zoom,
             onOffsetChanged = {
@@ -175,19 +181,20 @@ fun KodeEditor(
                     y = newOffset.y.coerceAtLeast(0f)
                 )
             },
-            onZoomChanged = { zoom *= it },
+            onZoomChanged = {
+                zoom *= it
+            },
         ) {
-            val additionPaddingBecauseOfZoom = (LocalDensity.current.run { lineNumberWidth.toDp() }) - (LocalDensity.current.run { lineNumberWidth.toDp() } / zoom)
-
             KodeTextField(
                 modifier = Modifier
+                    .align(Alignment.TopStart)
                     .wrapContentSize(
                         align = Alignment.TopStart,
                         unbounded = true
                     )
                     .background(colors.textFieldBackgroundColor().value)
                     .padding(
-                        start = additionPaddingBecauseOfZoom + 4.dp,
+                        start = 4.dp,
                         end = 4.dp
                     ),
                 value = text,
