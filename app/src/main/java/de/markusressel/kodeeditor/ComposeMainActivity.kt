@@ -82,17 +82,24 @@ class ComposeMainActivity : ComponentActivity() {
             ) {
                 Text(
                     modifier = Modifier.weight(1f),
-                    text = "Font Size: $currentFontSize"
+                    text = "Font Size: $currentFontSize",
+                    color = MaterialTheme.colors.onSurface,
                 )
 
                 Button(onClick = onIncreaseFontSize) {
-                    Text(text = "+")
+                    Text(
+                        text = "+",
+                        color = MaterialTheme.colors.onPrimary,
+                    )
                 }
 
                 Spacer(modifier = Modifier.size(4.dp))
 
                 Button(onClick = onDecreaseFontSize) {
-                    Text(text = "-")
+                    Text(
+                        text = "-",
+                        color = MaterialTheme.colors.onPrimary,
+                    )
                 }
             }
         }
