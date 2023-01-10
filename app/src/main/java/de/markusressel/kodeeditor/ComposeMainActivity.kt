@@ -45,7 +45,8 @@ class ComposeMainActivity : ComponentActivity() {
                     )
 
                     var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-                        val initialText = readResourceFileAsText(R.raw.sample_text)
+                        val initialText = readResourceFileAsText(R.raw.short_sample)
+//                        val initialText = readResourceFileAsText(R.raw.sample_text)
                         mutableStateOf(TextFieldValue(initialText))
                     }
 

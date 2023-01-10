@@ -1,7 +1,9 @@
 package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material.LocalTextStyle
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -130,8 +132,6 @@ fun KodeEditor(
         LineNumbers(
             modifier = Modifier
                 .zIndex(1f)
-                .height(IntrinsicSize.Max)
-                .wrapContentWidth()
                 .wrapContentSize(
                     align = Alignment.TopStart,
                     unbounded = true
@@ -161,7 +161,8 @@ fun KodeEditor(
                 .zIndex(0f)
                 .padding(
                     start = computedPadding,
-                ),
+                )
+                .matchParentSize(),
             offset = offset,
             zoom = zoom,
             onOffsetChanged = {
@@ -187,6 +188,7 @@ fun KodeEditor(
                         align = Alignment.TopStart,
                         unbounded = true
                     )
+                    .matchParentSize()
                     .background(colors.textFieldBackgroundColor().value)
                     .padding(
                         start = 4.dp,
