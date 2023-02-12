@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-java@v3
         with:
           java-version: 11
+          distribution: temurin
+          cache: 'gradle'
       - name: Perform base checks
         run: ./gradlew app:assembleDebug library:sourcesJar library:dokkaJar --stacktrace
   ANDROID_UNIT_TESTS:
@@ -23,6 +25,8 @@ jobs:
       - uses: actions/setup-java@v3
         with:
           java-version: 11
+          distribution: temurin
+          cache: 'gradle'
       - name: Execute unit tests
         run: ./gradlew library:testDebugUnitTest --stacktrace
   ANDROID_BUILD_APK:
@@ -33,7 +37,8 @@ jobs:
       - uses: actions/setup-java@v3
         with:
           java-version: 11
-
+          distribution: temurin
+          cache: 'gradle'
       - name: Setup custom keystore file
         run: |
           mkdir -p $HOME/.android
