@@ -44,7 +44,7 @@ dependencies {
     api("com.github.markusressel.KodeHighlighter:core:$kodeHighlighterVersion")
 
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.2"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.5.2"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4"
 
     // Zoom Layout Container
     api 'com.otaliastudios:zoomlayout:1.9.0'
