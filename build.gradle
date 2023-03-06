@@ -2,7 +2,7 @@
 
 buildscript {
     ext.kotlin_version = '1.6.10'
-    ext.dokka_version = '1.6.10'
+    ext.dokka_version = '1.8.10'
 
     ext {
         group = 'com.github.markusressel'
