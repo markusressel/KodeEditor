@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-java@v1
         with:
-          java-version: 11
+          java-version: 17
       - name: Perform base checks
         run: ./gradlew app:assembleDebug library:sourcesJar library:dokkaJar --stacktrace
   ANDROID_UNIT_TESTS:
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-java@v1
         with:
-          java-version: 11
+          java-version: 17
       - name: Execute unit tests
         run: ./gradlew library:testDebugUnitTest --stacktrace
   ANDROID_BUILD_APK:
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-java@v1
         with:
-          java-version: 11
+          java-version: 17
 
       - name: Setup custom keystore file
         run: |

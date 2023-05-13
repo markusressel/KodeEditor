@@ -21,8 +21,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     buildFeatures {
@@ -39,21 +39,21 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
 //    api 'org.jetbrains.kotlinx:kotlinx-coroutines-android:0.25.0'
 
-    implementation 'androidx.appcompat:appcompat:1.5.1'
-    implementation 'androidx.annotation:annotation:1.5.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.annotation:annotation:1.6.0'
 
-    implementation "androidx.compose.ui:ui:1.3.2"
-    implementation "androidx.compose.material:material:1.3.1"
-    implementation "androidx.compose.ui:ui-tooling-preview:1.3.2"
+    implementation "androidx.compose.ui:ui:1.4.3"
+    implementation "androidx.compose.material:material:1.4.3"
+    implementation "androidx.compose.ui:ui-tooling-preview:1.4.3"
 
-    debugImplementation "androidx.compose.ui:ui-tooling:1.3.2"
-    implementation "androidx.compose.ui:ui-tooling-preview:1.3.2"
+    debugImplementation "androidx.compose.ui:ui-tooling:1.4.3"
+    implementation "androidx.compose.ui:ui-tooling-preview:1.4.3"
 
     // RxFlow
     implementation "io.github.reactivecircus.flowbinding:flowbinding-android:$flowBindingVersion"
 
     // Lifecycle
-    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.5.1"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.6.1"
 
     // Syntax Highlighting
     api("com.github.markusressel.KodeHighlighter:core:$kodeHighlighterVersion") {
@@ -78,11 +78,11 @@ configurations.all {
 // build a jar with source files
 task sourcesJar(type: Jar) {
     from android.sourceSets.main.java.srcDirs
-    classifier = 'sources'
+    archiveClassifier = 'sources'
 }
 
 task dokkaJar(type: Jar, dependsOn: dokkaHtml) {
-    classifier = 'javadoc'
+    archiveClassifier = 'javadoc'
     from dokkaHtml.outputDirectory
 }
 
