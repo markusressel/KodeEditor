@@ -3,8 +3,6 @@ plugins {
     id("kodeeditor.android.library.compose")
 }
 
-group = "de.markusressel.kodeeditor"
-
 android {
     namespace = "de.markusressel.kodeeditor.library"
 }

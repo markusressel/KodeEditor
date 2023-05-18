@@ -24,7 +24,7 @@ android {
         }
     }
 
-    namespace = "de.markusressel.kodeeditor"
+    namespace = "de.markusressel.kodeeditor.demo"
 }
 
 dependencies {
