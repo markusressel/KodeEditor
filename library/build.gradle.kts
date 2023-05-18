@@ -1,6 +1,7 @@
 plugins {
     id("kodeeditor.android.library")
     id("kodeeditor.android.library.compose")
+    id("kodeeditor.android.library.publishing")
 }
 
 android {
