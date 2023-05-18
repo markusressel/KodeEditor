@@ -25,7 +25,7 @@ buildscript {
         javaxAnnotationVersion = "10.0-b28"
         aboutlibrariesVersion = "8.2.0"
 
-        flowBindingVersion = "1.0.0"
+        flowBindingVersion = "1.2.0"
 
         timberKtVersion = "1.5.1"
     }
