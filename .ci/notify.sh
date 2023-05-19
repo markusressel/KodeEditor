@@ -19,7 +19,7 @@ fi
 if [[ -n "${GITHUB_HEAD_REF}" ]]; then
   # this is a PR
 
-  COMMITS_INVOLVED=$(git log --oneline ^"${GITHUB_BASE_REF}" HEAD)
+  COMMITS_INVOLVED=$(git log --oneline ^"origin/${GITHUB_BASE_REF}" HEAD)
   PR_LINK_TEXT=$(cat <<EOF
 [Pull Request](${GITHUB_URL}/pull/${TRAVIS_PULL_REQUEST})
 EOF
