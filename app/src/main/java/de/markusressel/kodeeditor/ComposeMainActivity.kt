@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.markusressel.kodeeditor.demo.R
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
 import de.markusressel.kodeeditor.ui.theme.KodeEditorTheme

@@ -6,7 +6,8 @@ import android.view.Gravity
 import androidx.annotation.RawRes
 import androidx.appcompat.app.AppCompatActivity
 import com.github.kittinunf.fuel.Fuel
-import de.markusressel.kodeeditor.databinding.ActivityMainBinding
+import de.markusressel.kodeeditor.demo.R
+import de.markusressel.kodeeditor.demo.databinding.ActivityMainBinding
 import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorScheme

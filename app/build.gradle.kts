@@ -31,8 +31,7 @@ dependencies {
     implementation(project(":library"))
 
     // Syntax Highlighting
-    val kodeHighlighterVersion = "master-SNAPSHOT"
-    implementation("com.github.markusressel.KodeHighlighter:markdown:$kodeHighlighterVersion")
+    implementation(libs.kodehighlighter.markdown)
 
     implementation(libs.kotlin.stdlib.jdk8)
 
