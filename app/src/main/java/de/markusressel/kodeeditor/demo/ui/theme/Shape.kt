@@ -1,4 +1,4 @@
-package de.markusressel.kodeeditor.ui.theme
+package de.markusressel.kodeeditor.demo.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Shapes

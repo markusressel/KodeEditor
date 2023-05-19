@@ -1,4 +1,4 @@
-package de.markusressel.kodeeditor
+package de.markusressel.kodeeditor.demo
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,10 +20,9 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import de.markusressel.kodeeditor.demo.R
+import de.markusressel.kodeeditor.demo.ui.theme.KodeEditorTheme
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
-import de.markusressel.kodeeditor.ui.theme.KodeEditorTheme
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
 

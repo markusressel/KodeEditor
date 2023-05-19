@@ -1,4 +1,4 @@
-package de.markusressel.kodeeditor
+package de.markusressel.kodeeditor.demo
 
 import android.graphics.Color
 import android.os.Bundle
@@ -6,7 +6,6 @@ import android.view.Gravity
 import androidx.annotation.RawRes
 import androidx.appcompat.app.AppCompatActivity
 import com.github.kittinunf.fuel.Fuel
-import de.markusressel.kodeeditor.demo.R
 import de.markusressel.kodeeditor.demo.databinding.ActivityMainBinding
 import de.markusressel.kodeeditor.library.extensions.dpToPx
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook

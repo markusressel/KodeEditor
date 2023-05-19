@@ -1,4 +1,4 @@
-package de.markusressel.kodeeditor.ui.theme
+package de.markusressel.kodeeditor.demo.ui.theme
 
 import androidx.compose.material.Typography
 import androidx.compose.ui.text.TextStyle
