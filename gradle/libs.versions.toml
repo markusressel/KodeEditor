@@ -1,23 +1,33 @@
 [versions]
 androidDesugarJdkLibs = "1.2.2"
 androidGradlePlugin = "8.0.0"
+androidxAnnotation = "1.6.0"
+androidxAppCompat = "1.6.1"
 androidxComposeBom = "2023.01.00"
 androidxComposeCompiler = "1.4.7"
 androidxComposeUi = "1.4.3"
 androidxComposeUiText = "1.4.3"
+androidxLifecycle = "2.6.1"
 androidxTestExtJunit = "1.1.5"
 androidxTestEspressoCore = "3.5.1"
 dokkaGradlePlugin = "1.7.20"
+flowbindingAndroid = "1.2.0"
 junit4 = "4.13.2"
 kotlin = "1.8.21"
 kotlinCoroutinesCore = "1.6.4"
 kotlinCoroutinesAndroid = "1.6.4"
+kodehighlighter = "v4.0.0"
 ksp = "1.8.20-1.0.11"
+zoomlayout = "1.9.0"
 
 
 [libraries]
 android-desugarJdkLibs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "androidDesugarJdkLibs" }
 android-gradle-plugin = { group = "com.android.tools.build", name = "gradle", version.ref = "androidGradlePlugin" }
+
+androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "androidxAnnotation" }
+
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "androidxAppCompat" }
 
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "androidxComposeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "androidxComposeUi" }
@@ -26,7 +36,11 @@ androidx-compose-material = { group = "androidx.compose.material", name = "mater
 androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "androidxLifecycle" }
+
 dokka-gradle-plugin = { group = "org.jetbrains.dokka", name = "dokka-gradle-plugin", version.ref = "dokkaGradlePlugin" }
+
+flowbinding-android = { group = "io.github.reactivecircus.flowbinding", name = "flowbinding-android", version.ref = "flowbindingAndroid" }
 
 kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
@@ -36,7 +50,8 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 ksp-gradle-plugin = { group = "com.google.devtools.ksp", name = "com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
 
-
+kodehighlighter-core = { group = "com.github.markusressel.KodeHighlighter", name = "core", version.ref = "kodehighlighter" }
+zoomlayout = { group = "com.otaliastudios", name = "zoomlayout", version.ref = "zoomlayout" }
 
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }

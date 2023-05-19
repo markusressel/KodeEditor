@@ -12,30 +12,29 @@ dependencies {
     implementation(libs.kotlin.stdlib.jdk8)
 //    api 'org.jetbrains.kotlinx:kotlinx-coroutines-android:0.25.0'
 
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("androidx.annotation:annotation:1.6.0")
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.annotation)
 
-    implementation("androidx.compose.ui:ui:1.4.3")
-    implementation("androidx.compose.material:material:1.4.3")
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.material)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.compose.ui.tooling.preview)
 
     // RxFlow
-    implementation("io.github.reactivecircus.flowbinding:flowbinding-android:+")
+    implementation(libs.flowbinding.android)
 
     // Lifecycle
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
+    implementation(libs.androidx.lifecycle.runtime.ktx)
 
     // Syntax Highlighting
-    val kodeHighlighterVersion = "master-SNAPSHOT"
-    api("com.github.markusressel.KodeHighlighter:core:$kodeHighlighterVersion")
+    api(libs.kodehighlighter.core)
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
 
     // Zoom Layout Container
-    api("com.otaliastudios:zoomlayout:1.9.0")
+    api(libs.zoomlayout)
 
     testImplementation(libs.junit4)
     androidTestImplementation(libs.androidx.test.ext.junit)
