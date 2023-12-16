@@ -5,6 +5,7 @@ plugins {
 }
 
 group = "de.markusressel.kodeeditor.buildlogic"
+version = "0.1.0"
 
 java {
     // Up to Java 11 APIs are available through desugaring

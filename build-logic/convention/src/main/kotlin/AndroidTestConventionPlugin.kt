@@ -1,4 +1,5 @@
 import com.android.build.gradle.TestExtension
+import de.markusressel.kodeeditor.TARGET_SDK
 import de.markusressel.kodeeditor.configureKotlinAndroid
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -14,7 +15,7 @@ class AndroidTestConventionPlugin : Plugin<Project> {
 
             extensions.configure<TestExtension> {
                 configureKotlinAndroid(this)
-                defaultConfig.targetSdk = 33
+                defaultConfig.targetSdk = TARGET_SDK
             }
         }
     }

@@ -1,5 +1,6 @@
 import com.android.build.api.variant.LibraryAndroidComponentsExtension
 import com.android.build.gradle.LibraryExtension
+import de.markusressel.kodeeditor.TARGET_SDK
 import de.markusressel.kodeeditor.configureKotlinAndroid
 import de.markusressel.kodeeditor.configureKotlinAndroidToolchain
 import de.markusressel.kodeeditor.disableUnnecessaryAndroidTests
@@ -24,7 +25,7 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
             configureKotlinAndroidToolchain()
             extensions.configure<LibraryExtension> {
                 configureKotlinAndroid(this)
-                defaultConfig.targetSdk = 33
+                defaultConfig.targetSdk = TARGET_SDK
             }
             extensions.configure<LibraryAndroidComponentsExtension> {
                 disableUnnecessaryAndroidTests(target)
