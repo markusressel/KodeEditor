@@ -36,7 +36,7 @@ fun LineNumbers(
     backgroundColor: Color,
     textColor: Color = Color.Unspecified,
 ) {
-    val lineNumbers by remember {
+    val lineNumbers by remember(text) {
         val lineCount = text.lines().size
         val lineText = (1..lineCount).joinToString(separator = "\n")
         mutableStateOf(lineText)
