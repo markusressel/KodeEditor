@@ -1,9 +1,7 @@
 # KodeEditor
 A simple code editor with syntax highlighting and pinch to zoom
 
-![Editing](https://thumbs.gfycat.com/TalkativeGrandIchthyosaurs-size_restricted.gif)
-![Scroll and zoom](https://thumbs.gfycat.com/BouncyLividBlackbear-size_restricted.gif)
-![Minimap](https://thumbs.gfycat.com/VigorousDimFrog-size_restricted.gif)
+![Editing](screenshots/KodeEditor.png)
 
 # Build Status
 
