@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material.LocalTextStyle
@@ -28,71 +29,6 @@ import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import de.markusressel.kodehighlighter.core.rule.RuleHelper
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
 import de.markusressel.kodehighlighter.core.ui.KodeTextField
-
-data class DummyData(
-    val headingRule: LanguageRule = object : LanguageRule {
-        override fun findMatches(text: CharSequence): List<RuleMatch> {
-            val PATTERN = "^\\s{0,3}#{1,6} .+".toRegex(RegexOption.MULTILINE)
-            return RuleHelper.findRegexMatches(text, PATTERN)
-        }
-    },
-
-    val dummyRuleBook: LanguageRuleBook = object : LanguageRuleBook {
-        override fun getRules() = listOf(
-            headingRule
-        )
-    },
-
-    val colorScheme: ColorScheme<SpanStyle> = object : ColorScheme<SpanStyle> {
-        override fun getStyles(type: LanguageRule): Set<StyleFactory<SpanStyle>> {
-            return setOf { SpanStyle(Color(0xFFFF6D00)) }
-        }
-    }
-)
-
-private val dummyData = DummyData()
-
-@Preview
-@Composable
-private fun KodeEditorPreview() {
-    var text by remember {
-        val initialText = """
-            # Hello World
-            Code: `readResourceFileAsText(R.raw.sample_text)`
-            
-            ## Secondary headline
-            
-            This is a listing:
-            
-            * 1
-            * 2
-            * 3
-            
-            # Code Block
-            
-            ```
-            This is a code block.
-            ```
-        """.trimIndent()
-        mutableStateOf(TextFieldValue(
-            text = initialText
-        ))
-    }
-
-    val languageRuleBook by remember {
-        mutableStateOf(dummyData.dummyRuleBook)
-    }
-    val colorScheme by remember {
-        mutableStateOf(dummyData.colorScheme)
-    }
-
-    KodeEditor(
-        text = text,
-        languageRuleBook = languageRuleBook,
-        colorScheme = colorScheme,
-        onValueChange = { text = it }
-    )
-}
 
 /**
  * Compose version of the KodeEditorLayout
@@ -205,4 +141,71 @@ fun KodeEditor(
             )
         }
     }
+}
+
+
+private data class DummyData(
+    val headingRule: LanguageRule = object : LanguageRule {
+        override fun findMatches(text: CharSequence): List<RuleMatch> {
+            val PATTERN = "^\\s{0,3}#{1,6} .+".toRegex(RegexOption.MULTILINE)
+            return RuleHelper.findRegexMatches(text, PATTERN)
+        }
+    },
+
+    val dummyRuleBook: LanguageRuleBook = object : LanguageRuleBook {
+        override fun getRules() = listOf(
+            headingRule
+        )
+    },
+
+    val colorScheme: ColorScheme<SpanStyle> = object : ColorScheme<SpanStyle> {
+        override fun getStyles(type: LanguageRule): Set<StyleFactory<SpanStyle>> {
+            return setOf { SpanStyle(Color(0xFFFF6D00)) }
+        }
+    }
+)
+
+private val dummyData = DummyData()
+
+@Preview
+@Composable
+private fun KodeEditorPreview() {
+    var text by remember {
+        val initialText = """
+            # Hello World
+            Code: `readResourceFileAsText(R.raw.sample_text)`
+            
+            ## Secondary headline
+            
+            This is a listing:
+            
+            * 1
+            * 2
+            * 3
+            
+            # Code Block
+            
+            ```
+            This is a code block.
+            ```
+        """.trimIndent()
+        mutableStateOf(TextFieldValue(
+            text = initialText
+        ))
+    }
+
+    val languageRuleBook by remember {
+        mutableStateOf(dummyData.dummyRuleBook)
+    }
+    val colorScheme by remember {
+        mutableStateOf(dummyData.colorScheme)
+    }
+
+    KodeEditor(
+        modifier = Modifier.fillMaxSize(),
+        text = text,
+        languageRuleBook = languageRuleBook,
+        colorScheme = colorScheme,
+        onValueChange = { text = it }
+    )
 }

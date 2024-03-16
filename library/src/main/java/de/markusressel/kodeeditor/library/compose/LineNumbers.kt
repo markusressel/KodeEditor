@@ -16,18 +16,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
-
-@Preview
-@Composable
-private fun LineNumbersPreview() {
-    val text = (1..10).joinToString(separator = "\n", prefix = "Line: ")
-    LineNumbers(
-        text = text,
-        backgroundColor = Color.White,
-        textColor = Color.Black,
-    )
-}
-
 @Composable
 fun LineNumbers(
     modifier: Modifier = Modifier,
@@ -54,4 +42,17 @@ fun LineNumbers(
         )
     }
 }
+
+
+@Preview(widthDp = 100, heightDp = 500, backgroundColor = 0xFF00FF)
+@Composable
+private fun LineNumbersPreview() {
+    val text = (1..10).joinToString(separator = "\n", prefix = "Line: ")
+    LineNumbers(
+        text = text,
+        backgroundColor = Color.White,
+        textColor = Color.Black,
+    )
+}
+
 
