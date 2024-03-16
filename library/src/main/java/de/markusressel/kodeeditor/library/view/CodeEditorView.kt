@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.view
 
 import android.content.Context
 import android.graphics.Color
+import android.text.style.CharacterStyle
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
@@ -14,6 +15,7 @@ import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.getColor
 import de.markusressel.kodeeditor.library.extensions.setViewBackgroundWithoutResettingPadding
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
+import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.util.EditTextHighlighter
 import de.markusressel.kodehighlighter.core.util.StatefulSpannableHighlighter
 
@@ -21,8 +23,8 @@ import de.markusressel.kodehighlighter.core.util.StatefulSpannableHighlighter
  * Code Editor that allows pinch-to-zoom
  */
 open class CodeEditorView
-@JvmOverloads constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0)
-    : ZoomLayout(context, attrs, defStyleAttr), SelectionChangedListener {
+@JvmOverloads constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) :
+    ZoomLayout(context, attrs, defStyleAttr), SelectionChangedListener {
 
     /**
      * The actual text editor content
@@ -37,17 +39,42 @@ open class CodeEditorView
     /**
      * The currently active syntax highlighter (if any)
      */
-    var languageRuleBook: LanguageRuleBook?
-        get() = codeEditText.highlighter?.languageRuleBook
+    var languageRuleBook: LanguageRuleBook? = null
+        //get() = codeEditText.highlighter?.languageRuleBook
         set(value) {
-            if (value != null) {
-                codeEditText.highlighter = EditTextHighlighter(codeEditText, value)
-                codeTextView.highlighter = StatefulSpannableHighlighter(value, value.defaultColorScheme)
-            } else {
-                codeEditText.highlighter = null
-                codeTextView.highlighter = null
-            }
+            field = value
+            updateHighlighter(value, colorScheme)
         }
+
+    /**
+     * The color scheme to use for the currently active syntax highlighter (if any)
+     */
+    var colorScheme: ColorScheme<CharacterStyle>? = null
+        //get() = codeEditText.highlighter?.colorScheme
+        set(value) {
+            field = value
+            updateHighlighter(languageRuleBook, value)
+        }
+
+    private fun updateHighlighter(
+        languageRuleBook: LanguageRuleBook?,
+        colorScheme: ColorScheme<CharacterStyle>?,
+    ) {
+        if (languageRuleBook != null && colorScheme != null) {
+            codeEditText.highlighter = EditTextHighlighter(
+                target = codeEditText,
+                languageRuleBook = languageRuleBook,
+                colorScheme = colorScheme
+            )
+            codeTextView.highlighter = StatefulSpannableHighlighter(
+                languageRuleBook = languageRuleBook,
+                colorScheme = colorScheme
+            )
+        } else {
+            codeEditText.highlighter = null
+            codeTextView.highlighter = null
+        }
+    }
 
     /**
      * Listener for selection changes
@@ -124,11 +151,15 @@ open class CodeEditorView
     private fun readParameters(attrs: AttributeSet?, defStyleAttr: Int) {
         val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0)
 
-        val editTextBackgroundColor = a.getColor(context,
-                defaultColor = Color.WHITE,
-                styleableRes = R.styleable.CodeEditorView_ke_editor_backgroundColor,
-                attr = intArrayOf(R.attr.ke_editor_backgroundColor,
-                        android.R.attr.windowBackground))
+        val editTextBackgroundColor = a.getColor(
+            context,
+            defaultColor = Color.WHITE,
+            styleableRes = R.styleable.CodeEditorView_ke_editor_backgroundColor,
+            attr = intArrayOf(
+                R.attr.ke_editor_backgroundColor,
+                android.R.attr.windowBackground
+            )
+        )
         codeEditText.setBackgroundColor(editTextBackgroundColor)
 
         val maxRealZoom = a.getFloat(R.styleable.CodeEditorView_ke_editor_maxZoom, DEFAULT_MAX_ZOOM)
@@ -173,8 +204,10 @@ open class CodeEditorView
         val containerHeight = height - (paddingTop + paddingBottom)
 
         val codeEditTextLayoutParams = (codeEditText.layoutParams as MarginLayoutParams)
-        val minimumWidth = containerWidth + (codeEditTextLayoutParams.leftMargin + codeEditTextLayoutParams.rightMargin)
-        val minimumHeight = containerHeight - (codeEditTextLayoutParams.topMargin + codeEditTextLayoutParams.bottomMargin)
+        val minimumWidth =
+            containerWidth + (codeEditTextLayoutParams.leftMargin + codeEditTextLayoutParams.rightMargin)
+        val minimumHeight =
+            containerHeight - (codeEditTextLayoutParams.topMargin + codeEditTextLayoutParams.bottomMargin)
 
         codeEditText.minWidth = minimumWidth
         codeTextView.minWidth = minimumWidth

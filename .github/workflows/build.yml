@@ -12,11 +12,11 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-java@v3
         with:
-          java-version: 11
+          java-version: 17
           distribution: temurin
           cache: 'gradle'
       - name: Perform base checks
-        run: ./gradlew app:assembleDebug library:sourcesJar library:dokkaJar --stacktrace
+        run: ./gradlew app:assembleDebug --stacktrace
   ANDROID_UNIT_TESTS:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-java@v3
         with:
-          java-version: 11
+          java-version: 17
           distribution: temurin
           cache: 'gradle'
       - name: Execute unit tests
@@ -34,11 +34,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          # required for telegram notifications on PRs
+          fetch-depth: 0
       - uses: actions/setup-java@v3
         with:
-          java-version: 11
+          java-version: 17
           distribution: temurin
           cache: 'gradle'
+
       - name: Setup custom keystore file
         run: |
           mkdir -p $HOME/.android

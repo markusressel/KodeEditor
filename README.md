@@ -1,13 +1,7 @@
-# KodeEditor
+# KodeEditor  [![codebeat badge](https://codebeat.co/badges/f7fa8602-1d15-457e-904d-cb585e984952)](https://codebeat.co/projects/github-com-markusressel-kodeeditor-master)
 A simple code editor with syntax highlighting and pinch to zoom
 
 ![Editing](screenshot/KodeEditor.png)
-
-# Build Status
-
-| Master |
-|--------|
-| [![codebeat badge](https://codebeat.co/badges/f7fa8602-1d15-457e-904d-cb585e984952)](https://codebeat.co/projects/github-com-markusressel-kodeeditor-master) |
 
 # Features
 * [x] Pinch-To-Zoom
