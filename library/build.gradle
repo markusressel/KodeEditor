@@ -43,7 +43,7 @@ dependencies {
     // Syntax Highlighting
     api("com.github.markusressel.KodeHighlighter:core:$kodeHighlighterVersion")
 
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.2"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.5.2"
 
     // Zoom Layout Container
