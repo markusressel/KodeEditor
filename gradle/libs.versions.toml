@@ -1,23 +1,23 @@
 [versions]
 androidDesugarJdkLibs = "2.0.4"
-androidGradlePlugin = "8.3.0"
-androidxAnnotation = "1.7.1"
-androidxAppCompat = "1.6.1"
-androidxComposeBom = "2024.02.02"
+androidGradlePlugin = "8.3.2"
+androidxAnnotation = "1.8.0"
+androidxAppCompat = "1.7.0"
+androidxComposeBom = "2024.06.00"
 androidxComposeCompiler = "1.5.7"
-androidxComposeUi = "1.6.3"
-androidxComposeUiText = "1.6.3"
-androidxLifecycle = "2.7.0"
-androidxTestExtJunit = "1.1.5"
-androidxTestEspressoCore = "3.5.1"
+androidxComposeUi = "1.6.8"
+androidxComposeUiText = "1.6.8"
+androidxLifecycle = "2.8.3"
+androidxTestExtJunit = "1.2.1"
+androidxTestEspressoCore = "3.6.1"
 dokkaGradlePlugin = "1.7.20"
 flowbindingAndroid = "1.2.0"
 junit4 = "4.13.2"
-kotlin = "1.9.21"
+kotlin = "2.0.0"
 kotlinCoroutinesCore = "1.8.0"
 kotlinCoroutinesAndroid = "1.8.0"
 kodehighlighter = "4.0.3"
-ksp = "1.9.21-1.0.15"
+ksp = "2.0.0-1.0.22"
 zoomlayout = "1.9.0"
 
 
@@ -66,3 +66,6 @@ android-test = { id = "com.android.test", version.ref = "androidGradlePlugin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+
+org-jetbrains-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
