@@ -1,4 +1,5 @@
 [versions]
+activityCompose = "1.9.0"
 androidDesugarJdkLibs = "2.0.4"
 androidGradlePlugin = "8.3.2"
 androidxAnnotation = "1.8.0"
@@ -10,6 +11,7 @@ androidxLifecycle = "2.8.3"
 androidxTestExtJunit = "1.2.1"
 androidxTestEspressoCore = "3.6.1"
 dokkaGradlePlugin = "1.7.20"
+fuel = "2.3.1"
 flowbindingAndroid = "1.2.0"
 junit4 = "4.13.2"
 kotlin = "2.0.0"
@@ -17,6 +19,7 @@ kotlinCoroutinesCore = "1.8.0"
 kotlinCoroutinesAndroid = "1.8.0"
 kodehighlighter = "4.0.3"
 ksp = "2.0.0-1.0.22"
+material = "1.12.0"
 zoomlayout = "1.9.0"
 
 
@@ -24,6 +27,7 @@ zoomlayout = "1.9.0"
 android-desugarJdkLibs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "androidDesugarJdkLibs" }
 android-gradle-plugin = { group = "com.android.tools.build", name = "gradle", version.ref = "androidGradlePlugin" }
 
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "androidxAnnotation" }
 
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "androidxAppCompat" }
@@ -39,6 +43,9 @@ androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecyc
 
 dokka-gradle-plugin = { group = "org.jetbrains.dokka", name = "dokka-gradle-plugin", version.ref = "dokkaGradlePlugin" }
 
+fuel = { group = "com.github.kittinunf.fuel", name = "fuel", version.ref = "fuel" }
+fuel-android = { group = "com.github.kittinunf.fuel", name = "fuel-android", version.ref = "fuel" }
+
 flowbinding-android = { group = "io.github.reactivecircus.flowbinding", name = "flowbinding-android", version.ref = "flowbindingAndroid" }
 
 kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -52,6 +59,7 @@ ksp-gradle-plugin = { group = "com.google.devtools.ksp", name = "com.google.devt
 kodehighlighter-core = { group = "com.github.markusressel.KodeHighlighter", name = "core", version.ref = "kodehighlighter" }
 kodehighlighter-markdown = { group = "com.github.markusressel.KodeHighlighter", name = "markdown", version.ref = "kodehighlighter" }
 
+material = { module = "com.google.android.material:material", version.ref = "material" }
 zoomlayout = { group = "com.otaliastudios", name = "zoomlayout", version.ref = "zoomlayout" }
 
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
