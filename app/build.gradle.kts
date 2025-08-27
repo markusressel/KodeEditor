@@ -11,8 +11,15 @@ android {
         applicationId = "de.markusressel.kodeeditor"
         versionCode = 1
         versionName = "4.0.1"
+    }
 
-        setProperty("archivesBaseName", "KodeEditor_v${versionName}_(${versionCode})")
+    androidComponents {
+        onVariants { variant ->
+            variant.outputs.forEach { output ->
+                val outputImpl = output as com.android.build.api.variant.impl.VariantOutputImpl
+                outputImpl.outputFileName.set("KodeEditor_v${defaultConfig.versionName}_(${defaultConfig.versionCode}).apk")
+            }
+        }
     }
 }
 
