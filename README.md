@@ -37,11 +37,29 @@ dependencies {
 
 in your desired module ```build.gradle``` file.
 
+## Compose
+
+```kotlin
+var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+    val initialText = readResourceFileAsText(R.raw.short_sample)
+    mutableStateOf(TextFieldValue(initialText))
+}
+
+KodeEditor(
+    modifier = Modifier.fillMaxSize(),
+    languageRuleBook = MarkdownRuleBook(),
+    colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
+    text = text,
+    onValueChange = { text = it },
+    colors = KodeEditorDefaults.editorColors()
+)
+```
+
 ## Add to your layout
 
 To use this editor simply add something similar to this to your desired layout xml file:
 
-```
+```xml
 <de.markusressel.kodeeditor.library.view.CodeEditorLayout
         android:id="@+id/codeEditorView"
         android:layout_width="match_parent"
@@ -99,7 +117,7 @@ KodeEditor can be styled in multiple ways:
 
 You can either use those attributes directly on the view in your layout like this:
 
-```
+```xml
 <de.markusressel.kodeeditor.library.view.CodeEditorView
     android:id="@+id/codeEditorView"
     android:layout_width="match_parent"
@@ -119,7 +137,7 @@ You can either use those attributes directly on the view in your layout like thi
 
 or specify them in your application theme (`styles.xml` in dem app) for to apply a style globally:
 
-```
+```xml
 <resources>
 
     <!-- Base application theme. -->
