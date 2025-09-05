@@ -17,9 +17,9 @@ junit4 = "4.13.2"
 kotlin = "2.2.10"
 kotlinCoroutinesCore = "1.10.2"
 kotlinCoroutinesAndroid = "1.10.2"
-kodehighlighter = "4.0.3"
+kodehighlighter = "v4.0.4"
 ksp = "2.2.10-2.0.2"
-material = "1.12.0"
+material = "1.13.0"
 zoomlayout = "1.9.0"
 
 
