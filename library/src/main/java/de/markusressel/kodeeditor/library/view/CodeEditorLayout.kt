@@ -17,6 +17,8 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.StringRes
+import androidx.core.content.withStyledAttributes
+import androidx.core.view.isVisible
 import com.otaliastudios.zoom.*
 import de.markusressel.kodeeditor.library.R
 import de.markusressel.kodeeditor.library.extensions.createSnapshot
@@ -43,9 +45,9 @@ import kotlin.math.roundToInt
 open class CodeEditorLayout
 @JvmOverloads
 constructor(
-        context: Context,
-        attrs: AttributeSet? = null,
-        defStyleAttr: Int = 0)
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0)
     : FrameLayout(context, attrs, defStyleAttr) {
 
     /**
@@ -58,7 +60,7 @@ constructor(
      **/
     private val isEngineInitialized: Boolean
         get() = codeEditorView.engine.computeVerticalScrollRange() > 0
-                && codeEditorView.engine.computeHorizontalScrollRange() > 0
+            && codeEditorView.engine.computeHorizontalScrollRange() > 0
 
     /**
      * The view displaying line numbers.
@@ -159,7 +161,7 @@ constructor(
         set(value) {
             dividerView.visibility = if (value) View.VISIBLE else View.GONE
         }
-        get() = dividerView.visibility == View.VISIBLE
+        get() = dividerView.isVisible
 
     /**
      * Indicates if the minimap should be shown or not.
@@ -266,57 +268,57 @@ constructor(
     }
 
     private fun readParameters(attrs: AttributeSet?, defStyleAttr: Int) {
-        val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorLayout, defStyleAttr, 0)
+        context.withStyledAttributes(attrs, R.styleable.CodeEditorLayout, defStyleAttr, 0) {
 
-        val lineNumberTextColor = a.getColor(context,
+            val lineNumberTextColor = getColor(context,
                 defaultColor = Color.BLACK,
                 styleableRes = R.styleable.CodeEditorLayout_ke_lineNumbers_textColor,
                 attr = intArrayOf(R.attr.ke_lineNumbers_textColor,
-                        android.R.attr.textColorPrimary))
-        lineNumberTextView.setTextColor(lineNumberTextColor)
+                    android.R.attr.textColorPrimary))
+            lineNumberTextView.setTextColor(lineNumberTextColor)
 
-        val lineNumberBackgroundColor = a.getColor(context,
+            val lineNumberBackgroundColor = getColor(context,
                 defaultColor = Color.WHITE,
                 styleableRes = R.styleable.CodeEditorLayout_ke_lineNumbers_backgroundColor,
                 attr = intArrayOf(R.attr.ke_lineNumbers_backgroundColor,
-                        android.R.attr.windowBackground))
-        lineNumberZoomLayout.setBackgroundColor(lineNumberBackgroundColor)
+                    android.R.attr.windowBackground))
+            lineNumberZoomLayout.setBackgroundColor(lineNumberBackgroundColor)
 
 
-        showDivider = a.getBoolean(R.styleable.CodeEditorLayout_ke_divider_enabled, DEFAULT_SHOW_DIVIDER)
+            showDivider = getBoolean(R.styleable.CodeEditorLayout_ke_divider_enabled, DEFAULT_SHOW_DIVIDER)
 
-        val dividerColor = a.getColor(context,
+            val dividerColor = getColor(context,
                 defaultColor = Color.BLACK,
                 styleableRes = R.styleable.CodeEditorLayout_ke_divider_color,
                 attr = intArrayOf(R.attr.ke_divider_color,
-                        android.R.attr.textColorPrimary))
-        dividerView.setBackgroundColor(dividerColor)
+                    android.R.attr.textColorPrimary))
+            dividerView.setBackgroundColor(dividerColor)
 
-        editorBackgroundColor = a.getColor(context,
+            editorBackgroundColor = getColor(context,
                 defaultColor = Color.WHITE,
                 styleableRes = R.styleable.CodeEditorLayout_ke_editor_backgroundColor,
                 attr = intArrayOf(R.attr.ke_editor_backgroundColor,
-                        android.R.attr.windowBackground))
-        codeEditorView.setBackgroundColor(editorBackgroundColor)
-        isMoveWithCursorEnabled = a.getBoolean(R.styleable.CodeEditorLayout_ke_editor_followCursor, true)
+                    android.R.attr.windowBackground))
+            codeEditorView.setBackgroundColor(editorBackgroundColor)
+            isMoveWithCursorEnabled = getBoolean(R.styleable.CodeEditorLayout_ke_editor_followCursor, true)
 
-        val codeEditorMaxZoom = a.getFloat(R.styleable.CodeEditorLayout_ke_editor_maxZoom, CodeEditorView.DEFAULT_MAX_ZOOM)
-        lineNumberZoomLayout.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
-        codeEditorView.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
+            val codeEditorMaxZoom = getFloat(R.styleable.CodeEditorLayout_ke_editor_maxZoom, CodeEditorView.DEFAULT_MAX_ZOOM)
+            lineNumberZoomLayout.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
+            codeEditorView.setMaxZoom(codeEditorMaxZoom, ZoomApi.TYPE_REAL_ZOOM)
 
-        showMinimap = a.getBoolean(R.styleable.CodeEditorLayout_ke_minimap_enabled, DEFAULT_SHOW_MINIMAP)
-        minimapMaxDimension = a.getDimensionPixelSize(R.styleable.CodeEditorLayout_ke_minimap_maxDimension, DEFAULT_MINIMAP_MAX_DIMENSION_DP).toFloat()
-        minimapBorderColor = a.getColor(context,
+            showMinimap = getBoolean(R.styleable.CodeEditorLayout_ke_minimap_enabled, DEFAULT_SHOW_MINIMAP)
+            minimapMaxDimension = getDimensionPixelSize(R.styleable.CodeEditorLayout_ke_minimap_maxDimension, DEFAULT_MINIMAP_MAX_DIMENSION_DP).toFloat()
+            minimapBorderColor = getColor(context,
                 defaultColor = Color.BLACK,
                 styleableRes = R.styleable.CodeEditorLayout_ke_minimap_borderColor,
                 attr = intArrayOf(R.attr.ke_minimap_borderColor))
 
-        minimapIndicatorColor = a.getColor(context,
+            minimapIndicatorColor = getColor(context,
                 defaultColor = Color.RED,
                 styleableRes = R.styleable.CodeEditorLayout_ke_minimap_indicatorColor,
                 attr = intArrayOf(R.attr.ke_minimap_indicatorColor))
 
-        a.recycle()
+        }
     }
 
     private fun setListeners() {
@@ -357,6 +359,7 @@ constructor(
                     moveEditorToPercentage(percentageX, percentageY)
                     true
                 }
+
                 else -> false
             }
         }
@@ -388,17 +391,17 @@ constructor(
         }
 
         codeEditorView.codeEditText.textChanges()
-                .debounce(50)
-                .onEach {
-                    try {
-                        updateLineNumbers()
-                    } catch (e: Throwable) {
-                        Log.e(CodeEditorView.TAG, "Error updating line numbers", e)
-                    }
+            .debounce(50)
+            .onEach {
+                try {
+                    updateLineNumbers()
+                } catch (e: Throwable) {
+                    Log.e(CodeEditorView.TAG, "Error updating line numbers", e)
                 }
-                .catch {
-                    Log.e(CodeEditorView.TAG, "Unrecoverable error while updating line numbers", it)
-                }.launchIn(CoroutineScope(Job() + Dispatchers.Main))
+            }
+            .catch {
+                Log.e(CodeEditorView.TAG, "Unrecoverable error while updating line numbers", it)
+            }.launchIn(CoroutineScope(Job() + Dispatchers.Main))
     }
 
     /**
@@ -435,8 +438,8 @@ constructor(
         targetView.apply {
             post {
                 createSnapshot(
-                        dimensionLimit = minimapMaxDimension,
-                        backgroundColor = editorBackgroundColor
+                    dimensionLimit = minimapMaxDimension,
+                    backgroundColor = editorBackgroundColor
                 )?.let {
                     minimapZoomLayout.setImageBitmap(it)
                 }
@@ -475,9 +478,9 @@ constructor(
         // update minimap indicator position and size
         (minimapIndicator.layoutParams as MarginLayoutParams).apply {
             topMargin = ((minimapZoomLayout.height *
-                    (engine.computeVerticalScrollOffset().toFloat() / engine.computeVerticalScrollRange()))).roundToInt()
+                (engine.computeVerticalScrollOffset().toFloat() / engine.computeVerticalScrollRange()))).roundToInt()
             leftMargin = ((minimapZoomLayout.width *
-                    (engine.computeHorizontalScrollOffset().toFloat() / engine.computeHorizontalScrollRange()))).roundToInt()
+                (engine.computeHorizontalScrollOffset().toFloat() / engine.computeHorizontalScrollRange()))).roundToInt()
 
             width = (minimapZoomLayout.width * (editorRect.width().toFloat() / engine.computeHorizontalScrollRange())).roundToInt()
             height = (minimapZoomLayout.height * (editorRect.height().toFloat() / engine.computeVerticalScrollRange())).roundToInt()
@@ -510,10 +513,10 @@ constructor(
 
         // synchronize zoom and vertical pan to match code editor
         lineNumberZoomLayout.moveTo(
-                engine.zoom,
-                -engine.computeHorizontalScrollRange().toFloat(),
-                engine.panY,
-                false)
+            engine.zoom,
+            -engine.computeHorizontalScrollRange().toFloat(),
+            engine.panY,
+            false)
     }
 
     /**
@@ -568,9 +571,11 @@ constructor(
             cursorPosition.x < targetArea.left -> {
                 codeEditorView.panX + (targetArea.left - cursorPosition.x) / codeEditorView.realZoom
             }
+
             cursorPosition.x > targetArea.right -> {
                 codeEditorView.panX + (targetArea.right - cursorPosition.x) / codeEditorView.realZoom
             }
+
             else -> codeEditorView.panX
         }
 
@@ -578,9 +583,11 @@ constructor(
             cursorPosition.y < targetArea.top -> {
                 codeEditorView.panY + (targetArea.top - cursorPosition.y) / codeEditorView.realZoom
             }
+
             cursorPosition.y > targetArea.bottom -> {
                 codeEditorView.panY + (targetArea.bottom - cursorPosition.y) / codeEditorView.realZoom
             }
+
             else -> codeEditorView.panY
         }
 
@@ -608,7 +615,7 @@ constructor(
         val y = (baseline + ascent).toFloat()
 
         return PointF((x + codeEditorView.panX) * codeEditorView.realZoom,
-                (y + codeEditorView.panY) * codeEditorView.realZoom)
+            (y + codeEditorView.panY) * codeEditorView.realZoom)
     }
 
     companion object {
