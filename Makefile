@@ -6,6 +6,10 @@ clean:
 build:
 	./gradlew assembleDebug
 apk: build
+app: build
+
+publish:
+	./gradlew publishMavenPublicationToMavenLocal
 
 buildRelease:
 	./gradlew assembleRelease
