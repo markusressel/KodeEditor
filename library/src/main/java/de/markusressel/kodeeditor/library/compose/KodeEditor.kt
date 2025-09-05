@@ -62,18 +62,14 @@ fun KodeEditor(
 
     Box(modifier = Modifier
         .clipToBounds()
-        .then(modifier)
-    ) {
+        .then(modifier)) {
         var lineNumberWidth by remember {
             mutableIntStateOf(0)
         }
         LineNumbers(
             modifier = Modifier
                 .zIndex(1f)
-                .wrapContentSize(
-                    align = Alignment.TopStart,
-                    unbounded = true
-                )
+                .wrapContentSize(align = Alignment.TopStart, unbounded = true)
                 .onGloballyPositioned {
                     lineNumberWidth = it.size.width
                 }
@@ -111,11 +107,6 @@ fun KodeEditor(
             offset = offset,
             zoom = zoom,
             onOffsetChanged = {
-//                val newOffset = Offset(
-//                    x = (offset + it).x.coerceIn(0f, (size.width.toFloat() - (configuration.screenWidthDp.dp.toPx() / newScale)).coerceAtLeast(0f)),
-//                    y = (offset + it).y.coerceIn(0f, (size.height.toFloat() - (configuration.screenHeightDp.dp.toPx() / newScale)).coerceAtLeast(0f)),
-//                )
-
                 val newOffset = offset + (it / zoom)
                 offset = newOffset.copy(
                     x = newOffset.x.coerceIn(0f, maxXOffset),
@@ -129,16 +120,10 @@ fun KodeEditor(
             KodeTextField(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .wrapContentSize(
-                        align = Alignment.TopStart,
-                        unbounded = true
-                    )
+                    .wrapContentSize(align = Alignment.TopStart, unbounded = true)
                     .matchParentSize()
                     .background(colors.textFieldBackgroundColor().value)
-                    .padding(
-                        start = 4.dp,
-                        end = 4.dp
-                    )
+                    .padding(start = 4.dp, end = 4.dp)
                     .onSizeChanged { unboundedSize ->
                         maxXOffset = (unboundedSize.width - totalSize.width).toFloat()
                         maxYOffset = (unboundedSize.height - totalSize.height).toFloat()
@@ -166,9 +151,7 @@ private data class DummyData(
     },
 
     val dummyRuleBook: LanguageRuleBook = object : LanguageRuleBook {
-        override fun getRules() = listOf(
-            headingRule
-        )
+        override fun getRules() = listOf(headingRule)
     },
 
     val colorScheme: ColorScheme<SpanStyle> = object : ColorScheme<SpanStyle> {
@@ -202,9 +185,7 @@ private fun KodeEditorPreview() {
             This is a code block.
             ```
         """.trimIndent()
-        mutableStateOf(TextFieldValue(
-            text = initialText
-        ))
+        mutableStateOf(TextFieldValue(text = initialText))
     }
 
     val languageRuleBook by remember {
