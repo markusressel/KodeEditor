@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import de.markusressel.kodeeditor.demo.ui.theme.KodeEditorTheme
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
@@ -61,6 +62,8 @@ class ComposeMainActivity : ComponentActivity() {
                         textStyle = LocalTextStyle.current.copy(
                             color = MaterialTheme.colorScheme.onSurface,
                             fontFamily = FontFamily.Monospace,
+                            fontSize = currentFontSize.sp,
+                            lineHeight = currentFontSize.sp
                         ),
                         colors = KodeEditorDefaults.editorColors()
                     )
