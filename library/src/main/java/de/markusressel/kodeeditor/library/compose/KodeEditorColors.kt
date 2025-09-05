@@ -1,6 +1,6 @@
 package de.markusressel.kodeeditor.library.compose
 
-import androidx.compose.material.MaterialTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import de.markusressel.kodehighlighter.core.ui.KodeTextField
@@ -59,9 +59,9 @@ object KodeEditorDefaults {
     @Composable
     fun editorColors(
         textFieldColors: KodeTextFieldColors = KodeTextFieldDefaults.textFieldColors(),
-        textFieldBackgroundColor: Color = MaterialTheme.colors.surface,
-        lineNumberTextColor: Color = MaterialTheme.colors.onSurface,
-        lineNumberBackgroundColor: Color = MaterialTheme.colors.surface,
+        textFieldBackgroundColor: Color = MaterialTheme.colorScheme.surface,
+        lineNumberTextColor: Color = MaterialTheme.colorScheme.onSurface,
+        lineNumberBackgroundColor: Color = MaterialTheme.colorScheme.surface,
     ): KodeEditorColors =
         DefaultKodeEditorColors(
             textFieldColors = textFieldColors,
