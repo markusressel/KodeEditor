@@ -8,18 +8,18 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.material3.Button
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import de.markusressel.kodeeditor.demo.ui.theme.KodeEditorTheme
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
@@ -36,7 +36,7 @@ class ComposeMainActivity : ComponentActivity() {
                 }
 
                 Column(
-                    modifier = Modifier.background(MaterialTheme.colors.background),
+                    modifier = Modifier.background(MaterialTheme.colorScheme.background),
                 ) {
                     KodeEditorConfigurationMenu(
                         currentFontSize = currentFontSize,
@@ -53,13 +53,14 @@ class ComposeMainActivity : ComponentActivity() {
                     KodeEditor(
                         modifier = Modifier
                             .fillMaxSize()
-                            .border(BorderStroke(1.dp, MaterialTheme.colors.primary)),
+                            .border(BorderStroke(1.dp, MaterialTheme.colorScheme.primary)),
                         languageRuleBook = MarkdownRuleBook(),
                         colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
                         text = text,
                         onValueChange = { text = it },
-                        textStyle = TextStyle(fontSize = currentFontSize.sp).copy(
-                            color = MaterialTheme.colors.onSurface,
+                        textStyle = LocalTextStyle.current.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontFamily = FontFamily.Monospace,
                         ),
                         colors = KodeEditorDefaults.editorColors()
                     )
@@ -84,13 +85,13 @@ class ComposeMainActivity : ComponentActivity() {
                 Text(
                     modifier = Modifier.weight(1f),
                     text = "Font Size: $currentFontSize",
-                    color = MaterialTheme.colors.onSurface,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
 
                 Button(onClick = onIncreaseFontSize) {
                     Text(
                         text = "+",
-                        color = MaterialTheme.colors.onPrimary,
+                        color = MaterialTheme.colorScheme.onPrimary,
                     )
                 }
 
@@ -99,7 +100,7 @@ class ComposeMainActivity : ComponentActivity() {
                 Button(onClick = onDecreaseFontSize) {
                     Text(
                         text = "-",
-                        color = MaterialTheme.colors.onPrimary,
+                        color = MaterialTheme.colorScheme.onPrimary,
                     )
                 }
             }

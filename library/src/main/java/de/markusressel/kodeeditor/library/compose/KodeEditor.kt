@@ -56,14 +56,14 @@ fun KodeEditor(
     readOnly: Boolean = enabled.not(),
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
-    var zoom by remember { mutableStateOf(1f) }
+    var zoom by remember { mutableFloatStateOf(1f) }
 
     Box(modifier = Modifier
         .clipToBounds()
         .then(modifier)
     ) {
         var lineNumberWidth by remember {
-            mutableStateOf(0)
+            mutableIntStateOf(0)
         }
         LineNumbers(
             modifier = Modifier
