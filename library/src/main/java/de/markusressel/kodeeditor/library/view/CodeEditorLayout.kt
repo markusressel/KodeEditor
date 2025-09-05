@@ -11,7 +11,6 @@ import android.text.Layout
 import android.text.style.CharacterStyle
 import android.util.AttributeSet
 import android.util.Log
-import android.util.TypedValue
 import android.view.*
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -231,15 +230,6 @@ constructor(
      * Text size in SP
      */
     private var textSizeSp: Float = DEFAULT_TEXT_SIZE_SP
-
-    /**
-     * Text size in PX
-     */
-    private var textSizePx: Float
-        get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, textSizeSp, context.resources.displayMetrics)
-        set(value) {
-            textSizeSp = value / resources.displayMetrics.scaledDensity
-        }
 
     @ColorInt
     private var editorBackgroundColor: Int = 0
