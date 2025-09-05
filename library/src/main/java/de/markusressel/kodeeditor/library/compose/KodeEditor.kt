@@ -15,11 +15,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
@@ -92,13 +94,20 @@ fun KodeEditor(
         }
 
         // Text Editor
+        var totalSize by remember { mutableStateOf(IntSize.Zero) }
+        var maxXOffset by remember(totalSize) { mutableFloatStateOf(Float.MAX_VALUE) }
+        var maxYOffset by remember(totalSize) { mutableFloatStateOf(Float.MAX_VALUE) }
+
         ZoomLayout(
             modifier = Modifier
                 .zIndex(0f)
                 .padding(
                     start = computedPadding,
                 )
-                .matchParentSize(),
+                .matchParentSize()
+                .onSizeChanged { size ->
+                    totalSize = size
+                },
             offset = offset,
             zoom = zoom,
             onOffsetChanged = {
@@ -109,8 +118,8 @@ fun KodeEditor(
 
                 val newOffset = offset + (it / zoom)
                 offset = newOffset.copy(
-                    x = newOffset.x.coerceAtLeast(0f),
-                    y = newOffset.y.coerceAtLeast(0f)
+                    x = newOffset.x.coerceIn(0f, maxXOffset),
+                    y = newOffset.y.coerceIn(0f, maxYOffset)
                 )
             },
             onZoomChanged = {
@@ -129,7 +138,11 @@ fun KodeEditor(
                     .padding(
                         start = 4.dp,
                         end = 4.dp
-                    ),
+                    )
+                    .onSizeChanged { unboundedSize ->
+                        maxXOffset = (unboundedSize.width - totalSize.width).toFloat()
+                        maxYOffset = (unboundedSize.height - totalSize.height).toFloat()
+                    },
                 value = text,
                 languageRuleBook = languageRuleBook,
                 colorScheme = colorScheme,
