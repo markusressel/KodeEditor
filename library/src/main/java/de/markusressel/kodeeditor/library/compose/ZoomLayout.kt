@@ -14,39 +14,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
-@Preview
-@Composable
-private fun ZoomLayoutPreview() {
-    var offset by remember { mutableStateOf(Offset.Zero) }
-    var zoom by remember { mutableStateOf(2f) }
-
-    ZoomLayout(
-        modifier = Modifier
-            .padding(16.dp)
-            .background(Color.White),
-        zoom = zoom,
-        offset = offset,
-        onOffsetChanged = { offset = it },
-        onZoomChanged = { zoom = it },
-    ) {
-        Column(modifier = Modifier) {
-            for (i in 1..10) {
-                Row(modifier = Modifier) {
-                    for (j in 1..10) {
-                        val k = (i + j) % 2
-                        Surface(
-                            modifier = Modifier.size(20.dp), color = when (k) {
-                            1 -> Color.Black
-                            else -> Color.White
-                        }) {
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 @Composable
 fun ZoomLayout(
     modifier: Modifier = Modifier,
@@ -93,5 +60,38 @@ fun ZoomLayout(
             .then(modifier),
     ) {
         content()
+    }
+}
+
+@Preview
+@Composable
+private fun ZoomLayoutPreview() {
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var zoom by remember { mutableFloatStateOf(2f) }
+
+    ZoomLayout(
+        modifier = Modifier
+            .padding(16.dp)
+            .background(Color.White),
+        zoom = zoom,
+        offset = offset,
+        onOffsetChanged = { offset = it },
+        onZoomChanged = { zoom = it },
+    ) {
+        Column(modifier = Modifier) {
+            for (i in 1..10) {
+                Row(modifier = Modifier) {
+                    for (j in 1..10) {
+                        val k = (i + j) % 2
+                        Surface(
+                            modifier = Modifier.size(20.dp), color = when (k) {
+                            1 -> Color.Black
+                            else -> Color.White
+                        }) {
+                        }
+                    }
+                }
+            }
+        }
     }
 }
