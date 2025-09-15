@@ -19,7 +19,7 @@ kotlin = "2.2.10"
 kotlinCoroutinesCore = "1.10.2"
 kotlinCoroutinesAndroid = "1.10.2"
 kodehighlighter = "4.0.4"
-ksp = "2.2.10-2.0.2"
+ksp = "2.2.20-2.0.3"
 material = "1.13.0"
 zoomlayout = "1.9.0"
 
