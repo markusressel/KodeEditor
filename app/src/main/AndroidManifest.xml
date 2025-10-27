@@ -12,7 +12,7 @@
         android:theme="@style/AppTheme"
         android:windowSoftInputMode="adjustResize">
         <activity
-            android:name=".ComposeMainActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/AppTheme">
             <intent-filter>
@@ -23,7 +23,7 @@
         </activity>
 
         <activity
-            android:name=".MainActivity"
+            android:name=".ComposeMainActivity"
             android:exported="false" />
     </application>
 
