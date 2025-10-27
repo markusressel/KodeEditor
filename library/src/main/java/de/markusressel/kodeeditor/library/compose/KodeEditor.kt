@@ -109,8 +109,8 @@ fun KodeEditor(
             onOffsetChanged = {
                 val newOffset = offset + (it / zoom)
                 offset = newOffset.copy(
-                    x = newOffset.x.coerceIn(0f, maxXOffset),
-                    y = newOffset.y.coerceIn(0f, maxYOffset)
+                    x = newOffset.x.coerceIn(0f, maxXOffset.coerceAtLeast(0f)),
+                    y = newOffset.y.coerceIn(0f, maxYOffset.coerceAtLeast(0f)),
                 )
             },
             onZoomChanged = {
