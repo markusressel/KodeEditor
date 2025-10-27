@@ -9,6 +9,7 @@ import android.view.View
 import android.widget.TextView
 import androidx.annotation.CallSuper
 import androidx.annotation.StringRes
+import androidx.core.content.withStyledAttributes
 import com.otaliastudios.zoom.ZoomApi
 import com.otaliastudios.zoom.ZoomLayout
 import de.markusressel.kodeeditor.library.R
@@ -149,23 +150,21 @@ open class CodeEditorView
     }
 
     private fun readParameters(attrs: AttributeSet?, defStyleAttr: Int) {
-        val a = context.obtainStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0)
-
-        val editTextBackgroundColor = a.getColor(
-            context,
-            defaultColor = Color.WHITE,
-            styleableRes = R.styleable.CodeEditorView_ke_editor_backgroundColor,
-            attr = intArrayOf(
-                R.attr.ke_editor_backgroundColor,
-                android.R.attr.windowBackground
+        context.withStyledAttributes(attrs, R.styleable.CodeEditorView, defStyleAttr, 0) {
+            val editTextBackgroundColor = getColor(
+                context,
+                defaultColor = Color.WHITE,
+                styleableRes = R.styleable.CodeEditorView_ke_editor_backgroundColor,
+                attr = intArrayOf(
+                    R.attr.ke_editor_backgroundColor,
+                    android.R.attr.windowBackground
+                )
             )
-        )
-        codeEditText.setBackgroundColor(editTextBackgroundColor)
+            codeEditText.setBackgroundColor(editTextBackgroundColor)
 
-        val maxRealZoom = a.getFloat(R.styleable.CodeEditorView_ke_editor_maxZoom, DEFAULT_MAX_ZOOM)
-        setMaxZoom(maxRealZoom, ZoomApi.TYPE_REAL_ZOOM)
-
-        a.recycle()
+            val maxRealZoom = getFloat(R.styleable.CodeEditorView_ke_editor_maxZoom, DEFAULT_MAX_ZOOM)
+            setMaxZoom(maxRealZoom, ZoomApi.TYPE_REAL_ZOOM)
+        }
     }
 
     private fun inflateViews(inflater: LayoutInflater) {
