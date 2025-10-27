@@ -12,6 +12,7 @@ import androidx.annotation.AttrRes
 import androidx.annotation.ColorInt
 import androidx.annotation.StyleableRes
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.createBitmap
 import androidx.core.view.ViewCompat
 
 /**
@@ -90,17 +91,10 @@ fun View.createSnapshot(dimensionLimit: Number = 1F, backgroundColor: Int = Colo
     val limitAsFloat = dimensionLimit.toFloat()
 
     // select smaller scaling factor to match dimensionLimit
-    val scaleFactor = Math.min(
-            Math.min(
-                    limitAsFloat / measuredWidth,
-                    limitAsFloat / measuredHeight),
-            1F)
+    val scaleFactor = (limitAsFloat / measuredWidth).coerceAtMost(limitAsFloat / measuredHeight).coerceAtMost(1F)
 
     // Define a bitmap with the target dimensions
-    val returnedBitmap = Bitmap.createBitmap(
-            (this.measuredWidth * scaleFactor).toInt(),
-            (this.measuredHeight * scaleFactor).toInt(),
-            Bitmap.Config.ARGB_8888)
+    val returnedBitmap = createBitmap((this.measuredWidth * scaleFactor).toInt(), (this.measuredHeight * scaleFactor).toInt())
 
     // bind a canvas to the bitmap
     Canvas(returnedBitmap).apply {
