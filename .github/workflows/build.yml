@@ -51,7 +51,7 @@ jobs:
       - name: Execute APK build
         run: ./gradlew app:assembleDebug --stacktrace
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: apk-files
           path: app/build/outputs/apk/**/*.apk
