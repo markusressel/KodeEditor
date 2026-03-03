@@ -7,6 +7,7 @@ import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.kotlin.dsl.*
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
+import org.jetbrains.kotlin.gradle.dsl.kotlinExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 const val COMPILE_SDK = 36
@@ -16,20 +17,24 @@ const val TARGET_SDK = 34
  * Configure base Kotlin with Android options
  */
 internal fun Project.configureKotlinAndroid(
-    commonExtension: CommonExtension<*, *, *, *, *, *>,
+    commonExtension: CommonExtension,
 ) {
     commonExtension.apply {
         compileSdk = COMPILE_SDK
 
-        defaultConfig {
-            minSdk = 21
+        kotlinExtension.apply {
+            jvmToolchain(21)
         }
 
-        compileOptions {
+        defaultConfig.apply {
+            minSdk = 23
+        }
+
+        compileOptions.apply {
             // Up to Java 11 APIs are available through desugaring
             // https://developer.android.com/studio/write/java11-minimal-support-table
-            sourceCompatibility = JavaVersion.VERSION_17
-            targetCompatibility = JavaVersion.VERSION_17
+            sourceCompatibility = JavaVersion.VERSION_21
+            targetCompatibility = JavaVersion.VERSION_21
             isCoreLibraryDesugaringEnabled = true
         }
     }
@@ -38,7 +43,7 @@ internal fun Project.configureKotlinAndroid(
     tasks.withType<KotlinCompile>().configureEach {
         compilerOptions {
             // Set JVM target to 11
-            jvmTarget.set(JvmTarget.JVM_17)
+            jvmTarget.set(JvmTarget.JVM_21)
             // Treat all Kotlin warnings as errors (disabled by default)
             // Override by setting warningsAsErrors=true in your ~/.gradle/gradle.properties
             val warningsAsErrors: String? by project
@@ -64,6 +69,6 @@ internal fun Project.configureKotlinAndroid(
  */
 internal fun Project.configureKotlinAndroidToolchain() {
     extensions.configure<KotlinAndroidProjectExtension> {
-        jvmToolchain(17)
+        jvmToolchain(21)
     }
 }

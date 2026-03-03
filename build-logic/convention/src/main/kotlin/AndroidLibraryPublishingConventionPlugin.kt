@@ -9,15 +9,16 @@ import org.gradle.kotlin.dsl.create
 class AndroidLibraryPublishingConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         with(target) {
-            extensions.configure<LibraryExtension> {
-                with(pluginManager) {
-                    apply("maven-publish")
-                }
-                publishing {
-                    singleVariant("release") {
-                        group = "com.github.markusressel.KodeEditor"
-                        withJavadocJar()
-                        withSourcesJar()
+            pluginManager.apply("maven-publish")
+
+            extensions.apply {
+                configure<LibraryExtension> {
+                    publishing {
+                        singleVariant("release") {
+                            group = "com.github.markusressel.KodeEditor"
+                            withJavadocJar()
+                            withSourcesJar()
+                        }
                     }
                 }
                 configure<PublishingExtension> {
