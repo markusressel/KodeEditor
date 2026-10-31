@@ -27,7 +27,9 @@ internal fun Project.configureKotlinAndroid(
         }
 
         defaultConfig.apply {
-            minSdk = 23
+            // 24: KodeHighlighter calls default interface methods across modules, which D8 cannot
+            // desugar for older versions (AbstractMethodError in LanguageRuleBook.createHighlighting)
+            minSdk = 24
         }
 
         compileOptions.apply {
