@@ -55,6 +55,23 @@ KodeEditor(
 )
 ```
 
+### Overlay
+
+Use the `overlay` parameter to draw on top of the editor text, e.g. the cursors and selections of other users.
+The content moves with zoom and scroll and receives the current `TextLayoutResult` of the editor text:
+
+```kotlin
+KodeEditor(
+    [...]
+    overlay = { textLayoutResult ->
+        val cursorRect = textLayoutResult.getCursorRect(remoteCursorIndex)
+        Canvas(modifier = Modifier.matchParentSize()) {
+            drawLine(Color.Red, cursorRect.topCenter, cursorRect.bottomCenter, strokeWidth = 2.dp.toPx())
+        }
+    }
+)
+```
+
 ## Add to your layout
 
 To use this editor simply add something similar to this to your desired layout xml file:

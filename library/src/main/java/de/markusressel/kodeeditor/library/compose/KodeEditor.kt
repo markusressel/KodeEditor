@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
@@ -18,6 +19,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
@@ -44,6 +46,11 @@ import de.markusressel.kodehighlighter.core.ui.KodeTextField
  * @param textStyle the text style used for the editor text
  * @param enabled whether the editor is enabled
  * @param readOnly whether the contents of the editor can be changed by the user
+ * @param onTextLayout callback that is executed when a new text layout of the editor text is calculated
+ * @param overlay content drawn on top of the editor text, e.g. the cursors and selections of other users.
+ * It is placed inside the zoom and scroll transformation and uses the coordinate system of the given
+ * [TextLayoutResult], so [TextLayoutResult.getCursorRect] and [TextLayoutResult.getPathForRange] can be used
+ * as is. Indices must be within the laid out text, and the content should not consume pointer input.
  */
 @Composable
 fun KodeEditor(
@@ -56,6 +63,8 @@ fun KodeEditor(
     textStyle: TextStyle = LocalTextStyle.current,
     enabled: Boolean = true,
     readOnly: Boolean = enabled.not(),
+    onTextLayout: (TextLayoutResult) -> Unit = {},
+    overlay: @Composable BoxScope.(textLayoutResult: TextLayoutResult) -> Unit = {},
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableFloatStateOf(1f) }
@@ -117,6 +126,8 @@ fun KodeEditor(
                 zoom *= it
             },
         ) {
+            var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+
             KodeTextField(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -136,6 +147,20 @@ fun KodeEditor(
                 textStyle = textStyle,
                 enabled = enabled,
                 readOnly = readOnly,
+                onTextLayout = {
+                    textLayoutResult = it
+                    onTextLayout(it)
+                },
+                decorationBox = { innerTextField ->
+                    Box(propagateMinConstraints = true) {
+                        innerTextField()
+                        textLayoutResult?.let {
+                            Box(modifier = Modifier.matchParentSize()) {
+                                overlay(it)
+                            }
+                        }
+                    }
+                },
             )
         }
     }
