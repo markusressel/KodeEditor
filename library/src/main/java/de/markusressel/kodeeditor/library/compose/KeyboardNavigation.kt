@@ -7,9 +7,11 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import java.text.BreakIterator
 
 /**
@@ -17,6 +19,7 @@ import java.text.BreakIterator
  */
 internal sealed interface KeyboardCommand {
     data class Move(val move: CursorMove) : KeyboardCommand
+    data object InsertTab : KeyboardCommand
     data object ZoomIn : KeyboardCommand
     data object ZoomOut : KeyboardCommand
     data object ZoomReset : KeyboardCommand
@@ -26,8 +29,16 @@ internal enum class CursorMove {
     CharacterLeft, CharacterRight, WordLeft, WordRight, LineUp, LineDown, ParagraphUp, ParagraphDown, PageUp, PageDown,
 }
 
-internal fun keyboardCommandFor(key: Key, ctrl: Boolean, alt: Boolean, meta: Boolean): KeyboardCommand? {
+internal fun keyboardCommandFor(
+    key: Key,
+    ctrl: Boolean,
+    alt: Boolean,
+    meta: Boolean,
+    shift: Boolean = false,
+): KeyboardCommand? {
     if (meta) return null
+    // shift + tab stays with the focus system: it is the way out of the editor for a keyboard
+    if (key == Key.Tab) return if (ctrl || alt || shift) null else KeyboardCommand.InsertTab
     val jump = ctrl || alt
     val move = when (key) {
         Key.DirectionLeft -> if (jump) CursorMove.WordLeft else CursorMove.CharacterLeft
@@ -49,7 +60,13 @@ internal fun keyboardCommandFor(key: Key, ctrl: Boolean, alt: Boolean, meta: Boo
 }
 
 internal fun KeyEvent.toKeyboardCommand(): KeyboardCommand? =
-    keyboardCommandFor(key, isCtrlPressed, isAltPressed, isMetaPressed)
+    keyboardCommandFor(key, isCtrlPressed, isAltPressed, isMetaPressed, isShiftPressed)
+
+/** the value after typing a tab, which replaces the selection */
+internal fun TextFieldValue.withTabInserted(): TextFieldValue = TextFieldValue(
+    text = text.replaceRange(selection.min, selection.max, "\t"),
+    selection = TextRange(selection.min + 1),
+)
 
 /**
  * A keyboard to write with, unlike the D-pad of a TV remote or a gamepad, which should keep moving the focus

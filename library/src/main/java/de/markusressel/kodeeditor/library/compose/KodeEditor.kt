@@ -191,6 +191,12 @@ fun KodeEditor(
                                 true
                             }
 
+                            // a read-only editor has nothing to insert it into, so tab moves the focus
+                            KeyboardCommand.InsertTab -> {
+                                if (!readOnly) onValueChange(text.withTabInserted())
+                                !readOnly
+                            }
+
                             KeyboardCommand.ZoomIn -> {
                                 zoom = (zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(KEYBOARD_MAX_ZOOM)
                                 true

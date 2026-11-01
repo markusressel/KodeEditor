@@ -82,10 +82,12 @@ The editor works with hardware keyboards:
 | Ctrl or Alt + Left/Right | move by word |
 | Ctrl or Alt + Up/Down | move by paragraph |
 | Page Up, Page Down | move by the visible height |
-| Shift + any of these | extend the selection |
+| Tab | insert a tab (in a read-only editor it moves the focus) |
+| Shift + Tab | move the focus out of the editor |
+| Shift + a key to move the cursor | extend the selection |
 | Ctrl + Plus, Minus, 0 | zoom in, zoom out, reset the zoom |
 
-Home, End, Tab, Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V and Ctrl+Z are handled by the text field.
+Home, End, Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V and Ctrl+Z are handled by the text field.
 The D-pad of a TV remote or a gamepad still moves the focus between the elements of the screen.
 
 ## Add to your layout

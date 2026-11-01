@@ -120,15 +120,34 @@ class KodeEditorKeyboardTest {
     }
 
     @Test
+    fun tabInsertsATab() {
+        show("abc", TextRange(1))
+        keys { pressKey(Key.Tab) }
+        assertEquals("a\tbc", value.text)
+        assertEquals(TextRange(2), value.selection)
+    }
+
+    @Test
+    fun tabChangesNothingInAReadOnlyEditor() {
+        show("abc", TextRange(1), readOnly = true)
+        keys { pressKey(Key.Tab) }
+        assertEquals("abc", value.text)
+    }
+
+    @Test
+    fun shiftTabInsertsNothing() {
+        show("abc", TextRange(1))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Tab) } }
+        assertEquals("abc", value.text)
+    }
+
+    @Test
     fun otherKeysStayWithTheTextField() {
         show("abc\ndef", TextRange(1))
         keys { pressKey(Key.MoveEnd) }
         assertEquals(TextRange(3), value.selection)
 
-        keys { pressKey(Key.Tab) }
-        assertEquals("abc\t\ndef", value.text)
-
         keys { pressKey(Key.Backspace) }
-        assertEquals("abc\ndef", value.text)
+        assertEquals("ab\ndef", value.text)
     }
 }

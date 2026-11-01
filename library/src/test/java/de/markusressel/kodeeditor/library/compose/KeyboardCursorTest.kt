@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -156,6 +157,12 @@ class KeyboardCursorTest {
     }
 
     @Test
+    fun aTabReplacesTheSelection() {
+        assertEquals(TextFieldValue("a\tb", TextRange(2)), TextFieldValue("ab", TextRange(1)).withTabInserted())
+        assertEquals(TextFieldValue("a\td", TextRange(2)), TextFieldValue("abcd", TextRange(3, 1)).withTabInserted())
+    }
+
+    @Test
     fun keysMapToCommands() {
         fun command(key: Key, ctrl: Boolean = false, alt: Boolean = false, meta: Boolean = false) =
             keyboardCommandFor(key, ctrl, alt, meta)
@@ -169,6 +176,10 @@ class KeyboardCursorTest {
         assertEquals(KeyboardCommand.ZoomIn, command(Key.Equals, ctrl = true))
         assertEquals(KeyboardCommand.ZoomOut, command(Key.Minus, ctrl = true))
         assertEquals(KeyboardCommand.ZoomReset, command(Key.Zero, ctrl = true))
+
+        assertEquals(KeyboardCommand.InsertTab, command(Key.Tab))
+        assertNull(keyboardCommandFor(Key.Tab, ctrl = false, alt = false, meta = false, shift = true))
+        assertNull(command(Key.Tab, ctrl = true))
 
         assertNull(command(Key.Plus))
         assertNull(command(Key.A, ctrl = true))
