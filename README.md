@@ -74,6 +74,8 @@ KodeEditor(
 
 ## Add to your layout
 
+> **Deprecated:** the View based editor (`CodeEditorLayout`, `CodeEditorView`) is deprecated, use the [Compose editor](#compose) for new code. The sections "Add to your layout", "Styling" and "APIs" describe the View based editor.
+
 To use this editor simply add something similar to this to your desired layout xml file:
 
 ```xml
