@@ -13,7 +13,7 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 ## Build
 
 - CI (`.github/workflows/build.yml`) runs `./gradlew app:assembleDebug` and `./gradlew library:testDebugUnitTest` with JDK 21. JitPack also uses JDK 21 (`.jitpack.yml`).
-- The library has no unit tests yet.
+- Compose UI tests of the library run on the JVM with Robolectric.
 - `make build`, `make publish` (to Maven local) and `make run` exist for local use.
 
 ## Code style

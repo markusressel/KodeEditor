@@ -17,6 +17,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -36,6 +40,10 @@ import de.markusressel.kodehighlighter.core.rule.RuleHelper
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
 import de.markusressel.kodehighlighter.core.ui.KodeTextField
 import kotlinx.coroutines.flow.first
+
+private const val KEYBOARD_ZOOM_STEP = 1.1f
+private const val KEYBOARD_MIN_ZOOM = 0.25f
+private const val KEYBOARD_MAX_ZOOM = 10f
 
 /**
  * Compose version of the KodeEditorLayout
@@ -77,6 +85,7 @@ fun KodeEditor(
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     var focused by remember { mutableStateOf(false) }
     val cursorFollower = remember { CursorFollower() }
+    val keyboardCursor = remember { KeyboardCursor() }
 
     Box(modifier = Modifier
         .clipToBounds()
@@ -158,6 +167,46 @@ fun KodeEditor(
             KodeTextField(
                 modifier = Modifier
                     .onFocusChanged { focused = it.isFocused }
+                    // goes before the text field, which would move the focus on the arrow keys
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown || !event.isFromTextKeyboard()) {
+                            return@onPreviewKeyEvent false
+                        }
+                        when (val command = event.toKeyboardCommand()) {
+                            null -> false
+
+                            is KeyboardCommand.Move -> {
+                                val layout = textLayoutResult ?: return@onPreviewKeyEvent false
+                                val selection = keyboardCursor.move(
+                                    text = text.text,
+                                    selection = text.selection,
+                                    move = command.move,
+                                    extend = event.isShiftPressed,
+                                    lines = LayoutTextLines(layout),
+                                    pageHeight = totalSize.height / zoom,
+                                )
+                                if (selection != text.selection) {
+                                    onValueChange(text.copy(selection = selection, composition = null))
+                                }
+                                true
+                            }
+
+                            KeyboardCommand.ZoomIn -> {
+                                zoom = (zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(KEYBOARD_MAX_ZOOM)
+                                true
+                            }
+
+                            KeyboardCommand.ZoomOut -> {
+                                zoom = (zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(KEYBOARD_MIN_ZOOM)
+                                true
+                            }
+
+                            KeyboardCommand.ZoomReset -> {
+                                zoom = 1f
+                                true
+                            }
+                        }
+                    }
                     .align(Alignment.TopStart)
                     .wrapContentSize(align = Alignment.TopStart, unbounded = true)
                     .matchParentSize()

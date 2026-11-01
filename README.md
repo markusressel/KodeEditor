@@ -72,6 +72,22 @@ KodeEditor(
 )
 ```
 
+### Keyboard
+
+The editor works with hardware keyboards:
+
+| Keys | Action |
+|---|---|
+| Arrow keys | move the cursor |
+| Ctrl or Alt + Left/Right | move by word |
+| Ctrl or Alt + Up/Down | move by paragraph |
+| Page Up, Page Down | move by the visible height |
+| Shift + any of these | extend the selection |
+| Ctrl + Plus, Minus, 0 | zoom in, zoom out, reset the zoom |
+
+Home, End, Tab, Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V and Ctrl+Z are handled by the text field.
+The D-pad of a TV remote or a gamepad still moves the focus between the elements of the screen.
+
 ## Add to your layout
 
 To use this editor simply add something similar to this to your desired layout xml file:
