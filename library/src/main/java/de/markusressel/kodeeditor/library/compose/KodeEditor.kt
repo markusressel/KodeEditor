@@ -11,7 +11,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -33,6 +35,7 @@ import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import de.markusressel.kodehighlighter.core.rule.RuleHelper
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
 import de.markusressel.kodehighlighter.core.ui.KodeTextField
+import kotlinx.coroutines.flow.first
 
 /**
  * Compose version of the KodeEditorLayout
@@ -51,6 +54,8 @@ import de.markusressel.kodehighlighter.core.ui.KodeTextField
  * It is placed inside the zoom and scroll transformation and uses the coordinate system of the given
  * [TextLayoutResult], so [TextLayoutResult.getCursorRect] and [TextLayoutResult.getPathForRange] can be used
  * as is. Indices must be within the laid out text, and the content should not consume pointer input.
+ * @param keepCursorVisible while the editor has the focus, scroll so the cursor stays visible when it moves or
+ * the editor gets smaller (e.g. when the soft keyboard opens and the app shrinks the editor by the IME insets)
  */
 @Composable
 fun KodeEditor(
@@ -65,9 +70,12 @@ fun KodeEditor(
     readOnly: Boolean = enabled.not(),
     onTextLayout: (TextLayoutResult) -> Unit = {},
     overlay: @Composable BoxScope.(textLayoutResult: TextLayoutResult) -> Unit = {},
+    keepCursorVisible: Boolean = true,
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableFloatStateOf(1f) }
+    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var focused by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier
         .clipToBounds()
@@ -102,6 +110,23 @@ fun KodeEditor(
         var totalSize by remember { mutableStateOf(IntSize.Zero) }
         var maxXOffset by remember(totalSize) { mutableFloatStateOf(Float.MAX_VALUE) }
         var maxYOffset by remember(totalSize) { mutableFloatStateOf(Float.MAX_VALUE) }
+        val textStartPadding = LocalDensity.current.run { 4.dp.toPx() }
+
+        // Follow the cursor while the user edits: when the selection moves or the editor changes its size.
+        // Panning or remote changes of the text alone don't scroll.
+        LaunchedEffect(keepCursorVisible, focused, text.selection, totalSize, zoom) {
+            if (!keepCursorVisible || !focused || totalSize == IntSize.Zero) return@LaunchedEffect
+            // wait for the layout of the current text, the selection may refer to text that is not laid out yet
+            val layout = snapshotFlow { textLayoutResult }
+                .first { it != null && it.layoutInput.text.text == text.text } ?: return@LaunchedEffect
+            val cursor = layout.getCursorRect(text.selection.end.coerceIn(0, layout.layoutInput.text.length))
+            offset = CursorVisibility.offsetFor(
+                offset = offset,
+                cursor = cursor.translate(textStartPadding, 0f),
+                viewport = Size(totalSize.width / zoom, totalSize.height / zoom),
+                maxOffset = Offset(maxXOffset, maxYOffset),
+            )
+        }
 
         ZoomLayout(
             modifier = Modifier
@@ -126,10 +151,9 @@ fun KodeEditor(
                 zoom *= it
             },
         ) {
-            var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-
             KodeTextField(
                 modifier = Modifier
+                    .onFocusChanged { focused = it.isFocused }
                     .align(Alignment.TopStart)
                     .wrapContentSize(align = Alignment.TopStart, unbounded = true)
                     .matchParentSize()
