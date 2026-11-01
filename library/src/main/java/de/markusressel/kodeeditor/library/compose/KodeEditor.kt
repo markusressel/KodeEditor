@@ -76,6 +76,7 @@ fun KodeEditor(
     var zoom by remember { mutableFloatStateOf(1f) }
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     var focused by remember { mutableStateOf(false) }
+    val cursorFollower = remember { CursorFollower() }
 
     Box(modifier = Modifier
         .clipToBounds()
@@ -115,7 +116,8 @@ fun KodeEditor(
         // Follow the cursor while the user edits: when the selection moves or the editor changes its size.
         // Panning or remote changes of the text alone don't scroll.
         LaunchedEffect(keepCursorVisible, focused, text.selection, totalSize, zoom) {
-            if (!keepCursorVisible || !focused || totalSize == IntSize.Zero) return@LaunchedEffect
+            val follow = cursorFollower.shouldFollow(text.selection, focused)
+            if (!keepCursorVisible || !follow || totalSize == IntSize.Zero) return@LaunchedEffect
             // wait for the layout of the current text, the selection may refer to text that is not laid out yet
             val layout = snapshotFlow { textLayoutResult }
                 .first { it != null && it.layoutInput.text.text == text.text } ?: return@LaunchedEffect
@@ -141,6 +143,7 @@ fun KodeEditor(
             offset = offset,
             zoom = zoom,
             onOffsetChanged = {
+                cursorFollower.onUserMovedView()
                 val newOffset = offset + (it / zoom)
                 offset = newOffset.copy(
                     x = newOffset.x.coerceIn(0f, maxXOffset.coerceAtLeast(0f)),
@@ -148,6 +151,7 @@ fun KodeEditor(
                 )
             },
             onZoomChanged = {
+                cursorFollower.onUserMovedView()
                 zoom *= it
             },
         ) {

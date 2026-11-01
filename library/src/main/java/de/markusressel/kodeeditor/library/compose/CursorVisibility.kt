@@ -3,6 +3,29 @@ package de.markusressel.kodeeditor.library.compose
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.TextRange
+
+/**
+ * Decides whether the editor scrolls to the cursor. A user who panned or zoomed away keeps that view when
+ * the editor changes its size, until the cursor moves or the editor gets the focus again.
+ */
+internal class CursorFollower {
+
+    private var lastSelection: TextRange? = null
+    private var wasFocused = false
+    private var userMovedView = false
+
+    fun onUserMovedView() {
+        userMovedView = true
+    }
+
+    fun shouldFollow(selection: TextRange, focused: Boolean): Boolean {
+        if (selection != lastSelection || (focused && !wasFocused)) userMovedView = false
+        lastSelection = selection
+        wasFocused = focused
+        return focused && !userMovedView
+    }
+}
 
 /**
  * Computes the scroll offset that keeps the cursor of the editor visible
