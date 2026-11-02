@@ -20,7 +20,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pinch
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextRange
@@ -55,7 +54,7 @@ class KodeEditorLayoutTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private var layout: TextLayoutResult? = null
+    private var layout: KodeEditorLayout? = null
 
     private val noRules = object : LanguageRuleBook {
         override fun getRules() = emptyList<LanguageRule>()
@@ -65,7 +64,7 @@ class KodeEditorLayoutTest {
         override fun getStyles(type: LanguageRule) = emptySet<StyleFactory<SpanStyle>>()
     }
 
-    private fun show(text: String, overlay: @Composable BoxScope.(TextLayoutResult) -> Unit = {}) {
+    private fun show(text: String, overlay: @Composable BoxScope.(KodeEditorLayout) -> Unit = {}) {
         val value = mutableStateOf(TextFieldValue(text))
         composeRule.setContent {
             KodeEditor(
@@ -90,8 +89,8 @@ class KodeEditorLayoutTest {
     @Test
     fun `each line gets its text and the part of the styles within it`() {
         val style = SpanStyle(color = Color.Red)
-        val text = AnnotatedString("one\n\ntwo", listOf(AnnotatedString.Range(style, 1, 6)))
-        val result = lineTexts(styledLayout(text), 0..2)
+        val state = KodeEditorState("one\n\ntwo")
+        val result = lineTexts(state, 0..2, listOf(AnnotatedString.Range(style, 1, 6)))
         assertEquals(listOf("one", "", "two"), result.map { it.text })
         assertEquals(listOf(AnnotatedString.Range(style, 1, 3)), result[0].spanStyles)
         assertEquals(emptyList<AnnotatedString.Range<SpanStyle>>(), result[1].spanStyles)
@@ -99,12 +98,53 @@ class KodeEditorLayoutTest {
     }
 
     @Test
+    fun `a word is found at any position within it`() {
+        assertEquals(TextRange(4, 7), wordAt("one two three", 5))
+        assertEquals(TextRange(4, 7), wordAt("one two three", 7))
+        assertEquals(TextRange(0, 3), wordAt("one", 0))
+        assertEquals(TextRange(1, 2), wordAt("( )", 1))
+        assertEquals(TextRange(1), wordAt("\n\n", 1))
+        assertEquals(TextRange(0), wordAt("", 0))
+    }
+
+    @Test
+    fun `the styles move with the text until the rules ran again`() {
+        val rule = object : LanguageRule {
+            override fun findMatches(text: CharSequence) =
+                listOf(RuleMatch(text.indexOf("word"), text.indexOf("word") + 4))
+        }
+        val style = SpanStyle(color = Color.Red)
+        val state = KodeEditorState("a word here")
+        val highlighting = EditorHighlighting(
+            state,
+            object : LanguageRuleBook {
+                override fun getRules() = listOf<LanguageRule>(rule)
+            },
+            object : ColorScheme<SpanStyle> {
+                override fun getStyles(type: LanguageRule) = setOf<StyleFactory<SpanStyle>>({ style })
+            },
+        )
+        state.spliceObserver = highlighting.spliceObserver
+        fun range() = highlighting.styles.map { it.start to it.end }
+
+        assertEquals(listOf(2 to 6), range())
+        state.setSelection(TextRange(0))
+        state.replaceSelection("xx")
+        assertEquals(listOf(4 to 8), range())
+        state.setSelection(TextRange(12))
+        state.replaceSelection("!")
+        assertEquals(listOf(4 to 8), range())
+        state.localEdit(4, 8, "")
+        assertEquals(emptyList<Pair<Int, Int>>(), range())
+    }
+
+    @Test
     fun `the highlighting only runs when the text changes`() {
-        var runs = 0
+        val runs = java.util.concurrent.atomic.AtomicInteger()
         val countingRules = object : LanguageRuleBook {
             private val rule = object : LanguageRule {
                 override fun findMatches(text: CharSequence): List<RuleMatch> {
-                    runs++
+                    runs.incrementAndGet()
                     return emptyList()
                 }
             }
@@ -122,60 +162,15 @@ class KodeEditorLayoutTest {
             )
         }
         composeRule.waitForIdle()
-        assertEquals(1, runs)
+        assertEquals(1, runs.get())
 
         value = value.copy(selection = TextRange(2))
         composeRule.waitForIdle()
-        assertEquals(1, runs)
+        assertEquals(1, runs.get())
 
         value = value.copy(text = "some more text")
         composeRule.waitForIdle()
-        assertEquals(2, runs)
-    }
-
-    @Test
-    fun `the text layout only gets the styles that change the size of the text`() {
-        val color = SpanStyle(color = Color.Red, textDecoration = TextDecoration.Underline)
-        val bold = SpanStyle(color = Color.Red, fontWeight = FontWeight.Bold)
-        assertFalse(color.changesTextSize())
-        assertTrue(bold.changesTextSize())
-
-        val rule = object : LanguageRule {
-            override fun findMatches(text: CharSequence) = listOf(RuleMatch(0, 3))
-        }
-        val boldRule = object : LanguageRule {
-            override fun findMatches(text: CharSequence) = listOf(RuleMatch(4, 7))
-        }
-        val highlighting = CachedHighlighting(
-            object : LanguageRuleBook {
-                override fun getRules() = listOf(rule, boldRule)
-            },
-            object : ColorScheme<SpanStyle> {
-                override fun getStyles(type: LanguageRule): Set<StyleFactory<SpanStyle>> =
-                    setOf(if (type === rule) ({ color }) else ({ bold }))
-            },
-        )
-        val forLayout = highlighting.filter(AnnotatedString("one two")).text
-        assertEquals(listOf(bold), forLayout.spanStyles.map { it.item })
-        assertEquals(2, highlighting.stylesOf("one two").size)
-        assertEquals(emptyList<Any>(), highlighting.stylesOf("something else"))
-
-        // the layout of the previous text can still be drawn while the new text waits for its layout
-        highlighting.filter(AnnotatedString("one two three"))
-        assertEquals(2, highlighting.stylesOf("one two").size)
-        assertEquals(2, highlighting.stylesOf("one two three").size)
-    }
-
-    private fun styledLayout(text: AnnotatedString): TextLayoutResult {
-        lateinit var result: TextLayoutResult
-        composeRule.runOnUiThread {
-            result = TextMeasurer(
-                defaultFontFamilyResolver = createFontFamilyResolver(ApplicationProvider.getApplicationContext()),
-                defaultDensity = composeRule.density,
-                defaultLayoutDirection = LayoutDirection.Ltr,
-            ).measure(text, softWrap = false)
-        }
-        return result
+        composeRule.waitUntil(5_000) { runs.get() == 2 }
     }
 
     /** neither direction alone is too large here, only the combination can not be represented in constraints */

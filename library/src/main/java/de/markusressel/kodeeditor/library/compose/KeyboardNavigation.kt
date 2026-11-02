@@ -1,7 +1,6 @@
 package de.markusressel.kodeeditor.library.compose
 
 import android.view.InputDevice
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.isAltPressed
@@ -9,17 +8,26 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import java.text.BreakIterator
 
 /**
- * What a key press does in the editor. The text field handles all other keys itself.
+ * What a key press does in the editor.
  */
 internal sealed interface KeyboardCommand {
     data class Move(val move: CursorMove) : KeyboardCommand
     data object InsertTab : KeyboardCommand
+    data object InsertLine : KeyboardCommand
+    data object Backspace : KeyboardCommand
+    data object Delete : KeyboardCommand
+    data object BackspaceWord : KeyboardCommand
+    data object DeleteWord : KeyboardCommand
+    data object Copy : KeyboardCommand
+    data object Cut : KeyboardCommand
+    data object Paste : KeyboardCommand
+    data object SelectAll : KeyboardCommand
+    data object Undo : KeyboardCommand
+    data object Redo : KeyboardCommand
     data object ZoomIn : KeyboardCommand
     data object ZoomOut : KeyboardCommand
     data object ZoomReset : KeyboardCommand
@@ -27,6 +35,7 @@ internal sealed interface KeyboardCommand {
 
 internal enum class CursorMove {
     CharacterLeft, CharacterRight, WordLeft, WordRight, LineUp, LineDown, ParagraphUp, ParagraphDown, PageUp, PageDown,
+    LineStart, LineEnd, TextStart, TextEnd,
 }
 
 internal fun keyboardCommandFor(
@@ -47,11 +56,28 @@ internal fun keyboardCommandFor(
         Key.DirectionDown -> if (jump) CursorMove.ParagraphDown else CursorMove.LineDown
         Key.PageUp -> if (jump) null else CursorMove.PageUp
         Key.PageDown -> if (jump) null else CursorMove.PageDown
+        Key.MoveHome -> if (ctrl) CursorMove.TextStart else CursorMove.LineStart
+        Key.MoveEnd -> if (ctrl) CursorMove.TextEnd else CursorMove.LineEnd
         else -> null
     }
     if (move != null) return KeyboardCommand.Move(move)
+    if (!ctrl && !alt) {
+        when (key) {
+            Key.Enter, Key.NumPadEnter -> return KeyboardCommand.InsertLine
+            Key.Backspace -> return KeyboardCommand.Backspace
+            Key.Delete -> return KeyboardCommand.Delete
+        }
+    }
     if (!ctrl || alt) return null
     return when (key) {
+        Key.Backspace -> KeyboardCommand.BackspaceWord
+        Key.Delete -> KeyboardCommand.DeleteWord
+        Key.A -> KeyboardCommand.SelectAll
+        Key.C -> KeyboardCommand.Copy
+        Key.X -> KeyboardCommand.Cut
+        Key.V -> KeyboardCommand.Paste
+        Key.Z -> if (shift) KeyboardCommand.Redo else KeyboardCommand.Undo
+        Key.Y -> KeyboardCommand.Redo
         Key.Plus, Key.Equals, Key.NumPadAdd -> KeyboardCommand.ZoomIn
         Key.Minus, Key.NumPadSubtract -> KeyboardCommand.ZoomOut
         Key.Zero, Key.NumPad0 -> KeyboardCommand.ZoomReset
@@ -61,12 +87,6 @@ internal fun keyboardCommandFor(
 
 internal fun KeyEvent.toKeyboardCommand(): KeyboardCommand? =
     keyboardCommandFor(key, isCtrlPressed, isAltPressed, isMetaPressed, isShiftPressed)
-
-/** the value after typing a tab, which replaces the selection */
-internal fun TextFieldValue.withTabInserted(): TextFieldValue = TextFieldValue(
-    text = text.replaceRange(selection.min, selection.max, "\t"),
-    selection = TextRange(selection.min + 1),
-)
 
 /**
  * A keyboard to write with, unlike the D-pad of a TV remote or a gamepad, which should keep moving the focus
@@ -89,24 +109,8 @@ internal interface TextLines {
     fun offsetAt(line: Int, x: Float): Int
 }
 
-internal class LayoutTextLines(private val layout: TextLayoutResult) : TextLines {
-    private val length = layout.layoutInput.text.length
-
-    override val lineCount get() = layout.lineCount
-    override fun lineOf(offset: Int) = layout.getLineForOffset(offset.coerceIn(0, length))
-    override fun lineAt(y: Float) = layout.getLineForVerticalPosition(y)
-    override fun topOf(line: Int) = layout.getLineTop(line)
-    override fun xOf(offset: Int) = layout.getCursorRect(offset.coerceIn(0, length)).left
-    override fun offsetAt(line: Int, x: Float) =
-        layout.getOffsetForPosition(Offset(x, (layout.getLineTop(line) + layout.getLineBottom(line)) / 2))
-}
-
 /**
  * Moves the cursor for the arrow and page keys.
- *
- * A text field moves the focus to another element of the screen on the keys that are also D-pad keys, and most
- * hardware keyboards report them as D-pad keys, so the editor has to do this itself. See `interceptDPadAndMoveFocus`
- * in Compose Foundation.
  */
 internal class KeyboardCursor {
 
@@ -152,6 +156,10 @@ internal class KeyboardCursor {
             CursorMove.LineDown -> vertical(text, from, lines, lines.lineOf(from) + 1)
             CursorMove.PageUp -> vertical(text, from, lines, lines.lineAt(topOf(lines, from) - pageHeight))
             CursorMove.PageDown -> vertical(text, from, lines, lines.lineAt(topOf(lines, from) + pageHeight))
+            CursorMove.LineStart -> text.lastIndexOf('\n', from - 1) + 1
+            CursorMove.LineEnd -> text.indexOf('\n', from).let { if (it < 0) text.length else it }
+            CursorMove.TextStart -> 0
+            CursorMove.TextEnd -> text.length
         }.coerceIn(0, text.length)
 
         if (move !in VERTICAL) column = null
@@ -177,6 +185,8 @@ internal class KeyboardCursor {
             CursorMove.LineUp,
             CursorMove.ParagraphUp,
             CursorMove.PageUp,
+            CursorMove.LineStart,
+            CursorMove.TextStart,
         )
         val VERTICAL = setOf(CursorMove.LineUp, CursorMove.LineDown, CursorMove.PageUp, CursorMove.PageDown)
     }
@@ -193,7 +203,7 @@ internal fun nextCharacter(text: String, offset: Int): Int = characters(text).fo
 
 private fun characters(text: String) = BreakIterator.getCharacterInstance().apply { setText(text) }
 
-private fun Char.isWordPart() = isLetterOrDigit() || this == '_' || isSurrogate() ||
+internal fun Char.isWordPart() = isLetterOrDigit() || this == '_' || isSurrogate() ||
     category == CharCategory.NON_SPACING_MARK
 
 /** the start of the word before [offset] */

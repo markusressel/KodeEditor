@@ -16,11 +16,13 @@ import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.center
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
@@ -174,21 +176,125 @@ class SelectionHandlesTest {
     @Test
     fun `the menu actions change the text and the clipboard`() {
         var clip: AnnotatedString? = null
-        var result = TextFieldValue()
-        val menu = { current: TextFieldValue ->
-            HandleMenu(current, false, { clip }, { clip = it }, { result = it })
-        }
-        val selected = TextFieldValue("hello world", TextRange(6, 11))
+        val state = KodeEditorState("hello world", TextRange(6, 11))
+        val menu = HandleMenu(state, false, { clip }, { clip = it })
 
-        menu(selected).cut()
+        menu.cut()
         assertEquals("world", clip?.text)
-        assertEquals(TextFieldValue("hello ", TextRange(6)), result)
+        assertEquals("hello ", state.text)
+        assertEquals(TextRange(6), state.selection)
 
-        menu(TextFieldValue("say ", TextRange(4))).paste()
-        assertEquals(TextFieldValue("say world", TextRange(9)), result)
+        state.setSelection(TextRange(0))
+        menu.paste()
+        assertEquals("worldhello ", state.text)
+        assertEquals(TextRange(5), state.selection)
 
-        menu(selected).selectAll()
-        assertEquals(TextRange(0, 11), result.selection)
+        menu.selectAll()
+        assertEquals(TextRange(0, 11), state.selection)
+
+        menu.copy()
+        assertEquals("worldhello ", clip?.text)
+        assertEquals(TextRange(11), state.selection)
+    }
+
+    @Test
+    fun `a double tap selects the word`() {
+        show("one two three")
+        val center = composeRule.onNode(field)
+        center.performTouchInput {
+            click(Offset(5f, 5f))
+            advanceEventTime(50)
+            click(Offset(5f, 5f))
+        }
+        composeRule.waitForIdle()
+        assertEquals(TextRange(0, 3), value.selection)
+    }
+
+    @Test
+    fun `a long press selects the word`() {
+        show("one two three")
+        composeRule.onNode(field).performTouchInput {
+            down(Offset(5f, 5f))
+            advanceEventTime(1000)
+            move()
+            up()
+        }
+        composeRule.waitForIdle()
+        assertEquals(TextRange(0, 3), value.selection)
+    }
+
+    @Test
+    fun `dragging after a long press extends the selection`() {
+        show("one two three")
+        composeRule.onNode(field).performTouchInput {
+            down(Offset(5f, 5f))
+            advanceEventTime(1000)
+            move()
+            moveTo(Offset(1000f, 5f))
+            up()
+        }
+        composeRule.waitForIdle()
+        assertEquals(TextRange(0, 13), value.selection)
+    }
+
+    /** the offset was only taken from the editor when it changed, so a pan beyond the end had to be undone first */
+    @Test
+    fun `a pan beyond the end of the text can be taken back at once`() {
+        show(manyLines)
+        tap()
+        val editor = composeRule.onNode(field)
+        repeat(4) { editor.performTouchInput { swipe(center, center - Offset(0f, 900f), 1000) } }
+        composeRule.waitForIdle()
+
+        editor.performTouchInput { click(Offset(5f, 5f)) }
+        composeRule.waitForIdle()
+        val atEnd = value.selection.start
+        assertTrue("the last lines should be visible, tapped at $atEnd", atEnd > manyLines.length / 2)
+
+        editor.performTouchInput { swipe(center, center + Offset(0f, 300f), 1000) }
+        composeRule.waitForIdle()
+        editor.performTouchInput { click(Offset(5f, 5f)) }
+        composeRule.waitForIdle()
+        assertTrue("view stayed at the end, tapped at ${value.selection.start}", value.selection.start < atEnd)
+    }
+
+    @Test
+    fun `a fast swipe keeps moving`() {
+        show(manyLines)
+        tap()
+        val editor = composeRule.onNode(field)
+        editor.performTouchInput { swipeUp(startY = centerY + 100f, endY = centerY - 100f, durationMillis = 50) }
+        composeRule.waitForIdle()
+        editor.performTouchInput { click(Offset(5f, 5f)) }
+        composeRule.waitForIdle()
+        // a slow pan of that distance stays within the first lines
+        val tappedAt = value.selection.start
+        assertTrue("moved to $tappedAt", tappedAt > manyLines.indexOf("line 15 "))
+    }
+
+    @Test
+    fun `a touch during a fling only stops it`() {
+        show(manyLines)
+        tap()
+        val before = value.selection
+        val editor = composeRule.onNode(field)
+        composeRule.mainClock.autoAdvance = false
+        editor.performTouchInput { swipeUp(startY = centerY + 100f, endY = centerY - 100f, durationMillis = 50) }
+        composeRule.mainClock.advanceTimeBy(100)
+        editor.performTouchInput { click(center) }
+        composeRule.mainClock.advanceTimeBy(1000)
+        assertEquals(before, value.selection)
+        composeRule.mainClock.autoAdvance = true
+    }
+
+    @Test
+    fun `panning does not move the cursor`() {
+        show(manyLines)
+        tap()
+        val before = value.selection
+        composeRule.onNode(field).performTouchInput { swipe(center, center - Offset(0f, 300f), 200) }
+        composeRule.waitForIdle()
+        assertEquals(before, value.selection)
     }
 
     private fun androidx.compose.ui.test.SemanticsNodeInteraction.performTextInputCompat(text: String) {

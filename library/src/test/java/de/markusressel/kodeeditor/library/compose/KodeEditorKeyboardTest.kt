@@ -32,8 +32,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 /**
- * Key events of the test have no input device, so the D-pad interception of the text field does not run here. These
- * tests cover what the editor does with the keys, and which keys it leaves to the text field.
+ * What the editor does with the keys of a hardware keyboard.
  */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -45,7 +44,7 @@ class KodeEditorKeyboardTest {
 
     private var value by mutableStateOf(TextFieldValue())
 
-    /** also matches a read-only field, which can not set text */
+    /** also matches a read-only editor, which can not set text */
     private val textField = SemanticsMatcher.keyIsDefined(SemanticsActions.SetSelection)
 
     private val noRules = object : LanguageRuleBook {
@@ -142,12 +141,64 @@ class KodeEditorKeyboardTest {
     }
 
     @Test
-    fun otherKeysStayWithTheTextField() {
+    fun endAndBackspaceWork() {
         show("abc\ndef", TextRange(1))
         keys { pressKey(Key.MoveEnd) }
         assertEquals(TextRange(3), value.selection)
 
         keys { pressKey(Key.Backspace) }
         assertEquals("ab\ndef", value.text)
+    }
+
+    @Test
+    fun keysTypeTheirCharacter() {
+        show("", TextRange(0))
+        keys {
+            pressKey(Key.A)
+            withKeyDown(Key.ShiftLeft) { pressKey(Key.B) }
+            pressKey(Key.Enter)
+        }
+        assertEquals("aB\n", value.text)
+    }
+
+    @Test
+    fun aReadOnlyEditorTypesNothing() {
+        show("abc", TextRange(1), readOnly = true)
+        keys {
+            pressKey(Key.A)
+            pressKey(Key.Backspace)
+            pressKey(Key.Enter)
+        }
+        assertEquals("abc", value.text)
+    }
+
+    @Test
+    fun undoAndRedoByKeys() {
+        show("abc", TextRange(3))
+        keys { pressKey(Key.Delete) }
+        keys { pressKey(Key.Backspace) }
+        assertEquals("ab", value.text)
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Z) } }
+        assertEquals("abc", value.text)
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Y) } }
+        assertEquals("ab", value.text)
+    }
+
+    @Test
+    fun ctrlBackspaceAndDeleteRemoveAWord() {
+        show("one two three", TextRange(7))
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Backspace) } }
+        assertEquals("one  three", value.text)
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Delete) } }
+        assertEquals("one ", value.text)
+    }
+
+    @Test
+    fun selectAllAndDelete() {
+        show("abc", TextRange(1))
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.A) } }
+        assertEquals(TextRange(0, 3), value.selection)
+        keys { pressKey(Key.Delete) }
+        assertEquals("", value.text)
     }
 }

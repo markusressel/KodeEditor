@@ -24,7 +24,6 @@ import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -91,55 +90,40 @@ internal object HandleDrag {
 }
 
 /**
- * The actions of the text menu. The text field has its own, which needs its own handles.
+ * The actions of the text menu.
  */
 internal class HandleMenu(
-    private val value: TextFieldValue,
+    private val state: KodeEditorState,
     private val readOnly: Boolean,
     private val clipboardText: () -> AnnotatedString?,
     private val setClipboardText: (AnnotatedString) -> Unit,
-    private val onValueChange: (TextFieldValue) -> Unit,
 ) {
-    private val text get() = value.text
-    private val min get() = value.selection.min
-    private val max get() = value.selection.max
+    private val selectedText get() = state.rawText.substring(state.selection.min, state.selection.max)
 
     fun copy() {
-        setClipboardText(AnnotatedString(text.substring(min, max)))
-        onValueChange(value.copy(selection = TextRange(max), composition = null))
+        setClipboardText(AnnotatedString(selectedText))
+        state.setSelection(TextRange(state.selection.max))
     }
 
     fun cut() {
         if (readOnly) return
-        setClipboardText(AnnotatedString(text.substring(min, max)))
-        replaceSelection("")
+        setClipboardText(AnnotatedString(selectedText))
+        state.replaceSelection("")
     }
 
     fun paste() {
         if (readOnly) return
-        replaceSelection(clipboardText()?.text ?: return)
+        state.replaceSelection(clipboardText()?.text ?: return)
     }
 
-    fun selectAll() {
-        onValueChange(value.copy(selection = TextRange(0, text.length), composition = null))
-    }
-
-    private fun replaceSelection(replacement: String) {
-        onValueChange(
-            TextFieldValue(
-                text = text.replaceRange(min, max, replacement),
-                selection = TextRange(min + replacement.length),
-            )
-        )
-    }
+    fun selectAll() = state.selectAll()
 }
 
 /**
  * A handle to drag the cursor or an end of the selection.
  *
- * The handles of the text field are popups placed at text coordinates without the zoom, and each one that appears
- * opens a window. This one is a part of the editor. It is placed without recomposing, and stays composed while
- * its position is outside the visible area.
+ * A part of the editor, not a popup. It is placed without recomposing, and stays composed while its position is
+ * outside the visible area.
  *
  * @param kind which handle this is
  * @param color the color of the handle

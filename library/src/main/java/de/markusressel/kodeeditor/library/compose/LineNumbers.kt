@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -57,7 +56,7 @@ internal fun rememberLineNumbersWidth(lineCount: Int, textStyle: TextStyle): Int
 @Composable
 internal fun LineNumbers(
     modifier: Modifier = Modifier,
-    layout: TextLayoutResult?,
+    layout: KodeEditorLayout?,
     width: Int,
     textStyle: TextStyle,
     backgroundColor: Color,
