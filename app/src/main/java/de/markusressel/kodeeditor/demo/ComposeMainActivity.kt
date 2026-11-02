@@ -13,8 +13,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +32,9 @@ import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
+import kotlin.system.measureTimeMillis
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class ComposeMainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,6 +44,9 @@ class ComposeMainActivity : ComponentActivity() {
                 var currentFontSize by remember {
                     mutableStateOf(14)
                 }
+                val ruleBook = remember { MarkdownRuleBook() }
+                val colorScheme = remember { DarkBackgroundColorSchemeWithSpanStyle() }
+                val stats = remember { EditorStats() }
 
                 Column(
                     modifier = Modifier.background(MaterialTheme.colorScheme.background),
@@ -51,20 +57,41 @@ class ComposeMainActivity : ComponentActivity() {
                         onDecreaseFontSize = { currentFontSize-- },
                     )
 
-                    var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+                    // not saveable, a large document does not fit into the saved instance state
+                    var text by remember {
                         val initialText = readResourceFileAsText(R.raw.short_sample)
-//                        val initialText = readResourceFileAsText(R.raw.sample_text)
                         mutableStateOf(TextFieldValue(initialText))
+                    }
+
+                    PerformanceMenu(
+                        stats = stats,
+                        onLoadLines = { lines ->
+                            val sample = readResourceFileAsText(R.raw.sample_text).lines()
+                            text = TextFieldValue((0 until lines).joinToString("\n") { sample[it % sample.size] })
+                        },
+                    )
+
+                    LaunchedEffect(text.text) {
+                        stats.lines = text.text.count { it == '\n' } + 1
+                        stats.highlightMs = withContext(Dispatchers.Default) {
+                            measureTimeMillis {
+                                ruleBook.getRules().forEach { it.findMatches(text.text) }
+                            }
+                        }
                     }
 
                     KodeEditor(
                         modifier = Modifier
                             .fillMaxSize()
                             .border(BorderStroke(1.dp, MaterialTheme.colorScheme.primary)),
-                        languageRuleBook = MarkdownRuleBook(),
-                        colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
+                        languageRuleBook = ruleBook,
+                        colorScheme = colorScheme,
                         text = text,
-                        onValueChange = { text = it },
+                        onValueChange = {
+                            if (it.text != text.text) stats.editStartedAt = System.nanoTime()
+                            text = it
+                        },
+                        onTextLayout = { stats.onTextLayout() },
                         textStyle = LocalTextStyle.current.copy(
                             color = MaterialTheme.colorScheme.onSurface,
                             fontFamily = FontFamily.Monospace,
@@ -89,6 +116,47 @@ class ComposeMainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * Timings of the last edit, to see where the time goes in a large document
+     */
+    private class EditorStats {
+        var lines by mutableStateOf(0)
+        var highlightMs by mutableStateOf(0L)
+        var editToLayoutMs by mutableStateOf(0L)
+        var editStartedAt = 0L
+
+        fun onTextLayout() {
+            if (editStartedAt != 0L) {
+                editToLayoutMs = (System.nanoTime() - editStartedAt) / 1_000_000
+                editStartedAt = 0L
+            }
+        }
+    }
+
+    @Composable
+    private fun PerformanceMenu(stats: EditorStats, onLoadLines: (Int) -> Unit) {
+        Column(modifier = Modifier.padding(4.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                listOf(2_000, 5_000, 10_000).forEach { lines ->
+                    Button(onClick = { onLoadLines(lines) }) {
+                        Text(
+                            text = "${lines / 1000}k",
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "${stats.lines} lines, highlight rules ${stats.highlightMs} ms, " +
+                    "edit to layout ${stats.editToLayoutMs} ms",
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 
