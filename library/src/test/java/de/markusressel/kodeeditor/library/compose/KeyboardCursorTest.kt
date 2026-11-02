@@ -22,6 +22,11 @@ class KeyboardCursorTest {
             val end = if (line + 1 < lineCount) starts[line + 1] - 1 else length
             return (starts[line] + (x / 10f).toInt()).coerceAtMost(end)
         }
+        override fun startOf(offset: Int) = starts[lineOf(offset)]
+        override fun endOf(offset: Int): Int {
+            val line = lineOf(offset)
+            return if (line + 1 < lineCount) starts[line + 1] - 1 else length
+        }
     }
 
     private val cursor = KeyboardCursor()

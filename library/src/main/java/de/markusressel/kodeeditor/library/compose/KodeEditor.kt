@@ -70,6 +70,7 @@ import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import de.markusressel.kodehighlighter.core.rule.RuleHelper
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
+import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
@@ -77,6 +78,7 @@ private const val KEYBOARD_ZOOM_STEP = 1.1f
 private const val CURSOR_BLINK_MS = 500L
 private val CURSOR_WIDTH = 2.dp
 private const val MENU_DELAY_MS = 250L
+private const val REFLOW_DELAY_MS = 200L
 private val HANDLE_EDGE_SIZE = 48.dp
 private val HANDLE_EDGE_SPEED = 12.dp
 private val TEXT_START_PADDING = 4.dp
@@ -111,6 +113,9 @@ private val TEXT_START_PADDING = 4.dp
  * @param maxZoom the largest zoom factor the user can reach
  * @param autoCorrect whether the keyboard may correct words on its own, which is rarely right for code and markup.
  * It can still offer suggestions without this
+ * @param lineWrapping whether lines longer than the width of the editor continue in the next row, instead of the view
+ * scrolling sideways. They keep one line number. A monospaced font makes this cheap for long documents, all other
+ * fonts have to measure each long line
  */
 @Composable
 fun KodeEditor(
@@ -129,6 +134,7 @@ fun KodeEditor(
     minZoom: Float = 0.25f,
     maxZoom: Float = 10f,
     autoCorrect: Boolean = false,
+    lineWrapping: Boolean = false,
 ) {
     val state = remember { KodeEditorState(text.text, text.selection) }
     val controlled = remember(state) { ControlledValue(state) }
@@ -153,6 +159,7 @@ fun KodeEditor(
         minZoom = minZoom,
         maxZoom = maxZoom,
         autoCorrect = autoCorrect,
+        lineWrapping = lineWrapping,
     )
 }
 
@@ -228,6 +235,9 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param maxZoom the largest zoom factor the user can reach
  * @param autoCorrect whether the keyboard may correct words on its own, which is rarely right for code and markup.
  * It can still offer suggestions without this
+ * @param lineWrapping whether lines longer than the width of the editor continue in the next row, instead of the view
+ * scrolling sideways. They keep one line number. A monospaced font makes this cheap for long documents, all other
+ * fonts have to measure each long line
  */
 @Composable
 fun KodeEditor(
@@ -245,6 +255,7 @@ fun KodeEditor(
     minZoom: Float = 0.25f,
     maxZoom: Float = 10f,
     autoCorrect: Boolean = false,
+    lineWrapping: Boolean = false,
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableFloatStateOf(1f.coerceIn(minZoom, maxZoom)) }
@@ -355,9 +366,35 @@ fun KodeEditor(
         }
     }
 
+    // the text reflows when a zoom is over, doing it on each of its frames would make the text jump around
+    var settledZoom by remember { mutableFloatStateOf(zoom) }
+    LaunchedEffect(zoom) {
+        delay(REFLOW_DELAY_MS)
+        settledZoom = zoom
+    }
+    val wrapWidth = remember(textStartPadding) {
+        derivedStateOf {
+            val visible = EditorViewport(totalSize, lineNumberWidth, settledZoom).visibleSize.width
+            floor(visible - 2 * textStartPadding.roundToInt()).coerceAtLeast(0f)
+        }
+    }
+
     val measurer = rememberTextMeasurer(cacheSize = LINE_LAYOUT_CACHE_SIZE)
-    val layout = remember(state, measurer, fieldTextStyle, highlighting) {
-        EditorLineLayout(state, measurer, fieldTextStyle, highlighting, drawWindow)
+    val breakMeasurer = rememberTextMeasurer(cacheSize = 0)
+    val layout = remember(state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping) {
+        EditorLineLayout(
+            state = state,
+            measurer = measurer,
+            textStyle = fieldTextStyle,
+            highlighting = highlighting,
+            window = drawWindow,
+            breaker = if (lineWrapping) RowBreaker(breakMeasurer, fieldTextStyle) else null,
+            wrapWidth = { wrapWidth.value },
+        )
+    }
+    DisposableEffect(state, layout) {
+        state.rowObserver = layout.rowObserver
+        onDispose { state.rowObserver = null }
     }
 
     LaunchedEffect(layout) {
@@ -371,6 +408,13 @@ fun KodeEditor(
         }
     }
 
+    // the text at the top of the view stays there when the lines wrap differently
+    LaunchedEffect(layout, wrapWidth.value) {
+        layout.takePositionAfterResize(offset.y)?.let { y ->
+            offset = EditorViewport.coerce(offset.copy(y = y), maxOffset)
+        }
+    }
+
     // the text can get shorter and the zoom can change, the view must not stay beyond the end of the text
     LaunchedEffect(maxOffset) {
         offset = EditorViewport.coerce(offset, maxOffset)
@@ -380,7 +424,7 @@ fun KodeEditor(
 
     // Follow the cursor while the user edits: when the selection moves or the editor changes its size.
     // Panning or remote changes of the text alone don't scroll.
-    LaunchedEffect(keepCursorVisible, focused, selection, totalSize, zoom) {
+    LaunchedEffect(keepCursorVisible, focused, selection, totalSize, zoom, wrapWidth.value) {
         val follow = cursorFollower.shouldFollow(selection, focused)
         // a dragged handle scrolls the view itself
         if (!keepCursorVisible || !follow || totalSize == IntSize.Zero || draggedHandle != null) {
