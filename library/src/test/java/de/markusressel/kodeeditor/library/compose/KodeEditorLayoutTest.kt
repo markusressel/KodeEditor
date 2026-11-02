@@ -159,6 +159,11 @@ class KodeEditorLayoutTest {
         assertEquals(listOf(bold), forLayout.spanStyles.map { it.item })
         assertEquals(2, highlighting.stylesOf("one two").size)
         assertEquals(emptyList<Any>(), highlighting.stylesOf("something else"))
+
+        // the layout of the previous text can still be drawn while the new text waits for its layout
+        highlighting.filter(AnnotatedString("one two three"))
+        assertEquals(2, highlighting.stylesOf("one two").size)
+        assertEquals(2, highlighting.stylesOf("one two three").size)
     }
 
     private fun styledLayout(text: AnnotatedString): TextLayoutResult {

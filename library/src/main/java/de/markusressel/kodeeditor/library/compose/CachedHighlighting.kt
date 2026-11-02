@@ -28,9 +28,13 @@ internal class CachedHighlighting(
     private var lastText: String? = null
     private var lastHighlighted = AnnotatedString("")
     private var lastForLayout = AnnotatedString("")
+    private var previousText: String? = null
+    private var previousHighlighted = AnnotatedString("")
 
     override fun filter(text: AnnotatedString): TransformedText {
         if (text.text != lastText) {
+            previousText = lastText
+            previousHighlighted = lastHighlighted
             lastHighlighted = runBlocking { highlighter.highlight(text.text) }
             lastForLayout = AnnotatedString(
                 text = text.text,
@@ -42,11 +46,18 @@ internal class CachedHighlighting(
     }
 
     /**
+     * The layout of a new text arrives after its highlighting, and until then the previous layout can still be
+     * drawn. So the styles of the previous text are kept too.
+     *
      * @param text the text to get the styles for
-     * @return all styles of [text], empty if it is not the last highlighted text
+     * @return all styles of [text], empty if it is neither the last nor the previous highlighted text
      */
     fun stylesOf(text: String): List<AnnotatedString.Range<SpanStyle>> {
-        return if (text == lastText) lastHighlighted.spanStyles else emptyList()
+        return when (text) {
+            lastText -> lastHighlighted.spanStyles
+            previousText -> previousHighlighted.spanStyles
+            else -> emptyList()
+        }
     }
 }
 
