@@ -1,12 +1,15 @@
 package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.*
 import androidx.compose.runtime.derivedStateOf
@@ -16,6 +19,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
@@ -25,13 +30,25 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.TextToolbar
+import androidx.compose.ui.platform.TextToolbarStatus
+import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.getSelectedText
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -50,6 +67,9 @@ import kotlinx.coroutines.flow.first
 private const val KEYBOARD_ZOOM_STEP = 1.1f
 private const val CURSOR_BLINK_MS = 500L
 private val CURSOR_WIDTH = 2.dp
+private const val MENU_DELAY_MS = 250L
+private val HANDLE_EDGE_SIZE = 48.dp
+private val HANDLE_EDGE_SPEED = 12.dp
 
 /**
  * Compose version of the KodeEditorLayout
@@ -99,6 +119,19 @@ fun KodeEditor(
     var focused by remember { mutableStateOf(false) }
     val cursorFollower = remember { CursorFollower() }
     val keyboardCursor = remember { KeyboardCursor() }
+    val realWindowInfo = LocalWindowInfo.current
+    val noFieldHandles = remember(realWindowInfo) { WindowInfoWithoutFocus(realWindowInfo) }
+    val textToolbar = LocalTextToolbar.current
+    @Suppress("DEPRECATION")
+    val clipboard = LocalClipboardManager.current
+    // whether the last input was a touch, the handles are only there for touch input
+    var touchInput by remember { mutableStateOf(false) }
+    var cursorMenuRequested by remember { mutableStateOf(false) }
+    var draggedHandle by remember { mutableStateOf<HandleKind?>(null) }
+    var dragTarget by remember { mutableStateOf<Offset?>(null) }
+    var editorCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val currentText by rememberUpdatedState(text)
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
     val highlighting = remember(languageRuleBook, colorScheme) { CachedHighlighting(languageRuleBook, colorScheme) }
 
     LaunchedEffect(minZoom, maxZoom) {
@@ -108,6 +141,7 @@ fun KodeEditor(
     Box(modifier = Modifier
         .clipToBounds()
         .then(modifier)
+        .onPlaced { editorCoordinates = it }
         // the text only covers the document, which is smaller than the editor for a short text or a low zoom
         .background(colors.textFieldBackgroundColor().value)) {
         val fieldColors = colors.textFieldColors(enabled = enabled).value
@@ -165,7 +199,10 @@ fun KodeEditor(
         // Panning or remote changes of the text alone don't scroll.
         LaunchedEffect(keepCursorVisible, focused, text.selection, totalSize, zoom) {
             val follow = cursorFollower.shouldFollow(text.selection, focused)
-            if (!keepCursorVisible || !follow || totalSize == IntSize.Zero) return@LaunchedEffect
+            // a dragged handle scrolls the view itself
+            if (!keepCursorVisible || !follow || totalSize == IntSize.Zero || draggedHandle != null) {
+                return@LaunchedEffect
+            }
             // wait for the layout of the current text, the selection may refer to text that is not laid out yet
             val layout = snapshotFlow { textLayoutResult }
                 .first { it != null && it.layoutInput.text.text == text.text } ?: return@LaunchedEffect
@@ -181,6 +218,13 @@ fun KodeEditor(
         ZoomLayout(
             modifier = Modifier
                 .zIndex(0f)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        touchInput = down.type == PointerType.Touch
+                        cursorMenuRequested = false
+                    }
+                }
                 .padding(
                     start = computedPadding,
                 )
@@ -201,6 +245,12 @@ fun KodeEditor(
                 zoom = it
             },
         ) {
+            // Without a focused window and a toolbar the text field shows no handles, magnifier and menu of its own.
+            // Those would be at the wrong place at any zoom, the editor has its own.
+            CompositionLocalProvider(
+                LocalWindowInfo provides noFieldHandles,
+                LocalTextToolbar provides NoTextToolbar,
+            ) {
             BasicTextField(
                 modifier = Modifier
                     .onFocusChanged { focused = it.isFocused }
@@ -222,6 +272,7 @@ fun KodeEditor(
                                     lines = LayoutTextLines(layout),
                                     pageHeight = totalSize.height / zoom,
                                 )
+                                touchInput = false
                                 if (selection != text.selection) {
                                     onValueChange(text.copy(selection = selection, composition = null))
                                 }
@@ -256,7 +307,10 @@ fun KodeEditor(
                     .background(colors.textFieldBackgroundColor().value)
                     .padding(start = 4.dp, end = 4.dp),
                 value = text,
-                onValueChange = onValueChange,
+                onValueChange = {
+                    if (it.text != text.text) touchInput = false
+                    onValueChange(it)
+                },
                 visualTransformation = highlighting,
                 // the blinking of its own cursor would record the whole document again each time
                 cursorBrush = SolidColor(Color.Unspecified),
@@ -289,6 +343,7 @@ fun KodeEditor(
                                     text = text.text,
                                     position = text.selection.start,
                                     color = fieldColors.cursorColor().value,
+                                    blinking = realWindowInfo.isWindowFocused,
                                 )
                             }
                             Box(
@@ -296,26 +351,167 @@ fun KodeEditor(
                                     IntRect(0, 0, totalSize.width, totalSize.height)
                                 },
                             ) {
-                                overlay(it)
+                                CompositionLocalProvider(
+                                    LocalWindowInfo provides realWindowInfo,
+                                    LocalTextToolbar provides textToolbar,
+                                ) {
+                                    overlay(it)
+                                }
                             }
                         }
                     }
                 },
             )
+            }
+        }
+
+        val transform = {
+            EditorTransform(lineNumberWidth, textStartPadding, offset, zoom)
+        }
+
+        /** the point the handle at this text position points at, null outside the visible text */
+        fun handleAnchor(position: Int): Offset? {
+            val layout = textLayoutResult ?: return null
+            val cursor = layout.getCursorRect(position.coerceIn(0, layout.layoutInput.text.length))
+            val point = transform().toEditor(cursor.bottomCenter)
+            val visibleX = point.x >= lineNumberWidth * zoom && point.x <= totalSize.width + lineNumberWidth
+            return point.takeIf { visibleX && it.y >= 0f && it.y <= totalSize.height }
+        }
+
+        fun moveHandle(kind: HandleKind, target: Offset) {
+            val layout = textLayoutResult ?: return
+            val point = transform().toText(target)
+            val line = layout.getLineForVerticalPosition(point.y)
+            val lineHeight = layout.getLineBottom(line) - layout.getLineTop(line)
+            val position = layout.getOffsetForPosition(Offset(point.x, point.y - lineHeight / 2))
+            val current = currentText
+            val selection = when (kind) {
+                HandleKind.Cursor -> TextRange(position)
+                HandleKind.SelectionStart -> TextRange(
+                    position.coerceAtMost(current.selection.max - 1).coerceAtLeast(0),
+                    current.selection.max,
+                )
+                HandleKind.SelectionEnd -> TextRange(
+                    current.selection.min,
+                    position.coerceAtLeast(current.selection.min + 1),
+                )
+            }
+            if (selection != current.selection) {
+                currentOnValueChange(current.copy(selection = selection, composition = null))
+            }
+        }
+
+        // Near an edge of the editor a dragged handle scrolls the view, so it can reach the whole text.
+        val edgeSize = LocalDensity.current.run { HANDLE_EDGE_SIZE.toPx() }
+        val edgeSpeed = LocalDensity.current.run { HANDLE_EDGE_SPEED.toPx() }
+        LaunchedEffect(draggedHandle) {
+            val kind = draggedHandle ?: return@LaunchedEffect
+            while (true) {
+                withFrameNanos { }
+                val target = dragTarget ?: continue
+                val area = Size(totalSize.width + lineNumberWidth.toFloat(), totalSize.height.toFloat())
+                val scrolled = EditorViewport.coerce(
+                    offset + HandleDrag.edgeScroll(target, area, lineNumberWidth * zoom, edgeSize, edgeSpeed) / zoom,
+                    maxOffset,
+                )
+                if (scrolled != offset) {
+                    offset = scrolled
+                    moveHandle(kind, target)
+                }
+            }
+        }
+
+        fun showMenu() {
+            val layout = textLayoutResult ?: return
+            val current = currentText
+            val coordinates = editorCoordinates?.takeIf { it.isAttached } ?: return
+            val length = layout.layoutInput.text.length
+            val startRect = layout.getCursorRect(current.selection.min.coerceIn(0, length))
+            val endRect = layout.getCursorRect(current.selection.max.coerceIn(0, length))
+            val top = coordinates.localToRoot(transform().toEditor(startRect.topLeft))
+            val bottom = coordinates.localToRoot(transform().toEditor(endRect.bottomRight))
+            val selected = current.getSelectedText()
+            val actions = HandleMenu(
+                value = current,
+                readOnly = readOnly,
+                clipboardText = { clipboard.getText() },
+                setClipboardText = { clipboard.setText(it) },
+                onValueChange = currentOnValueChange,
+            )
+            textToolbar.showMenu(
+                rect = Rect(
+                    left = minOf(top.x, bottom.x),
+                    top = top.y,
+                    right = maxOf(top.x, bottom.x),
+                    bottom = bottom.y,
+                ),
+                onCopyRequested = actions::copy.takeIf { selected.isNotEmpty() },
+                onPasteRequested = actions::paste.takeIf { !readOnly && clipboard.hasText() },
+                onCutRequested = actions::cut.takeIf { !readOnly && selected.isNotEmpty() },
+                onSelectAllRequested = actions::selectAll.takeIf { selected.length < current.text.length },
+            )
+        }
+
+        LaunchedEffect(text.selection, focused, touchInput, cursorMenuRequested, draggedHandle, offset, zoom) {
+            val wanted = focused && touchInput && draggedHandle == null &&
+                (!text.selection.collapsed || cursorMenuRequested)
+            if (textToolbar.status == TextToolbarStatus.Shown) textToolbar.hide()
+            if (wanted) {
+                delay(MENU_DELAY_MS)
+                showMenu()
+            }
+        }
+
+        val handleColor = LocalTextSelectionColors.current.handleColor
+        val hasSelection = !text.selection.collapsed
+        val handlesWanted = focused && touchInput
+        val handles = when {
+            !handlesWanted -> emptyList()
+            hasSelection -> listOf(HandleKind.SelectionStart, HandleKind.SelectionEnd)
+            !readOnly && text.text.isNotEmpty() -> listOf(HandleKind.Cursor)
+            else -> emptyList()
+        }
+        Box(modifier = Modifier.zIndex(2f).matchParentSize()) {
+            handles.forEach { kind ->
+                key(kind) {
+                    SelectionHandle(
+                        kind = kind,
+                        color = handleColor,
+                        anchor = {
+                            handleAnchor(
+                                if (kind == HandleKind.SelectionEnd) currentText.selection.max
+                                else currentText.selection.min
+                            )
+                        },
+                        editorCoordinates = { editorCoordinates },
+                        onDrag = {
+                            dragTarget = it
+                            draggedHandle = kind
+                            moveHandle(kind, it)
+                        },
+                        onDragEnd = {
+                            draggedHandle = null
+                            dragTarget = null
+                        },
+                        onTap = {
+                            if (kind == HandleKind.Cursor) cursorMenuRequested = !cursorMenuRequested
+                        },
+                    )
+                }
+            }
         }
     }
 }
-
 
 /**
  * The cursor of the editor. It has its own small layer, so blinking only changes the alpha of that layer.
  */
 @Composable
-private fun EditorCursor(layout: TextLayoutResult, text: String, position: Int, color: Color) {
+private fun EditorCursor(layout: TextLayoutResult, text: String, position: Int, color: Color, blinking: Boolean) {
     var alpha by remember { mutableFloatStateOf(1f) }
     val width = LocalDensity.current.run { CURSOR_WIDTH.roundToPx() }.coerceAtLeast(1)
 
-    if (LocalWindowInfo.current.isWindowFocused) {
+    if (blinking) {
         LaunchedEffect(text, position) {
             alpha = 1f
             while (true) {
@@ -335,6 +531,26 @@ private fun EditorCursor(layout: TextLayoutResult, text: String, position: Int, 
             .graphicsLayer { this.alpha = alpha }
             .background(color),
     )
+}
+
+/**
+ * Reports an unfocused window to the text field, which does not need it for anything else than its handles
+ * and its cursor.
+ */
+private class WindowInfoWithoutFocus(private val window: WindowInfo) : WindowInfo by window {
+    override val isWindowFocused: Boolean get() = false
+}
+
+private object NoTextToolbar : TextToolbar {
+    override val status = TextToolbarStatus.Hidden
+    override fun hide() = Unit
+    override fun showMenu(
+        rect: Rect,
+        onCopyRequested: (() -> Unit)?,
+        onPasteRequested: (() -> Unit)?,
+        onCutRequested: (() -> Unit)?,
+        onSelectAllRequested: (() -> Unit)?,
+    ) = Unit
 }
 
 private data class DummyData(
