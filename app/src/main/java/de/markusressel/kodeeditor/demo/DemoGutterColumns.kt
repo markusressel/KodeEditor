@@ -65,10 +65,20 @@ class WarningColumn(private val width: Int, private val color: Color) : KodeEdit
         selectedLine = line
         return true
     }
+
+    /** The selected warning follows its line. */
+    fun onEdit(edit: LineEdit) {
+        selectedLine = selectedLine?.let(edit::lineAfterEdit)
+    }
+
+    fun clearSelection() {
+        selectedLine = null
+    }
 }
 
 /**
- * Keeps its own state: a tap on the column sets a bookmark on that line, or removes it.
+ * Keeps its own state: a tap on the column sets a bookmark on that line, or removes it. Bookmarks follow the text of
+ * their line when it moves, and go away with it.
  *
  * @param width the width of the column in pixels
  * @param color the color of the markers
@@ -88,5 +98,17 @@ class BookmarkColumn(private val width: Int, private val color: Color) : KodeEdi
     override fun onTap(line: Int): Boolean {
         if (!lines.remove(line)) lines += line
         return true
+    }
+
+    fun onEdit(edit: LineEdit) {
+        val moved = lines.mapNotNull(edit::lineAfterEdit).distinct()
+        if (moved != lines.toList()) {
+            lines.clear()
+            lines += moved
+        }
+    }
+
+    fun clear() {
+        lines.clear()
     }
 }

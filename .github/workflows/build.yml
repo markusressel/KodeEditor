@@ -28,7 +28,7 @@ jobs:
           distribution: temurin
           cache: 'gradle'
       - name: Execute unit tests
-        run: ./gradlew library:testDebugUnitTest --stacktrace
+        run: ./gradlew library:testDebugUnitTest app:testDebugUnitTest --stacktrace
   ANDROID_BUILD_APK:
     name: Build APK
     runs-on: ubuntu-latest

@@ -66,6 +66,10 @@ class ComposeMainActivity : ComponentActivity() {
                         mutableStateOf(TextFieldValue(initialText))
                     }
 
+                    val columnWidth = with(LocalDensity.current) { 20.dp.roundToPx() }
+                    val warnings = remember(columnWidth) { WarningColumn(columnWidth, Color(0xFFFFC107)) }
+                    val bookmarks = remember(columnWidth) { BookmarkColumn(columnWidth, Teal200) }
+
                     PerformanceMenu(
                         stats = stats,
                         lineWrapping = lineWrapping,
@@ -73,12 +77,10 @@ class ComposeMainActivity : ComponentActivity() {
                         onLoadLines = { lines ->
                             val sample = readResourceFileAsText(R.raw.sample_text).lines()
                             text = TextFieldValue((0 until lines).joinToString("\n") { sample[it % sample.size] })
+                            bookmarks.clear()
+                            warnings.clearSelection()
                         },
                     )
-
-                    val columnWidth = with(LocalDensity.current) { 20.dp.roundToPx() }
-                    val warnings = remember(columnWidth) { WarningColumn(columnWidth, Color(0xFFFFC107)) }
-                    val bookmarks = remember(columnWidth) { BookmarkColumn(columnWidth, Teal200) }
 
                     LaunchedEffect(text.text) {
                         warnings.warnings = withContext(Dispatchers.Default) { findWarnings(text.text) }
@@ -116,7 +118,12 @@ class ComposeMainActivity : ComponentActivity() {
                         colorScheme = colorScheme,
                         text = text,
                         onValueChange = {
-                            if (it.text != text.text) stats.editStartedAt = System.nanoTime()
+                            if (it.text != text.text) {
+                                stats.editStartedAt = System.nanoTime()
+                                val edit = LineEdit(text.text, it.text)
+                                bookmarks.onEdit(edit)
+                                warnings.onEdit(edit)
+                            }
                             text = it
                         },
                         onTextLayout = { stats.onTextLayout() },

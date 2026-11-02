@@ -32,7 +32,7 @@ import kotlin.math.ceil
 import kotlin.math.max
 
 /**
- * A column of the bar next to the text, e.g. line numbers, warning markers or buttons to collapse a block.
+ * A column of the bar next to the text, e.g. line numbers, warning markers or bookmarks.
  *
  * Columns draw instead of composing, so the bar stays cheap with a lot of visible lines. Reading snapshot state in
  * [drawCell] draws the bar again when that state changes, so markers only have to be kept in a state.
