@@ -12,9 +12,8 @@
         android:theme="@style/AppTheme"
         android:windowSoftInputMode="adjustResize">
         <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:theme="@style/AppTheme">
+            android:name=".ComposeMainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -23,8 +22,9 @@
         </activity>
 
         <activity
-            android:name=".ComposeMainActivity"
-            android:exported="false" />
+            android:name=".MainActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme" />
     </application>
 
 </manifest>
