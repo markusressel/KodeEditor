@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.center
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -174,21 +175,75 @@ class SelectionHandlesTest {
     @Test
     fun `the menu actions change the text and the clipboard`() {
         var clip: AnnotatedString? = null
-        var result = TextFieldValue()
-        val menu = { current: TextFieldValue ->
-            HandleMenu(current, false, { clip }, { clip = it }, { result = it })
-        }
-        val selected = TextFieldValue("hello world", TextRange(6, 11))
+        val state = KodeEditorState("hello world", TextRange(6, 11))
+        val menu = HandleMenu(state, false, { clip }, { clip = it })
 
-        menu(selected).cut()
+        menu.cut()
         assertEquals("world", clip?.text)
-        assertEquals(TextFieldValue("hello ", TextRange(6)), result)
+        assertEquals("hello ", state.text)
+        assertEquals(TextRange(6), state.selection)
 
-        menu(TextFieldValue("say ", TextRange(4))).paste()
-        assertEquals(TextFieldValue("say world", TextRange(9)), result)
+        state.setSelection(TextRange(0))
+        menu.paste()
+        assertEquals("worldhello ", state.text)
+        assertEquals(TextRange(5), state.selection)
 
-        menu(selected).selectAll()
-        assertEquals(TextRange(0, 11), result.selection)
+        menu.selectAll()
+        assertEquals(TextRange(0, 11), state.selection)
+
+        menu.copy()
+        assertEquals("worldhello ", clip?.text)
+        assertEquals(TextRange(11), state.selection)
+    }
+
+    @Test
+    fun `a double tap selects the word`() {
+        show("one two three")
+        val center = composeRule.onNode(field)
+        center.performTouchInput {
+            click(Offset(5f, 5f))
+            advanceEventTime(50)
+            click(Offset(5f, 5f))
+        }
+        composeRule.waitForIdle()
+        assertEquals(TextRange(0, 3), value.selection)
+    }
+
+    @Test
+    fun `a long press selects the word`() {
+        show("one two three")
+        composeRule.onNode(field).performTouchInput {
+            down(Offset(5f, 5f))
+            advanceEventTime(1000)
+            move()
+            up()
+        }
+        composeRule.waitForIdle()
+        assertEquals(TextRange(0, 3), value.selection)
+    }
+
+    @Test
+    fun `dragging after a long press extends the selection`() {
+        show("one two three")
+        composeRule.onNode(field).performTouchInput {
+            down(Offset(5f, 5f))
+            advanceEventTime(1000)
+            move()
+            moveTo(Offset(1000f, 5f))
+            up()
+        }
+        composeRule.waitForIdle()
+        assertEquals(TextRange(0, 13), value.selection)
+    }
+
+    @Test
+    fun `panning does not move the cursor`() {
+        show(manyLines)
+        tap()
+        val before = value.selection
+        composeRule.onNode(field).performTouchInput { swipe(center, center - Offset(0f, 300f), 200) }
+        composeRule.waitForIdle()
+        assertEquals(before, value.selection)
     }
 
     private fun androidx.compose.ui.test.SemanticsNodeInteraction.performTextInputCompat(text: String) {
