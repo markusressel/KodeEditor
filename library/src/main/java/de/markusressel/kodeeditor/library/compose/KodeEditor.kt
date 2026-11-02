@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.*
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -21,6 +22,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -29,6 +31,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -39,11 +42,10 @@ import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import de.markusressel.kodehighlighter.core.rule.RuleHelper
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
 import de.markusressel.kodehighlighter.core.ui.KodeTextField
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.first
 
 private const val KEYBOARD_ZOOM_STEP = 1.1f
-private const val KEYBOARD_MIN_ZOOM = 0.25f
-private const val KEYBOARD_MAX_ZOOM = 10f
 
 /**
  * Compose version of the KodeEditorLayout
@@ -62,8 +64,12 @@ private const val KEYBOARD_MAX_ZOOM = 10f
  * It is placed inside the zoom and scroll transformation and uses the coordinate system of the given
  * [TextLayoutResult], so [TextLayoutResult.getCursorRect] and [TextLayoutResult.getPathForRange] can be used
  * as is. Indices must be within the laid out text, and the content should not consume pointer input.
+ * Its box has the size of the editor, not of the document, which can be too large to measure anything at.
+ * Content is not clipped to that box, so draw and place it at text coordinates anywhere in the document.
  * @param keepCursorVisible while the editor has the focus, scroll so the cursor stays visible when it moves or
  * the editor gets smaller (e.g. when the soft keyboard opens and the app shrinks the editor by the IME insets)
+ * @param minZoom the smallest zoom factor the user can reach
+ * @param maxZoom the largest zoom factor the user can reach
  */
 @Composable
 fun KodeEditor(
@@ -79,17 +85,25 @@ fun KodeEditor(
     onTextLayout: (TextLayoutResult) -> Unit = {},
     overlay: @Composable BoxScope.(textLayoutResult: TextLayoutResult) -> Unit = {},
     keepCursorVisible: Boolean = true,
+    minZoom: Float = 0.25f,
+    maxZoom: Float = 10f,
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
-    var zoom by remember { mutableFloatStateOf(1f) }
+    var zoom by remember { mutableFloatStateOf(1f.coerceIn(minZoom, maxZoom)) }
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     var focused by remember { mutableStateOf(false) }
     val cursorFollower = remember { CursorFollower() }
     val keyboardCursor = remember { KeyboardCursor() }
 
+    LaunchedEffect(minZoom, maxZoom) {
+        zoom = zoom.coerceIn(minZoom, maxZoom)
+    }
+
     Box(modifier = Modifier
         .clipToBounds()
-        .then(modifier)) {
+        .then(modifier)
+        // the text only covers the document, which is smaller than the editor for a short text or a low zoom
+        .background(colors.textFieldBackgroundColor().value)) {
         var lineNumberWidth by remember {
             mutableIntStateOf(0)
         }
@@ -118,9 +132,22 @@ fun KodeEditor(
 
         // Text Editor
         var totalSize by remember { mutableStateOf(IntSize.Zero) }
-        var maxXOffset by remember(totalSize) { mutableFloatStateOf(Float.MAX_VALUE) }
-        var maxYOffset by remember(totalSize) { mutableFloatStateOf(Float.MAX_VALUE) }
         val textStartPadding = LocalDensity.current.run { 4.dp.toPx() }
+        val viewport by remember {
+            derivedStateOf { EditorViewport(totalSize, lineNumberWidth, zoom) }
+        }
+        val maxOffset by remember(textStartPadding) {
+            derivedStateOf {
+                viewport.maxOffset(textLayoutResult?.size?.let { size ->
+                    IntSize(size.width + 2 * textStartPadding.roundToInt(), size.height)
+                } ?: IntSize.Zero)
+            }
+        }
+
+        // the text can get shorter and the zoom can change, the view must not stay beyond the end of the text
+        LaunchedEffect(maxOffset) {
+            offset = EditorViewport.coerce(offset, maxOffset)
+        }
 
         // Follow the cursor while the user edits: when the selection moves or the editor changes its size.
         // Panning or remote changes of the text alone don't scroll.
@@ -134,8 +161,8 @@ fun KodeEditor(
             offset = CursorVisibility.offsetFor(
                 offset = offset,
                 cursor = cursor.translate(textStartPadding, 0f),
-                viewport = Size(totalSize.width / zoom, totalSize.height / zoom),
-                maxOffset = Offset(maxXOffset, maxYOffset),
+                viewport = viewport.visibleSize,
+                maxOffset = maxOffset,
             )
         }
 
@@ -151,17 +178,15 @@ fun KodeEditor(
                 },
             offset = offset,
             zoom = zoom,
+            minZoom = minZoom,
+            maxZoom = maxZoom,
             onOffsetChanged = {
                 cursorFollower.onUserMovedView()
-                val newOffset = offset + (it / zoom)
-                offset = newOffset.copy(
-                    x = newOffset.x.coerceIn(0f, maxXOffset.coerceAtLeast(0f)),
-                    y = newOffset.y.coerceIn(0f, maxYOffset.coerceAtLeast(0f)),
-                )
+                offset = EditorViewport.coerce(it, maxOffset)
             },
             onZoomChanged = {
                 cursorFollower.onUserMovedView()
-                zoom *= it
+                zoom = it
             },
         ) {
             KodeTextField(
@@ -198,17 +223,17 @@ fun KodeEditor(
                             }
 
                             KeyboardCommand.ZoomIn -> {
-                                zoom = (zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(KEYBOARD_MAX_ZOOM)
+                                zoom = (zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(maxZoom)
                                 true
                             }
 
                             KeyboardCommand.ZoomOut -> {
-                                zoom = (zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(KEYBOARD_MIN_ZOOM)
+                                zoom = (zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(minZoom)
                                 true
                             }
 
                             KeyboardCommand.ZoomReset -> {
-                                zoom = 1f
+                                zoom = 1f.coerceIn(minZoom, maxZoom)
                                 true
                             }
                         }
@@ -217,11 +242,7 @@ fun KodeEditor(
                     .wrapContentSize(align = Alignment.TopStart, unbounded = true)
                     .matchParentSize()
                     .background(colors.textFieldBackgroundColor().value)
-                    .padding(start = 4.dp, end = 4.dp)
-                    .onSizeChanged { unboundedSize ->
-                        maxXOffset = (unboundedSize.width - totalSize.width).toFloat()
-                        maxYOffset = (unboundedSize.height - totalSize.height).toFloat()
-                    },
+                    .padding(start = 4.dp, end = 4.dp),
                 value = text,
                 languageRuleBook = languageRuleBook,
                 colorScheme = colorScheme,
@@ -238,7 +259,7 @@ fun KodeEditor(
                     Box(propagateMinConstraints = true) {
                         innerTextField()
                         textLayoutResult?.let {
-                            Box(modifier = Modifier.matchParentSize()) {
+                            Box(modifier = Modifier.sizedLike(totalSize)) {
                                 overlay(it)
                             }
                         }
@@ -249,6 +270,17 @@ fun KodeEditor(
     }
 }
 
+
+/**
+ * Measures the content at [size] and takes no space in the parent. The size of a document can exceed what
+ * [Constraints] can represent (about 262000 px in one direction), so nothing can be measured at that size.
+ */
+private fun Modifier.sizedLike(size: IntSize) = layout { measurable, constraints ->
+    val placeable = measurable.measure(Constraints.fixed(size.width, size.height))
+    layout(constraints.minWidth, constraints.minHeight) {
+        placeable.place(0, 0)
+    }
+}
 
 private data class DummyData(
     val headingRule: LanguageRule = object : LanguageRule {

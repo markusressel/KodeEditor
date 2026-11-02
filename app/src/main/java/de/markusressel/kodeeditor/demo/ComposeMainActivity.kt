@@ -76,12 +76,15 @@ class ComposeMainActivity : ComponentActivity() {
                             // fake cursor and selection of another user
                             val selectedText = "syntax highlighting"
                             val selectionStart = text.text.indexOf(selectedText)
-                            RemoteCursor(
-                                textLayoutResult = textLayoutResult,
-                                name = "Jane",
-                                color = Teal200,
-                                selection = TextRange(selectionStart, selectionStart + selectedText.length),
-                            )
+                            // the text can be edited, so the phrase may be gone
+                            if (selectionStart >= 0) {
+                                RemoteCursor(
+                                    textLayoutResult = textLayoutResult,
+                                    name = "Jane",
+                                    color = Teal200,
+                                    selection = TextRange(selectionStart, selectionStart + selectedText.length),
+                                )
+                            }
                         }
                     )
                 }
