@@ -336,6 +336,7 @@ fun KodeEditor(
                                 selection = text.selection.takeIf { focused },
                                 textStyle = fieldTextStyle,
                                 window = drawWindow,
+                                highlighting = highlighting,
                             )
                             if (focused && enabled && !readOnly && text.selection.collapsed) {
                                 EditorCursor(
