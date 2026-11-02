@@ -15,9 +15,9 @@ A simple code editor with syntax highlighting and pinch to zoom
 * [x] Written entirely in Kotlin
 
 # Try the demo app
-Every build of `master` publishes the demo app as a pre-release `build-<n>`, a debug build signed with
-`.ci/debug.keystore`. The newest 5 are kept, and they are built from the current code, which can be ahead of the
-latest library release.
+Every build of `master` publishes the demo app as a pre-release `build-<n>`, a release build with R8 that is signed
+with the public key `.ci/debug.keystore`. The newest 5 are kept, and they are built from the current code, which can be
+ahead of the latest library release.
 
 The easiest way to install and update it is [Obtainium](https://github.com/ImranR98/Obtainium). In **Add App**, enter
 the address `https://github.com/markusressel/KodeEditor` and use these settings:

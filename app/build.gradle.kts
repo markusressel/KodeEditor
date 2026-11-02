@@ -13,6 +13,17 @@ android {
         versionName = "6.0.0"
     }
 
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            // This app is only a demo and is not published in a store, so the key does not have to be secret. On CI
+            // the debug key is .ci/debug.keystore, so all builds of the releases update each other.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
     androidComponents {
         onVariants { variant ->
             variant.outputs.forEach { output ->
