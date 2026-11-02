@@ -5,6 +5,7 @@ A simple code editor with syntax highlighting and pinch to zoom
 
 # Features
 * [x] Pinch-To-Zoom
+* [x] Line wrapping (Compose editor, `lineWrapping = true`)
 * [x] Line numbers
 * [x] Syntax highlighting
   * [x] import languages you need

@@ -47,6 +47,7 @@ class ComposeMainActivity : ComponentActivity() {
                 val ruleBook = remember { MarkdownRuleBook() }
                 val colorScheme = remember { DarkBackgroundColorSchemeWithSpanStyle() }
                 val stats = remember { EditorStats() }
+                var lineWrapping by remember { mutableStateOf(true) }
 
                 Column(
                     modifier = Modifier.background(MaterialTheme.colorScheme.background),
@@ -65,6 +66,8 @@ class ComposeMainActivity : ComponentActivity() {
 
                     PerformanceMenu(
                         stats = stats,
+                        lineWrapping = lineWrapping,
+                        onToggleLineWrapping = { lineWrapping = !lineWrapping },
                         onLoadLines = { lines ->
                             val sample = readResourceFileAsText(R.raw.sample_text).lines()
                             text = TextFieldValue((0 until lines).joinToString("\n") { sample[it % sample.size] })
@@ -99,6 +102,7 @@ class ComposeMainActivity : ComponentActivity() {
                             lineHeight = currentFontSize.sp
                         ),
                         colors = KodeEditorDefaults.editorColors(),
+                        lineWrapping = lineWrapping,
                         overlay = { layout ->
                             // fake cursor and selection of another user
                             val selectedText = "syntax highlighting"
@@ -137,7 +141,12 @@ class ComposeMainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun PerformanceMenu(stats: EditorStats, onLoadLines: (Int) -> Unit) {
+    private fun PerformanceMenu(
+        stats: EditorStats,
+        lineWrapping: Boolean,
+        onToggleLineWrapping: () -> Unit,
+        onLoadLines: (Int) -> Unit,
+    ) {
         Column(modifier = Modifier.padding(4.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -150,6 +159,12 @@ class ComposeMainActivity : ComponentActivity() {
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
                     }
+                }
+                Button(onClick = onToggleLineWrapping) {
+                    Text(
+                        text = if (lineWrapping) "Wrap on" else "Wrap off",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
                 }
             }
             Text(

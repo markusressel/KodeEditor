@@ -98,7 +98,7 @@ internal fun KeyEvent.isFromTextKeyboard(): Boolean {
 }
 
 /**
- * The lines of the laid out text, as far as moving the cursor needs them
+ * The lines of the laid out text as they are shown, as far as moving the cursor needs them
  */
 internal interface TextLines {
     val lineCount: Int
@@ -107,6 +107,12 @@ internal interface TextLines {
     fun topOf(line: Int): Float
     fun xOf(offset: Int): Float
     fun offsetAt(line: Int, x: Float): Int
+
+    /** where the shown line of [offset] starts */
+    fun startOf(offset: Int): Int
+
+    /** the last position in the shown line of [offset] */
+    fun endOf(offset: Int): Int
 }
 
 /**
@@ -156,8 +162,8 @@ internal class KeyboardCursor {
             CursorMove.LineDown -> vertical(text, from, lines, lines.lineOf(from) + 1)
             CursorMove.PageUp -> vertical(text, from, lines, lines.lineAt(topOf(lines, from) - pageHeight))
             CursorMove.PageDown -> vertical(text, from, lines, lines.lineAt(topOf(lines, from) + pageHeight))
-            CursorMove.LineStart -> text.lastIndexOf('\n', from - 1) + 1
-            CursorMove.LineEnd -> text.indexOf('\n', from).let { if (it < 0) text.length else it }
+            CursorMove.LineStart -> lines.startOf(from)
+            CursorMove.LineEnd -> lines.endOf(from)
             CursorMove.TextStart -> 0
             CursorMove.TextEnd -> text.length
         }.coerceIn(0, text.length)

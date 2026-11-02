@@ -66,6 +66,9 @@ class KodeEditorState(
     /** told about every change of the text, wherever it came from */
     internal var spliceObserver: ((TextSplice) -> Unit)? = null
 
+    /** told about every change of the text too, for the wrapped rows */
+    internal var rowObserver: ((TextSplice) -> Unit)? = null
+
     /** the version without observing it, for code that is not a part of the UI */
     internal val rawVersion: Int get() = versionState.intValue
 
@@ -303,6 +306,7 @@ class KodeEditorState(
             lines.apply(old, splice)
             versionState.intValue++
             spliceObserver?.invoke(splice)
+            rowObserver?.invoke(splice)
         }
         selectionState = selection.coercedIn(currentText.length)
         compositionState = composition?.takeIf { !it.collapsed && it.max <= currentText.length }

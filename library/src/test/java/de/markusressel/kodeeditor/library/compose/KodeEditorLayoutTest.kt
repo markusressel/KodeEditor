@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -23,6 +24,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.text.style.TextDecoration
@@ -230,5 +233,75 @@ class KodeEditorLayoutTest {
         composeRule.waitForIdle()
         assertEquals(0.25f, smallest)
         assertEquals(0.25f, zoom)
+    }
+
+    private fun showWrapped(text: String) {
+        composeRule.setContent {
+            KodeEditor(
+                modifier = Modifier.size(200.dp),
+                state = remember { KodeEditorState(text) },
+                languageRuleBook = noRules,
+                colorScheme = noColors,
+                textStyle = TextStyle(fontFamily = FontFamily.Monospace),
+                onTextLayout = { layout = it },
+                lineWrapping = true,
+            )
+        }
+        composeRule.waitForIdle()
+        assertNotNull(layout)
+    }
+
+    @Test
+    fun `wrapped lines keep their line and take more height`() {
+        val long = "word ".repeat(200).trim()
+        showWrapped("first\n$long\nlast")
+        val layout = layout!!
+
+        assertEquals(3, layout.lineCount)
+        assertTrue(layout.getLineBottom(1) - layout.getLineTop(1) > layout.lineHeight)
+        assertEquals(layout.getLineBottom(1), layout.getLineTop(2))
+        assertEquals(1, layout.getLineForVerticalPosition(layout.getLineTop(1) + layout.lineHeight * 1.5f))
+    }
+
+    @Test
+    fun `wrapped lines need no sideways scrolling`() {
+        showWrapped("word ".repeat(200).trim())
+        val layout = layout!!
+        val width = with(composeRule.density) { 200.dp.toPx() }
+
+        assertTrue(layout.contentSize.width <= width)
+        assertTrue(layout.contentSize.height > layout.lineHeight)
+    }
+
+    @Test
+    fun `the cursor goes to the row of its position`() {
+        val text = "word ".repeat(200).trim()
+        showWrapped(text)
+        val layout = layout!!
+
+        val end = layout.getCursorRect(text.length)
+        assertTrue(end.top > 0f)
+        assertEquals(layout.contentSize.height.toFloat(), end.bottom, 1f)
+    }
+
+    @Test
+    fun `a tap behind a row that continues stays in that row`() {
+        val text = "word ".repeat(200).trim()
+        showWrapped(text)
+        val layout = layout!!
+
+        val position = layout.getOffsetForPosition(Offset(100_000f, layout.lineHeight / 2))
+        assertEquals(0f, layout.getCursorRect(position).top, 0.01f)
+    }
+
+    @Test
+    fun `a selection over several rows has a shape on each of them`() {
+        val text = "word ".repeat(200).trim()
+        showWrapped(text)
+        val layout = layout!!
+
+        val bounds = layout.getPathForRange(0, 200).getBounds()
+        assertEquals(0f, bounds.top, 0.01f)
+        assertTrue(bounds.bottom >= layout.lineHeight * 2)
     }
 }
