@@ -266,6 +266,8 @@ fun KodeEditor(
     var dragTarget by remember { mutableStateOf<Offset?>(null) }
     // the word a long press selected, dragging extends the selection from it
     var pressedWord by remember { mutableStateOf<TextRange?>(null) }
+    var flinging by remember { mutableStateOf(false) }
+    var stoppedFling by remember { mutableStateOf(false) }
     var editorCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val currentOnTextLayout by rememberUpdatedState(onTextLayout)
 
@@ -408,16 +410,18 @@ fun KodeEditor(
             override fun onDown(type: PointerType) {
                 touchInput = type == PointerType.Touch
                 cursorMenuRequested = false
+                stoppedFling = flinging
             }
 
             override fun onTap(position: Offset) {
-                if (!enabled) return
+                // this touch only stops the fling
+                if (!enabled || stoppedFling) return
                 focusAndShowKeyboard()
                 state.setSelection(TextRange(offsetAt(position)))
             }
 
             override fun onDoubleTap(position: Offset) {
-                if (!enabled) return
+                if (!enabled || stoppedFling) return
                 focusAndShowKeyboard()
                 state.setSelection(layout.getWordBoundary(offsetAt(position)))
             }
@@ -429,6 +433,8 @@ fun KodeEditor(
                 val word = if (type == PointerType.Mouse) TextRange(target) else layout.getWordBoundary(target)
                 if (type != PointerType.Mouse) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 state.setSelection(word)
+                // nothing to select here, so the menu offers what can be done at the cursor
+                cursorMenuRequested = word.collapsed && type != PointerType.Mouse
                 pressedWord = word
                 dragTarget = position
                 draggedHandle = HandleKind.SelectionEnd
@@ -567,26 +573,22 @@ fun KodeEditor(
             }
 
             KeyboardCommand.Backspace -> {
-                if (editable) {
-                    if (current.collapsed) {
-                        val start = previousCharacter(state.rawText, current.min)
-                        if (start < current.min) state.localEdit(start, current.min, "")
-                    } else {
-                        state.replaceSelection("")
-                    }
-                }
+                if (editable) deleteTo(state, previousCharacter(state.rawText, current.min))
                 editable
             }
 
             KeyboardCommand.Delete -> {
-                if (editable) {
-                    if (current.collapsed) {
-                        val end = nextCharacter(state.rawText, current.max)
-                        if (end > current.max) state.localEdit(current.max, end, "")
-                    } else {
-                        state.replaceSelection("")
-                    }
-                }
+                if (editable) deleteTo(state, nextCharacter(state.rawText, current.max))
+                editable
+            }
+
+            KeyboardCommand.BackspaceWord -> {
+                if (editable) deleteTo(state, previousWord(state.rawText, current.min))
+                editable
+            }
+
+            KeyboardCommand.DeleteWord -> {
+                if (editable) deleteTo(state, nextWord(state.rawText, current.max))
                 editable
             }
 
@@ -727,6 +729,8 @@ fun KodeEditor(
                 cursorFollower.onUserMovedView()
                 zoom = it
             },
+            coerceOffset = { EditorViewport.coerce(it, maxOffset) },
+            onFlingChanged = { flinging = it },
         ) {
             Box(modifier = Modifier.matchParentSize().padding(start = TEXT_START_PADDING)) {
                 SelectionLayer(
@@ -782,6 +786,16 @@ fun KodeEditor(
                 }
             }
         }
+    }
+}
+
+/** removes the selection, or without one the text up to [target] from the cursor */
+private fun deleteTo(state: KodeEditorState, target: Int) {
+    val selection = state.selection
+    when {
+        !selection.collapsed -> state.replaceSelection("")
+        target < selection.min -> state.localEdit(target, selection.min, "")
+        target > selection.max -> state.localEdit(selection.max, target, "")
     }
 }
 

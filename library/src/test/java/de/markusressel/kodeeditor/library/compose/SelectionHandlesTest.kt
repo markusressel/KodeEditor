@@ -22,6 +22,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
@@ -234,6 +235,56 @@ class SelectionHandlesTest {
         }
         composeRule.waitForIdle()
         assertEquals(TextRange(0, 13), value.selection)
+    }
+
+    /** the offset was only taken from the editor when it changed, so a pan beyond the end had to be undone first */
+    @Test
+    fun `a pan beyond the end of the text can be taken back at once`() {
+        show(manyLines)
+        tap()
+        val editor = composeRule.onNode(field)
+        repeat(4) { editor.performTouchInput { swipe(center, center - Offset(0f, 900f), 1000) } }
+        composeRule.waitForIdle()
+
+        editor.performTouchInput { click(Offset(5f, 5f)) }
+        composeRule.waitForIdle()
+        val atEnd = value.selection.start
+        assertTrue("the last lines should be visible, tapped at $atEnd", atEnd > manyLines.length / 2)
+
+        editor.performTouchInput { swipe(center, center + Offset(0f, 300f), 1000) }
+        composeRule.waitForIdle()
+        editor.performTouchInput { click(Offset(5f, 5f)) }
+        composeRule.waitForIdle()
+        assertTrue("view stayed at the end, tapped at ${value.selection.start}", value.selection.start < atEnd)
+    }
+
+    @Test
+    fun `a fast swipe keeps moving`() {
+        show(manyLines)
+        tap()
+        val editor = composeRule.onNode(field)
+        editor.performTouchInput { swipeUp(startY = centerY + 100f, endY = centerY - 100f, durationMillis = 50) }
+        composeRule.waitForIdle()
+        editor.performTouchInput { click(Offset(5f, 5f)) }
+        composeRule.waitForIdle()
+        // a slow pan of that distance stays within the first lines
+        val tappedAt = value.selection.start
+        assertTrue("moved to $tappedAt", tappedAt > manyLines.indexOf("line 15 "))
+    }
+
+    @Test
+    fun `a touch during a fling only stops it`() {
+        show(manyLines)
+        tap()
+        val before = value.selection
+        val editor = composeRule.onNode(field)
+        composeRule.mainClock.autoAdvance = false
+        editor.performTouchInput { swipeUp(startY = centerY + 100f, endY = centerY - 100f, durationMillis = 50) }
+        composeRule.mainClock.advanceTimeBy(100)
+        editor.performTouchInput { click(center) }
+        composeRule.mainClock.advanceTimeBy(1000)
+        assertEquals(before, value.selection)
+        composeRule.mainClock.autoAdvance = true
     }
 
     @Test

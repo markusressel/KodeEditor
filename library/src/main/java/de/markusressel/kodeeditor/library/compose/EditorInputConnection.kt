@@ -87,17 +87,10 @@ internal class EditorInputConnection(
     }
 
     override fun getExtractedText(request: ExtractedTextRequest?, flags: Int): ExtractedText {
-        val selection = state.selection
-        val start = (selection.min - MAX_TEXT_FOR_KEYBOARD / 2).coerceAtLeast(0)
-        val end = (start + MAX_TEXT_FOR_KEYBOARD).coerceAtMost(text.length)
-        return ExtractedText().apply {
-            this.text = this@EditorInputConnection.text.substring(start, end)
-            startOffset = start
-            partialStartOffset = -1
-            partialEndOffset = -1
-            selectionStart = (selection.start - start).coerceAtMost(end - start)
-            selectionEnd = (selection.end - start).coerceAtMost(end - start)
+        if (request != null && flags and InputConnection.GET_EXTRACTED_TEXT_MONITOR != 0) {
+            state.inputLink?.monitorExtractedText(request.token)
         }
+        return state.extractedText()
     }
 
     override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
@@ -204,13 +197,25 @@ internal class EditorInputConnection(
 
     override fun commitCompletion(text: CompletionInfo?): Boolean = false
 
-    override fun commitCorrection(correctionInfo: CorrectionInfo?): Boolean = false
+    // the text is changed by other calls, this is only for showing the correction
+    override fun commitCorrection(correctionInfo: CorrectionInfo?): Boolean = true
 
-    override fun performEditorAction(editorAction: Int): Boolean = false
+    // there is no action in a multi line editor, like a text view this makes a keyboard's enter key start a new line
+    override fun performEditorAction(editorAction: Int): Boolean {
+        commitText("\n", 1)
+        return true
+    }
 
     override fun performContextMenuAction(id: Int): Boolean = actions.onContextMenuAction(id)
 
-    override fun sendKeyEvent(event: KeyEvent): Boolean = actions.onKeyEvent(event)
+    override fun sendKeyEvent(event: KeyEvent): Boolean {
+        // an old way of keyboards to send text that no key stands for
+        @Suppress("DEPRECATION")
+        if (event.action == KeyEvent.ACTION_MULTIPLE && event.keyCode == KeyEvent.KEYCODE_UNKNOWN) {
+            return commitText(event.characters.orEmpty(), 1)
+        }
+        return actions.onKeyEvent(event)
+    }
 
     override fun clearMetaKeyStates(states: Int): Boolean = false
 
@@ -230,6 +235,22 @@ internal class EditorInputConnection(
     override fun commitContent(inputContentInfo: InputContentInfo, flags: Int, opts: Bundle?): Boolean = false
 }
 
+/** the text around the selection, the binder can not carry all of it */
+private fun KodeEditorState.extractedText(): ExtractedText {
+    val text = rawText
+    val range = selection
+    val start = (range.min - MAX_TEXT_FOR_KEYBOARD / 2).coerceAtLeast(0)
+    val end = (start + MAX_TEXT_FOR_KEYBOARD).coerceAtMost(text.length)
+    return ExtractedText().apply {
+        this.text = text.substring(start, end)
+        startOffset = start
+        partialStartOffset = -1
+        partialEndOffset = -1
+        selectionStart = (range.start - start).coerceAtMost(end - start)
+        selectionEnd = (range.end - start).coerceAtMost(end - start)
+    }
+}
+
 /**
  * Tells the keyboard about changes of the state that it needs to know about.
  */
@@ -238,6 +259,8 @@ internal class ViewInputLink(
     private val state: KodeEditorState,
 ) : InputLink {
 
+    private var extractedTextToken: Int? = null
+
     private val manager: InputMethodManager
         get() = view.context.getSystemService(InputMethodManager::class.java)
 
@@ -245,10 +268,16 @@ internal class ViewInputLink(
         val selection = state.selection
         val composition = state.composition
         manager.updateSelection(view, selection.start, selection.end, composition?.min ?: -1, composition?.max ?: -1)
+        extractedTextToken?.let { manager.updateExtractedText(view, it, state.extractedText()) }
     }
 
     override fun restart() {
+        extractedTextToken = null
         manager.restartInput(view)
+    }
+
+    override fun monitorExtractedText(token: Int) {
+        extractedTextToken = token
     }
 }
 

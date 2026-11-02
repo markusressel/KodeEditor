@@ -142,8 +142,9 @@ class KodeEditorState(
     /**
      * Applies changes that did not come from the user of this editor, e.g. from another user.
      *
-     * The selection and the composition move with the text, and the keyboard is told about it. Each splice refers to
-     * the text after the one before it.
+     * The selection and the composition move with the text, and the keyboard is told about it. Text inserted at the
+     * edge of the composition stays out of it, so the keyboard does not replace it with the next letter. Each splice
+     * refers to the text after the one before it.
      */
     fun applyRemote(splices: List<TextSplice>) = batch {
         splices.forEach { splice ->
@@ -152,16 +153,9 @@ class KodeEditorState(
             val cleaned = TextSplice(start, end - start, splice.inserted)
             undoStack.onRemote(cleaned)
             undoState++
-            val closeToCursor = cleaned.isCloseTo(selectionState)
-            val composing = compositionState
-            val touchesComposition = composing != null && cleaned.overlaps(composing)
-            replace(
-                splice = cleaned,
-                selection = selectionState.mapped(cleaned),
-                composition = if (touchesComposition || closeToCursor) null else composing?.mapped(cleaned),
-            )
-            // the keyboard keeps a copy of the text around the cursor, which is not valid anymore
-            if (closeToCursor || touchesComposition) restartInBatch = true
+            // The keyboard only hears where things are now. Starting it over would end what it does at the moment, and
+            // what it sends in that moment would get lost.
+            replace(cleaned, selectionState.mapped(cleaned), compositionState?.mappedInside(cleaned))
         }
     }
 
@@ -200,11 +194,31 @@ class KodeEditorState(
     /** replaces the selection with [text], and places the cursor behind it */
     fun replaceSelection(text: String) = localEdit(selectionState.min, selectionState.max, text)
 
-    /** the text between the given positions, as a local edit of the user that the keyboard does not know about */
+    /**
+     * Changes the text as if the user did it, e.g. for an action of the application: it can be undone, and is reported
+     * to the listeners. Only the part that differs is changed.
+     *
+     * @param text the new text
+     * @param selection the new selection
+     */
+    fun edit(text: String, selection: TextRange) = batch {
+        val splice = diff(currentText, text)
+        if (splice != null) {
+            editFromUser(splice, selection.coercedIn(text.length), null)
+            restartInBatch = true
+        } else {
+            setSelection(selection)
+        }
+    }
+
+    /**
+     * A change of the user that does not come through the keyboard, like a key of a hardware keyboard or paste. The
+     * keyboard learns the new selection. It is not started over, as that would end a key repeat, which arrives as key
+     * events one by one.
+     */
     internal fun localEdit(start: Int, end: Int, text: String, cursor: TextRange = TextRange(start + text.length)) =
         batch {
             editFromUser(TextSplice(start, end - start, text), cursor, null)
-            restartInBatch = true
         }
 
     /** takes back the last change of the user */
@@ -213,7 +227,6 @@ class KodeEditorState(
         replace(before.splice, before.selection, null)
         listeners.toList().forEach { it.onLocalEdit(before.splice) }
         undoState++
-        restartInBatch = true
     }
 
     /** does the last undone change of the user again */
@@ -222,7 +235,6 @@ class KodeEditorState(
         replace(after.splice, after.selection, null)
         listeners.toList().forEach { it.onLocalEdit(after.splice) }
         undoState++
-        restartInBatch = true
     }
 
     /** a change from the keyboard, which knows about it already */
@@ -298,19 +310,6 @@ class KodeEditorState(
     }
 
     private companion object {
-        /** a change this close to the cursor can change what the keyboard suggests */
-        const val KEYBOARD_CONTEXT = 64
-
-        fun TextSplice.isCloseTo(selection: TextRange): Boolean {
-            val end = start + removedLength
-            return end >= selection.min - KEYBOARD_CONTEXT && start <= selection.max + KEYBOARD_CONTEXT
-        }
-
-        fun TextSplice.overlaps(range: TextRange): Boolean {
-            val end = start + removedLength
-            return start <= range.max && end >= range.min
-        }
-
         fun diff(old: String, new: String): TextSplice? {
             if (old == new) return null
             val limit = minOf(old.length, new.length)
@@ -339,14 +338,25 @@ internal interface InputLink {
     /** the selection or composition changed, or the keyboard changed the text itself */
     fun update()
 
-    /** the text around the cursor changed without the keyboard knowing */
+    /** the whole text changed, the keyboard can start over */
     fun restart()
+
+    /** the keyboard wants to know the text around the cursor after each change, identified by [token] */
+    fun monitorExtractedText(token: Int) {}
 }
 
 internal fun TextRange.coercedIn(length: Int) = TextRange(start.coerceIn(0, length), end.coerceIn(0, length))
 
 /** where a range is after the change, it does not grow when text is inserted right at its edges */
 internal fun TextRange.mapped(splice: TextSplice) = TextRange(mapPosition(start, splice), mapPosition(end, splice))
+
+/** like [mapped], but text inserted at either edge stays out of the range */
+internal fun TextRange.mappedInside(splice: TextSplice): TextRange? {
+    val isInsertion = splice.removedLength == 0
+    val first = if (isInsertion && min == splice.start) min + splice.inserted.length else mapPosition(min, splice)
+    val last = mapPosition(max, splice)
+    return if (first < last) TextRange(first, last) else null
+}
 
 internal fun mapPosition(position: Int, splice: TextSplice): Int {
     val end = splice.start + splice.removedLength

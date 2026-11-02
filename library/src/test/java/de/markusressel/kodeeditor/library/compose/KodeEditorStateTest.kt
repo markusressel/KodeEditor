@@ -82,20 +82,25 @@ class KodeEditorStateTest {
         assertEquals(TextRange(1), state.selection)
     }
 
+    /** what the keyboard sends next replaces the composition, which must not hold the text of someone else */
     @Test
-    fun `a far away remote change keeps the composition, a close one ends it`() {
-        val far = "x".repeat(5000)
-        val state = KodeEditorState("word$far", TextRange(4))
-        state.setSelectionFromKeyboard(TextRange(4), TextRange(0, 4))
-        state.applyRemote(listOf(TextSplice(4000, 0, "y")))
-        assertEquals(TextRange(0, 4), state.composition)
-        state.applyRemote(listOf(TextSplice(10, 0, "y")))
+    fun `remote text at the edges of the composition stays out of it`() {
+        val state = KodeEditorState("say word", TextRange(8))
+        state.setSelectionFromKeyboard(TextRange(8), TextRange(4, 8))
+        state.applyRemote(listOf(TextSplice(4, 0, "A")))
+        assertEquals(TextRange(5, 9), state.composition)
+        state.applyRemote(listOf(TextSplice(9, 0, "B")))
+        assertEquals(TextRange(5, 9), state.composition)
+        state.applyRemote(listOf(TextSplice(6, 1, "")))
+        assertEquals(TextRange(5, 8), state.composition)
+        state.applyRemote(listOf(TextSplice(5, 3, "")))
         assertNull(state.composition)
     }
 
+    /** a restart ends a key repeat, and what the keyboard sends during it gets lost */
     @Test
-    fun `the keyboard is told to start over when text changes close to the cursor`() {
-        val state = KodeEditorState("x".repeat(5000), TextRange(0))
+    fun `the keyboard is only started over when the whole text was replaced`() {
+        val state = KodeEditorState("x".repeat(100), TextRange(50))
         val calls = mutableListOf<String>()
         state.inputLink = object : InputLink {
             override fun update() {
@@ -106,12 +111,34 @@ class KodeEditorStateTest {
                 calls += "restart"
             }
         }
-        state.applyRemote(listOf(TextSplice(4000, 0, "y")))
-        assertEquals("update", calls.last())
-        state.applyRemote(listOf(TextSplice(10, 0, "y")))
-        assertEquals("restart", calls.last())
+        state.applyRemote(listOf(TextSplice(50, 0, "y")))
         state.replaceSelection("z")
+        state.localEdit(0, 1, "")
+        state.undo()
+        state.redo()
+        assertEquals(List(calls.size) { "update" }, calls)
+        assertTrue(calls.isNotEmpty())
+
+        state.setText("something else")
         assertEquals("restart", calls.last())
+        state.edit("something new", TextRange(3))
+        assertEquals("restart", calls.last())
+    }
+
+    @Test
+    fun `an edit of the application is reported, can be undone and only changes what differs`() {
+        val state = KodeEditorState("hello world", TextRange(5))
+        val splices = mutableListOf<TextSplice>()
+        state.addListener(object : KodeEditorListener {
+            override fun onLocalEdit(splice: TextSplice) {
+                splices += splice
+            }
+        })
+        state.edit("hello big world", TextRange(9))
+        assertEquals(listOf(TextSplice(6, 0, "big ")), splices)
+        assertEquals(TextRange(9), state.selection)
+        state.undo()
+        assertEquals("hello world", state.text)
     }
 
     @Test

@@ -185,6 +185,15 @@ class KodeEditorKeyboardTest {
     }
 
     @Test
+    fun ctrlBackspaceAndDeleteRemoveAWord() {
+        show("one two three", TextRange(7))
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Backspace) } }
+        assertEquals("one  three", value.text)
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Delete) } }
+        assertEquals("one ", value.text)
+    }
+
+    @Test
     fun selectAllAndDelete() {
         show("abc", TextRange(1))
         keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.A) } }

@@ -150,6 +150,30 @@ class EditorInputConnectionTest {
     }
 
     @Test
+    fun `the enter key of a keyboard that sends an action makes a new line`() {
+        val state = KodeEditorState("ab", TextRange(1))
+        EditorInputConnection(state, noActions).performEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_DONE)
+        assertEquals("a\nb", state.rawText)
+    }
+
+    @Test
+    fun `a keyboard that monitors the text is told its token`() {
+        val state = KodeEditorState("ab")
+        var monitored: Int? = null
+        state.inputLink = object : InputLink {
+            override fun update() = Unit
+            override fun restart() = Unit
+            override fun monitorExtractedText(token: Int) {
+                monitored = token
+            }
+        }
+        val request = android.view.inputmethod.ExtractedTextRequest().apply { token = 7 }
+        EditorInputConnection(state, noActions)
+            .getExtractedText(request, android.view.inputmethod.InputConnection.GET_EXTRACTED_TEXT_MONITOR)
+        assertEquals(7, monitored)
+    }
+
+    @Test
     fun `surrogate pairs are deleted as a whole by code points`() {
         val state = KodeEditorState("a😀b", TextRange(3))
         EditorInputConnection(state, noActions).deleteSurroundingTextInCodePoints(1, 0)

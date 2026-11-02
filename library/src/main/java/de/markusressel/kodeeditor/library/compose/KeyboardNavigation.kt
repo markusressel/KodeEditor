@@ -20,6 +20,8 @@ internal sealed interface KeyboardCommand {
     data object InsertLine : KeyboardCommand
     data object Backspace : KeyboardCommand
     data object Delete : KeyboardCommand
+    data object BackspaceWord : KeyboardCommand
+    data object DeleteWord : KeyboardCommand
     data object Copy : KeyboardCommand
     data object Cut : KeyboardCommand
     data object Paste : KeyboardCommand
@@ -68,6 +70,8 @@ internal fun keyboardCommandFor(
     }
     if (!ctrl || alt) return null
     return when (key) {
+        Key.Backspace -> KeyboardCommand.BackspaceWord
+        Key.Delete -> KeyboardCommand.DeleteWord
         Key.A -> KeyboardCommand.SelectAll
         Key.C -> KeyboardCommand.Copy
         Key.X -> KeyboardCommand.Cut
