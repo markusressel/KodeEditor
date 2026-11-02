@@ -6,32 +6,34 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.*
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -41,19 +43,22 @@ import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import de.markusressel.kodehighlighter.core.rule.RuleHelper
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
-import de.markusressel.kodehighlighter.core.ui.KodeTextField
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 
 private const val KEYBOARD_ZOOM_STEP = 1.1f
+private const val CURSOR_BLINK_MS = 500L
+private val CURSOR_WIDTH = 2.dp
 
 /**
  * Compose version of the KodeEditorLayout
  *
  * @param modifier compose modifiers
  * @param text the current text of the editor
- * @param languageRuleBook the language rule book to use for highlighting
- * @param colorScheme the color scheme to apply
+ * @param languageRuleBook the language rule book to use for highlighting, remember it so the highlighting of an
+ * unchanged text can be reused
+ * @param colorScheme the color scheme to apply, remember it for the same reason
  * @param onValueChange callback for changes to the text and/or cursor selection
  * @param colors the color scheme to use for highlighting
  * @param textStyle the text style used for the editor text
@@ -94,6 +99,7 @@ fun KodeEditor(
     var focused by remember { mutableStateOf(false) }
     val cursorFollower = remember { CursorFollower() }
     val keyboardCursor = remember { KeyboardCursor() }
+    val highlighting = remember(languageRuleBook, colorScheme) { CachedHighlighting(languageRuleBook, colorScheme) }
 
     LaunchedEffect(minZoom, maxZoom) {
         zoom = zoom.coerceIn(minZoom, maxZoom)
@@ -104,30 +110,17 @@ fun KodeEditor(
         .then(modifier)
         // the text only covers the document, which is smaller than the editor for a short text or a low zoom
         .background(colors.textFieldBackgroundColor().value)) {
-        var lineNumberWidth by remember {
-            mutableIntStateOf(0)
-        }
-        LineNumbers(
-            modifier = Modifier
-                .zIndex(1f)
-                .wrapContentSize(align = Alignment.TopStart, unbounded = true)
-                .onGloballyPositioned {
-                    lineNumberWidth = it.size.width
-                }
-                .graphicsLayer(
-                    transformOrigin = TransformOrigin(0f, 0f),
-                    scaleX = zoom, scaleY = zoom,
-                    translationX = 0f,
-                    translationY = -offset.y * zoom,
-                ),
-            text = text.text,
-            textStyle = textStyle,
-            textColor = colors.lineNumberTextColor().value,
-            backgroundColor = colors.lineNumberBackgroundColor().value,
+        val fieldColors = colors.textFieldColors(enabled = enabled).value
+        val fieldTextColor = fieldColors.textColor(enabled).value
+        val fieldTextStyle = textStyle.copy(color = textStyle.color.takeOrElse { fieldTextColor })
+        val lineNumberStyle = fieldTextStyle.copy(
+            color = colors.lineNumberTextColor().value.takeOrElse { fieldTextStyle.color },
         )
+        val lineCount = remember(text.text) { text.text.count { it == '\n' } + 1 }
+        val lineNumberWidth by rememberUpdatedState(rememberLineNumbersWidth(lineCount, lineNumberStyle))
 
         val computedPadding = LocalDensity.current.run {
-            (lineNumberWidth).coerceAtLeast(0).toDp()
+            lineNumberWidth.toDp()
         }
 
         // Text Editor
@@ -148,6 +141,25 @@ fun KodeEditor(
         LaunchedEffect(maxOffset) {
             offset = EditorViewport.coerce(offset, maxOffset)
         }
+
+        val drawWindow = remember(textStartPadding) {
+            derivedStateOf {
+                DrawWindow.around(Offset(offset.x - textStartPadding, offset.y), viewport.visibleSize)
+            }
+        }
+
+        LineNumbers(
+            modifier = Modifier
+                .zIndex(1f)
+                .matchParentSize(),
+            layout = textLayoutResult,
+            width = lineNumberWidth,
+            textStyle = lineNumberStyle,
+            backgroundColor = colors.lineNumberBackgroundColor().value,
+            window = drawWindow,
+            zoom = { zoom },
+            offsetY = { offset.y },
+        )
 
         // Follow the cursor while the user edits: when the selection moves or the editor changes its size.
         // Panning or remote changes of the text alone don't scroll.
@@ -189,7 +201,7 @@ fun KodeEditor(
                 zoom = it
             },
         ) {
-            KodeTextField(
+            BasicTextField(
                 modifier = Modifier
                     .onFocusChanged { focused = it.isFocused }
                     // goes before the text field, which would move the focus on the arrow keys
@@ -244,11 +256,11 @@ fun KodeEditor(
                     .background(colors.textFieldBackgroundColor().value)
                     .padding(start = 4.dp, end = 4.dp),
                 value = text,
-                languageRuleBook = languageRuleBook,
-                colorScheme = colorScheme,
                 onValueChange = onValueChange,
-                colors = colors.textFieldColors(enabled = enabled).value,
-                textStyle = textStyle,
+                visualTransformation = highlighting,
+                // the blinking of its own cursor would record the whole document again each time
+                cursorBrush = SolidColor(Color.Unspecified),
+                textStyle = fieldTextStyle,
                 enabled = enabled,
                 readOnly = readOnly,
                 onTextLayout = {
@@ -257,9 +269,33 @@ fun KodeEditor(
                 },
                 decorationBox = { innerTextField ->
                     Box(propagateMinConstraints = true) {
-                        innerTextField()
+                        // only here for input, selection and the text layout, see VisibleLines
+                        Box(
+                            modifier = Modifier.drawWithContent { },
+                            propagateMinConstraints = true,
+                        ) {
+                            innerTextField()
+                        }
                         textLayoutResult?.let {
-                            Box(modifier = Modifier.sizedLike(totalSize)) {
+                            VisibleLines(
+                                layout = it,
+                                selection = text.selection.takeIf { focused },
+                                textStyle = fieldTextStyle,
+                                window = drawWindow,
+                            )
+                            if (focused && enabled && !readOnly && text.selection.collapsed) {
+                                EditorCursor(
+                                    layout = it,
+                                    text = text.text,
+                                    position = text.selection.start,
+                                    color = fieldColors.cursorColor().value,
+                                )
+                            }
+                            Box(
+                                modifier = Modifier.placedAt {
+                                    IntRect(0, 0, totalSize.width, totalSize.height)
+                                },
+                            ) {
                                 overlay(it)
                             }
                         }
@@ -272,14 +308,33 @@ fun KodeEditor(
 
 
 /**
- * Measures the content at [size] and takes no space in the parent. The size of a document can exceed what
- * [Constraints] can represent (about 262000 px in one direction), so nothing can be measured at that size.
+ * The cursor of the editor. It has its own small layer, so blinking only changes the alpha of that layer.
  */
-private fun Modifier.sizedLike(size: IntSize) = layout { measurable, constraints ->
-    val placeable = measurable.measure(Constraints.fixed(size.width, size.height))
-    layout(constraints.minWidth, constraints.minHeight) {
-        placeable.place(0, 0)
+@Composable
+private fun EditorCursor(layout: TextLayoutResult, text: String, position: Int, color: Color) {
+    var alpha by remember { mutableFloatStateOf(1f) }
+    val width = LocalDensity.current.run { CURSOR_WIDTH.roundToPx() }.coerceAtLeast(1)
+
+    if (LocalWindowInfo.current.isWindowFocused) {
+        LaunchedEffect(text, position) {
+            alpha = 1f
+            while (true) {
+                delay(CURSOR_BLINK_MS)
+                alpha = 1f - alpha
+            }
+        }
     }
+
+    Box(
+        modifier = Modifier
+            .placedAt {
+                val rect = layout.getCursorRect(position.coerceIn(0, layout.layoutInput.text.length))
+                val left = rect.left.roundToInt()
+                IntRect(left, rect.top.roundToInt(), left + width, rect.bottom.roundToInt())
+            }
+            .graphicsLayer { this.alpha = alpha }
+            .background(color),
+    )
 }
 
 private data class DummyData(

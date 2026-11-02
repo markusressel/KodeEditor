@@ -21,7 +21,15 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pinch
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.test.core.app.ApplicationProvider
+import de.markusressel.kodehighlighter.core.rule.RuleMatch
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -74,6 +82,64 @@ class KodeEditorLayoutTest {
     @Test
     fun `a document with 10000 lines can be laid out`() {
         show((1..10_000).joinToString("\n") { "line number $it with some text on it" })
+    }
+
+    @Test
+    fun `each line gets its text and the part of the styles within it`() {
+        val style = SpanStyle(color = Color.Red)
+        val text = AnnotatedString("one\n\ntwo", listOf(AnnotatedString.Range(style, 1, 6)))
+        val result = lineTexts(styledLayout(text), 0..2)
+        assertEquals(listOf("one", "", "two"), result.map { it.text })
+        assertEquals(listOf(AnnotatedString.Range(style, 1, 3)), result[0].spanStyles)
+        assertEquals(emptyList<AnnotatedString.Range<SpanStyle>>(), result[1].spanStyles)
+        assertEquals(listOf(AnnotatedString.Range(style, 0, 1)), result[2].spanStyles)
+    }
+
+    @Test
+    fun `the highlighting only runs when the text changes`() {
+        var runs = 0
+        val countingRules = object : LanguageRuleBook {
+            private val rule = object : LanguageRule {
+                override fun findMatches(text: CharSequence): List<RuleMatch> {
+                    runs++
+                    return emptyList()
+                }
+            }
+
+            override fun getRules() = listOf<LanguageRule>(rule)
+        }
+        var value by mutableStateOf(TextFieldValue("some text"))
+        composeRule.setContent {
+            KodeEditor(
+                modifier = Modifier.size(400.dp),
+                text = value,
+                languageRuleBook = countingRules,
+                colorScheme = noColors,
+                onValueChange = { value = it },
+            )
+        }
+        composeRule.waitForIdle()
+        assertEquals(1, runs)
+
+        value = value.copy(selection = TextRange(2))
+        composeRule.waitForIdle()
+        assertEquals(1, runs)
+
+        value = value.copy(text = "some more text")
+        composeRule.waitForIdle()
+        assertEquals(2, runs)
+    }
+
+    private fun styledLayout(text: AnnotatedString): TextLayoutResult {
+        lateinit var result: TextLayoutResult
+        composeRule.runOnUiThread {
+            result = TextMeasurer(
+                defaultFontFamilyResolver = createFontFamilyResolver(ApplicationProvider.getApplicationContext()),
+                defaultDensity = composeRule.density,
+                defaultLayoutDirection = LayoutDirection.Ltr,
+            ).measure(text, softWrap = false)
+        }
+        return result
     }
 
     /** neither direction alone is too large here, only the combination can not be represented in constraints */
