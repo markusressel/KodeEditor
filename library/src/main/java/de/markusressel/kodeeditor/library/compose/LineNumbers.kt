@@ -36,8 +36,7 @@ fun LineNumbers(
                 .background(color = backgroundColor)
                 .padding(start = 4.dp, end = 4.dp),
             text = lineNumbers,
-            fontSize = textStyle.fontSize,
-            lineHeight = textStyle.lineHeight,
+            style = textStyle,
             softWrap = false,
             color = textColor,
             textAlign = TextAlign.End,

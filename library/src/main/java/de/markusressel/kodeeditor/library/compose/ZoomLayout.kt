@@ -14,46 +14,54 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
+/**
+ * Pans and zooms its content with touch gestures.
+ *
+ * @param modifier compose modifiers
+ * @param zoom the current zoom factor
+ * @param minZoom the smallest zoom factor a gesture can reach
+ * @param maxZoom the largest zoom factor a gesture can reach
+ * @param offset the current offset, the point of the content shown in the top left corner
+ * @param onOffsetChanged called with the new offset
+ * @param onZoomChanged called with the new zoom factor, before [onOffsetChanged] of the same gesture event
+ * @param content the content to pan and zoom
+ */
 @Composable
 fun ZoomLayout(
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
-    minZoom: Float = 0.01f,
+    minZoom: Float = 0.25f,
     maxZoom: Float = 10f,
     offset: Offset = Offset.Zero,
     onOffsetChanged: (Offset) -> Unit,
     onZoomChanged: (Float) -> Unit,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    // The gesture detector outlives recompositions, so it must read the current values. Several events can arrive
+    // before the next recomposition, so it also keeps its own result until then, or it would lose their movement.
+    var currentZoom by remember { mutableFloatStateOf(zoom) }.apply { floatValue = zoom }
+    var currentOffset by remember { mutableStateOf(offset) }.apply { value = offset }
+    val currentOnOffsetChanged by rememberUpdatedState(onOffsetChanged)
+    val currentOnZoomChanged by rememberUpdatedState(onZoomChanged)
+
     Box(
         modifier = Modifier
-            .pointerInput(Unit) {
-                detectTransformGestures { centroid, pan, gestureZoom, gestureRotate ->
-
-                    val oldScale = zoom
-                    val newScale = zoom * gestureZoom
-
-                    // For natural zooming and rotating, the centroid of the gesture should
-                    // be the fixed point where zooming and rotating occurs.
-                    // We compute where the centroid was (in the pre-transformed coordinate
-                    // space), and then compute where it will be after this delta.
-                    // We then compute what the new offset should be to keep the centroid
-                    // visually stationary for rotating and zooming, and also apply the pan.
-                    val tOffset = (offset + centroid / oldScale) - (centroid / newScale + pan / oldScale)
-
-                    if (offset != tOffset) {
-                        onOffsetChanged(tOffset)
-                    }
-
-                    val newZoom = (newScale).coerceIn(minZoom, maxZoom)
-                    if (zoom != newZoom) {
-                        onZoomChanged(newZoom)
-                    }
+            .pointerInput(minZoom, maxZoom) {
+                detectTransformGestures { centroid, pan, gestureZoom, _ ->
+                    val oldZoom = currentZoom
+                    val oldOffset = currentOffset
+                    val newZoom = (oldZoom * gestureZoom).coerceIn(minZoom, maxZoom)
+                    val newOffset = zoomedOffset(oldOffset, oldZoom, newZoom, centroid, pan)
+                    currentZoom = newZoom
+                    currentOffset = newOffset
+                    if (newZoom != oldZoom) currentOnZoomChanged(newZoom)
+                    if (newOffset != oldOffset) currentOnOffsetChanged(newOffset)
                 }
             }
             .graphicsLayer(
                 transformOrigin = TransformOrigin(0f, 0f),
-                scaleX = zoom, scaleY = zoom,
+                scaleX = zoom,
+                scaleY = zoom,
                 translationX = -offset.x * zoom,
                 translationY = -offset.y * zoom,
             )
@@ -61,6 +69,13 @@ fun ZoomLayout(
     ) {
         content()
     }
+}
+
+/**
+ * The offset that keeps the point of the content under [centroid] under the fingers, which moved by [pan].
+ */
+internal fun zoomedOffset(offset: Offset, oldZoom: Float, newZoom: Float, centroid: Offset, pan: Offset): Offset {
+    return offset + centroid / oldZoom - (centroid + pan) / newZoom
 }
 
 @Preview
