@@ -12,7 +12,7 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 
 ## Build
 
-- CI (`.github/workflows/build.yml`) runs `./gradlew app:assembleDebug` and `./gradlew library:testDebugUnitTest` with JDK 21. JitPack also uses JDK 21 (`.jitpack.yml`).
+- CI (`.github/workflows/build.yml`) runs `./gradlew app:assembleDebug` and `./gradlew library:testDebugUnitTest app:testDebugUnitTest` with JDK 21. JitPack also uses JDK 21 (`.jitpack.yml`).
 - On `master`, the `Publish` job releases the release APK of the demo app, built with R8 and signed with the debug key, as a pre-release `build-<n>` for Obtainium and keeps the newest 5. Library releases stay normal releases with a version tag, so they remain the latest release.
 - The version code of the demo app is the CI run number, and 1 for local builds.
 - Compose UI tests of the library run on the JVM with Robolectric.

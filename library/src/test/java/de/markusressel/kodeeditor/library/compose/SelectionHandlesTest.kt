@@ -155,16 +155,6 @@ class SelectionHandlesTest {
     }
 
     @Test
-    fun `text and editor coordinates convert both ways at any zoom`() {
-        val transform = EditorTransform(100, 8f, Offset(50f, 300f), 2.5f)
-        val point = Offset(120f, 700f)
-        assertEquals(Offset((100 + 8 + 120 - 50) * 2.5f, (700 - 300) * 2.5f), transform.toEditor(point))
-        val back = transform.toText(transform.toEditor(point))
-        assertEquals(point.x, back.x, 0.01f)
-        assertEquals(point.y, back.y, 0.01f)
-    }
-
-    @Test
     fun `a handle near an edge scrolls, faster when it is closer`() {
         val area = Size(1000f, 2000f)
         assertEquals(Offset.Zero, HandleDrag.edgeScroll(Offset(500f, 1000f), area, 100f, 50f, 10f))

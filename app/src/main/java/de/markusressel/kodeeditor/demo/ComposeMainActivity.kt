@@ -1,5 +1,6 @@
 package de.markusressel.kodeeditor.demo
 
+import de.markusressel.kodeeditor.library.compose.rememberLineNumberColumn
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
@@ -64,6 +66,10 @@ class ComposeMainActivity : ComponentActivity() {
                         mutableStateOf(TextFieldValue(initialText))
                     }
 
+                    val columnWidth = with(LocalDensity.current) { 20.dp.roundToPx() }
+                    val warnings = remember(columnWidth) { WarningColumn(columnWidth, Color(0xFFFFC107)) }
+                    val bookmarks = remember(columnWidth) { BookmarkColumn(columnWidth, Teal200) }
+
                     PerformanceMenu(
                         stats = stats,
                         lineWrapping = lineWrapping,
@@ -71,7 +77,21 @@ class ComposeMainActivity : ComponentActivity() {
                         onLoadLines = { lines ->
                             val sample = readResourceFileAsText(R.raw.sample_text).lines()
                             text = TextFieldValue((0 until lines).joinToString("\n") { sample[it % sample.size] })
+                            bookmarks.clear()
+                            warnings.clearSelection()
                         },
+                    )
+
+                    LaunchedEffect(text.text) {
+                        warnings.warnings = withContext(Dispatchers.Default) { findWarnings(text.text) }
+                    }
+
+                    Text(
+                        modifier = Modifier.padding(4.dp),
+                        text = warnings.selectedMessage
+                            ?: "Tap \u25B2 to read it, the left edge to bookmark",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
                     )
 
                     LaunchedEffect(text.text) {
@@ -83,6 +103,13 @@ class ComposeMainActivity : ComponentActivity() {
                         }
                     }
 
+                    val editorTextStyle = LocalTextStyle.current.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = currentFontSize.sp,
+                        lineHeight = currentFontSize.sp
+                    )
+
                     KodeEditor(
                         modifier = Modifier
                             .fillMaxSize()
@@ -91,18 +118,23 @@ class ComposeMainActivity : ComponentActivity() {
                         colorScheme = colorScheme,
                         text = text,
                         onValueChange = {
-                            if (it.text != text.text) stats.editStartedAt = System.nanoTime()
+                            if (it.text != text.text) {
+                                stats.editStartedAt = System.nanoTime()
+                                val edit = LineEdit(text.text, it.text)
+                                bookmarks.onEdit(edit)
+                                warnings.onEdit(edit)
+                            }
                             text = it
                         },
                         onTextLayout = { stats.onTextLayout() },
-                        textStyle = LocalTextStyle.current.copy(
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = currentFontSize.sp,
-                            lineHeight = currentFontSize.sp
-                        ),
+                        textStyle = editorTextStyle,
                         colors = KodeEditorDefaults.editorColors(),
                         lineWrapping = lineWrapping,
+                        gutterColumns = listOf(
+                            bookmarks,
+                            warnings,
+                            rememberLineNumberColumn(editorTextStyle, KodeEditorDefaults.editorColors()),
+                        ),
                         overlay = { layout ->
                             // fake cursor and selection of another user
                             val selectedText = "syntax highlighting"

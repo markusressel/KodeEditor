@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -21,6 +22,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -116,6 +118,7 @@ private val TEXT_START_PADDING = 4.dp
  * @param lineWrapping whether lines longer than the width of the editor continue in the next row, instead of the view
  * scrolling sideways. They keep one line number. A monospaced font makes this cheap for long documents, all other
  * fonts have to measure each long line
+ * @param gutterColumns what the bar next to the text shows, from left to right. No columns remove the bar
  */
 @Composable
 fun KodeEditor(
@@ -135,6 +138,7 @@ fun KodeEditor(
     maxZoom: Float = 10f,
     autoCorrect: Boolean = false,
     lineWrapping: Boolean = false,
+    gutterColumns: List<KodeEditorGutterColumn> = listOf(rememberLineNumberColumn(textStyle, colors, enabled)),
 ) {
     val state = remember { KodeEditorState(text.text, text.selection) }
     val controlled = remember(state) { ControlledValue(state) }
@@ -160,6 +164,7 @@ fun KodeEditor(
         maxZoom = maxZoom,
         autoCorrect = autoCorrect,
         lineWrapping = lineWrapping,
+        gutterColumns = gutterColumns,
     )
 }
 
@@ -238,6 +243,7 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param lineWrapping whether lines longer than the width of the editor continue in the next row, instead of the view
  * scrolling sideways. They keep one line number. A monospaced font makes this cheap for long documents, all other
  * fonts have to measure each long line
+ * @param gutterColumns what the bar next to the text shows, from left to right. No columns remove the bar
  */
 @Composable
 fun KodeEditor(
@@ -256,6 +262,7 @@ fun KodeEditor(
     maxZoom: Float = 10f,
     autoCorrect: Boolean = false,
     lineWrapping: Boolean = false,
+    gutterColumns: List<KodeEditorGutterColumn> = listOf(rememberLineNumberColumn(textStyle, colors, enabled)),
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableFloatStateOf(1f.coerceIn(minZoom, maxZoom)) }
@@ -344,25 +351,19 @@ fun KodeEditor(
     val fieldColors = colors.textFieldColors(enabled = enabled).value
     val fieldTextColor = fieldColors.textColor(enabled).value
     val fieldTextStyle = textStyle.copy(color = textStyle.color.takeOrElse { fieldTextColor })
-    val lineNumberStyle = fieldTextStyle.copy(
-        color = colors.lineNumberTextColor().value.takeOrElse { fieldTextStyle.color },
-    )
-    val lineCount by remember(state) { derivedStateOf { state.lineCount } }
-    val lineNumberWidth by rememberUpdatedState(rememberLineNumbersWidth(lineCount, lineNumberStyle))
-
-    val computedPadding = LocalDensity.current.run {
-        lineNumberWidth.toDp()
+    val gutterWidth by remember(state, gutterColumns) {
+        derivedStateOf { gutterColumns.sumOf { it.width(state.lineCount) } }
     }
 
     // Text Editor
     var totalSize by remember { mutableStateOf(IntSize.Zero) }
     val textStartPadding = LocalDensity.current.run { TEXT_START_PADDING.toPx() }
-    val viewport by remember {
-        derivedStateOf { EditorViewport(totalSize, lineNumberWidth, zoom) }
+    val geometry by remember(textStartPadding) {
+        derivedStateOf { EditorGeometry(totalSize, gutterWidth, textStartPadding, zoom) }
     }
     val drawWindow = remember(textStartPadding) {
         derivedStateOf {
-            DrawWindow.around(Offset(offset.x - textStartPadding, offset.y), viewport.visibleSize)
+            DrawWindow.around(Offset(offset.x - textStartPadding, offset.y), geometry.visibleSize)
         }
     }
 
@@ -374,7 +375,7 @@ fun KodeEditor(
     }
     val wrapWidth = remember(textStartPadding) {
         derivedStateOf {
-            val visible = EditorViewport(totalSize, lineNumberWidth, settledZoom).visibleSize.width
+            val visible = geometry.copy(zoom = settledZoom).visibleSize.width
             floor(visible - 2 * textStartPadding.roundToInt()).coerceAtLeast(0f)
         }
     }
@@ -404,20 +405,20 @@ fun KodeEditor(
     val maxOffset by remember(layout, textStartPadding) {
         derivedStateOf {
             val size = layout.contentSize
-            viewport.maxOffset(IntSize(size.width + 2 * textStartPadding.roundToInt(), size.height))
+            geometry.maxOffset(IntSize(size.width + 2 * textStartPadding.roundToInt(), size.height))
         }
     }
 
     // the text at the top of the view stays there when the lines wrap differently
     LaunchedEffect(layout, wrapWidth.value) {
         layout.takePositionAfterResize(offset.y)?.let { y ->
-            offset = EditorViewport.coerce(offset.copy(y = y), maxOffset)
+            offset = EditorGeometry.coerce(offset.copy(y = y), maxOffset)
         }
     }
 
     // the text can get shorter and the zoom can change, the view must not stay beyond the end of the text
     LaunchedEffect(maxOffset) {
-        offset = EditorViewport.coerce(offset, maxOffset)
+        offset = EditorGeometry.coerce(offset, maxOffset)
     }
 
     val selection = state.selection
@@ -433,16 +434,20 @@ fun KodeEditor(
         offset = CursorVisibility.offsetFor(
             offset = offset,
             cursor = layout.getCursorRect(selection.end).translate(textStartPadding, 0f),
-            viewport = viewport.visibleSize,
+            viewport = geometry.visibleSize,
             maxOffset = maxOffset,
         )
     }
 
-    val transform = {
-        EditorTransform(lineNumberWidth, textStartPadding, offset, zoom)
-    }
+    fun offsetAt(position: Offset) = layout.getOffsetForPosition(geometry.toText(position, offset))
 
-    fun offsetAt(position: Offset) = layout.getOffsetForPosition(transform().toText(position))
+    /** @return true if a column of the bar took the tap */
+    fun tapGutter(position: Offset): Boolean {
+        if (position.x >= geometry.gutterOnScreen) return false
+        val lines = layout.lineCount
+        val column = gutterColumnAt(gutterColumns, lines, position.x / geometry.gutterScale) ?: return false
+        return column.onTap(layout.getLineForVerticalPosition(geometry.toText(position, offset).y))
+    }
 
     val gestures = remember(state, layout, enabled, readOnly) {
         object : EditorGestureHandler {
@@ -459,13 +464,14 @@ fun KodeEditor(
 
             override fun onTap(position: Offset) {
                 // this touch only stops the fling
-                if (!enabled || stoppedFling) return
+                if (!enabled || stoppedFling || tapGutter(position)) return
                 focusAndShowKeyboard()
                 state.setSelection(TextRange(offsetAt(position)))
             }
 
             override fun onDoubleTap(position: Offset) {
-                if (!enabled || stoppedFling) return
+                // two quick taps on a button of the bar are two taps
+                if (!enabled || stoppedFling || tapGutter(position)) return
                 focusAndShowKeyboard()
                 state.setSelection(layout.getWordBoundary(offsetAt(position)))
             }
@@ -502,8 +508,8 @@ fun KodeEditor(
     /** the point the handle at this text position points at, null outside the visible text */
     fun handleAnchor(position: Int): Offset? {
         val cursor = layout.getCursorRect(position)
-        val point = transform().toEditor(cursor.bottomCenter)
-        val visibleX = point.x >= lineNumberWidth * zoom && point.x <= totalSize.width + lineNumberWidth
+        val point = geometry.toEditor(cursor.bottomCenter, offset)
+        val visibleX = point.x >= geometry.gutterOnScreen && point.x <= totalSize.width
         return point.takeIf { visibleX && it.y >= 0f && it.y <= totalSize.height }
     }
 
@@ -513,7 +519,7 @@ fun KodeEditor(
             gestures.onSelectionDrag(target)
             return
         }
-        val point = transform().toText(target)
+        val point = geometry.toText(target, offset)
         val position = layout.getOffsetForPosition(Offset(point.x, point.y - layout.lineHeight / 2))
         val current = state.selection
         state.setSelection(
@@ -540,9 +546,9 @@ fun KodeEditor(
         while (true) {
             withFrameNanos { }
             val target = dragTarget ?: continue
-            val area = Size(totalSize.width + lineNumberWidth.toFloat(), totalSize.height.toFloat())
-            val scrolled = EditorViewport.coerce(
-                offset + HandleDrag.edgeScroll(target, area, lineNumberWidth * zoom, edgeSize, edgeSpeed) / zoom,
+            val area = Size(totalSize.width.toFloat(), totalSize.height.toFloat())
+            val scrolled = EditorGeometry.coerce(
+                offset + HandleDrag.edgeScroll(target, area, geometry.gutterOnScreen, edgeSize, edgeSpeed) / zoom,
                 maxOffset,
             )
             if (scrolled != offset) {
@@ -557,8 +563,8 @@ fun KodeEditor(
         val coordinates = editorCoordinates?.takeIf { it.isAttached } ?: return
         val startRect = layout.getCursorRect(current.min)
         val endRect = layout.getCursorRect(current.max)
-        val top = coordinates.localToRoot(transform().toEditor(startRect.topLeft))
-        val bottom = coordinates.localToRoot(transform().toEditor(endRect.bottomRight))
+        val top = coordinates.localToRoot(geometry.toEditor(startRect.topLeft, offset))
+        val bottom = coordinates.localToRoot(geometry.toEditor(endRect.bottomRight, offset))
         val hasSelection = !current.collapsed
         textToolbar.showMenu(
             rect = Rect(
@@ -738,43 +744,45 @@ fun KodeEditor(
             }
             .focusable(enabled = enabled),
     ) {
-        LineNumbers(
+        EditorGutter(
             modifier = Modifier
                 .zIndex(1f)
                 .matchParentSize(),
             layout = layout,
-            width = lineNumberWidth,
-            textStyle = lineNumberStyle,
+            columns = gutterColumns,
             backgroundColor = colors.lineNumberBackgroundColor().value,
             window = drawWindow,
-            zoom = { zoom },
+            geometry = { geometry },
             offsetY = { offset.y },
         )
 
-        ZoomLayout(
+        // all of the editor reacts to gestures, but the text does not show up behind the bar
+        Box(
             modifier = Modifier
                 .zIndex(0f)
-                .padding(
-                    start = computedPadding,
-                )
                 .matchParentSize()
-                .onSizeChanged { size ->
-                    totalSize = size
+                .onSizeChanged { size -> totalSize = size }
+                .drawWithContent {
+                    clipRect(left = geometry.gutterOnScreen) { this@drawWithContent.drawContent() }
                 },
+        ) {
+        ZoomLayout(
+            modifier = Modifier.matchParentSize(),
             offset = offset,
             zoom = zoom,
             minZoom = minZoom,
             maxZoom = maxZoom,
             onOffsetChanged = {
                 cursorFollower.onUserMovedView()
-                offset = EditorViewport.coerce(it, maxOffset)
+                offset = EditorGeometry.coerce(it, maxOffset)
             },
             onZoomChanged = {
                 cursorFollower.onUserMovedView()
                 zoom = it
             },
-            coerceOffset = { EditorViewport.coerce(it, maxOffset) },
+            coerceOffset = { EditorGeometry.coerce(it, maxOffset) },
             onFlingChanged = { flinging = it },
+            contentStart = { geometry.gutterOnScreen(it) },
         ) {
             Box(modifier = Modifier.matchParentSize().padding(start = TEXT_START_PADDING)) {
                 SelectionLayer(
@@ -799,6 +807,7 @@ fun KodeEditor(
                     overlay(layout)
                 }
             }
+        }
         }
 
         Box(modifier = Modifier.zIndex(2f).matchParentSize()) {

@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
  * @param coerceOffset the offset that can be reached for a wanted offset, e.g. the end of the content. A movement
  * beyond it is lost, so moving back has an effect right away
  * @param onFlingChanged called when the content starts or stops moving on after the fingers left
+ * @param contentStart where the content starts at a zoom factor, for a bar in front of it that does not zoom with it
  * @param content the content to pan and zoom
  */
 @Composable
@@ -57,6 +58,7 @@ fun ZoomLayout(
     onZoomChanged: (Float) -> Unit,
     coerceOffset: (Offset) -> Offset = { it },
     onFlingChanged: (Boolean) -> Unit = {},
+    contentStart: (zoom: Float) -> Float = { 0f },
     content: @Composable BoxScope.() -> Unit,
 ) {
     // The gesture detector outlives recompositions, so it must read the current values. Several events can arrive
@@ -67,6 +69,7 @@ fun ZoomLayout(
     val currentOnZoomChanged by rememberUpdatedState(onZoomChanged)
     val currentCoerceOffset by rememberUpdatedState(coerceOffset)
     val currentOnFlingChanged by rememberUpdatedState(onFlingChanged)
+    val currentContentStart by rememberUpdatedState(contentStart)
     val scope = rememberCoroutineScope()
     var flingJob by remember { mutableStateOf<Job?>(null) }
 
@@ -81,7 +84,17 @@ fun ZoomLayout(
                         val oldZoom = currentZoom
                         val oldOffset = currentOffset
                         val newZoom = (oldZoom * gestureZoom).coerceIn(minZoom, maxZoom)
-                        val newOffset = currentCoerceOffset(zoomedOffset(oldOffset, oldZoom, newZoom, centroid, pan))
+                        val newOffset = currentCoerceOffset(
+                            zoomedOffset(
+                                offset = oldOffset,
+                                oldZoom = oldZoom,
+                                newZoom = newZoom,
+                                centroid = centroid,
+                                pan = pan,
+                                oldStart = currentContentStart(oldZoom),
+                                newStart = currentContentStart(newZoom),
+                            ),
+                        )
                         currentZoom = newZoom
                         currentOffset = newOffset
                         if (newZoom != oldZoom) currentOnZoomChanged(newZoom)
@@ -113,7 +126,7 @@ fun ZoomLayout(
                 transformOrigin = TransformOrigin(0f, 0f),
                 scaleX = zoom,
                 scaleY = zoom,
-                translationX = -offset.x * zoom,
+                translationX = contentStart(zoom) - offset.x * zoom,
                 translationY = -offset.y * zoom,
             )
             .then(modifier),
@@ -211,8 +224,16 @@ private suspend fun PointerInputScope.detectPanAndZoom(
 /**
  * The offset that keeps the point of the content under [centroid] under the fingers, which moved by [pan].
  */
-internal fun zoomedOffset(offset: Offset, oldZoom: Float, newZoom: Float, centroid: Offset, pan: Offset): Offset {
-    return offset + centroid / oldZoom - (centroid + pan) / newZoom
+internal fun zoomedOffset(
+    offset: Offset,
+    oldZoom: Float,
+    newZoom: Float,
+    centroid: Offset,
+    pan: Offset,
+    oldStart: Float = 0f,
+    newStart: Float = 0f,
+): Offset {
+    return offset + (centroid - Offset(oldStart, 0f)) / oldZoom - (centroid + pan - Offset(newStart, 0f)) / newZoom
 }
 
 @Preview
