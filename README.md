@@ -21,27 +21,15 @@ ahead of the latest library release.
 
 The easiest way to install and update it is [Obtainium](https://github.com/ImranR98/Obtainium):
 
-**[Add to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22de.markusressel.kodeeditor%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fmarkusressel%2FKodeEditor%22%2C%22author%22%3A%22markusressel%22%2C%22name%22%3A%22KodeEditor%20Demo%22%2C%22preferredApkIndex%22%3A0%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Atrue%2C%5C%22fallbackToOlderReleases%5C%22%3Atrue%2C%5C%22filterReleaseTitlesByRegEx%5C%22%3A%5C%22%5EBuild%20%5C%22%2C%5C%22sortMethodChoice%5C%22%3A%5C%22date%5C%22%2C%5C%22versionDetection%5C%22%3Afalse%7D%22%2C%22overrideSource%22%3Anull%7D)**
+<a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/markusressel/KodeEditor"><img src="screenshot/badge_obtainium.png" alt="Get it on Obtainium" width="161"></a>
 
-Open the link on the phone, confirm the import and tap **Install**. Obtainium checks for new builds and offers the
-update.
+Open the link on the phone. Obtainium shows **Add App** with the address filled in. Turn on **Include prereleases**,
+because the demo builds are pre-releases, then tap **Add** and **Install**. Everything else stays at its default. Without
+the link, enter the address `https://github.com/markusressel/KodeEditor` in **Add App** yourself.
 
-To add it by hand, enter the address `https://github.com/markusressel/KodeEditor` in **Add App** and use these settings,
-then tap **Add** and **Install**:
-
-| Setting in Obtainium | Value |
-|---|---|
-| Include prereleases | **on** |
-| Filter release titles by regex | `^Build ` |
-| Fallback to older releases | on |
-| Sort method | Release date |
-| Version detection | off |
-
-Everything else stays at its default.
-
-The title filter skips the library releases, which have no APK. All builds have the same key and get a higher version
-code from CI, so they update each other. The version name only changes with a library release, which is why version
-detection is off.
+Without that switch Obtainium reports "Could not find a suitable release", because the library releases have no APK.
+All builds have the same key and get a higher version code from CI, so they update each other, and Obtainium checks for
+new builds and offers the update.
 
 # How to use
 Have a look at the demo app (`app`  module) for a complete sample.
