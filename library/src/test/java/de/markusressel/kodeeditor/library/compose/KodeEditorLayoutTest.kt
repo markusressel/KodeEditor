@@ -24,7 +24,9 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.createFontFamilyResolver
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.LayoutDirection
@@ -38,6 +40,7 @@ import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -128,6 +131,34 @@ class KodeEditorLayoutTest {
         value = value.copy(text = "some more text")
         composeRule.waitForIdle()
         assertEquals(2, runs)
+    }
+
+    @Test
+    fun `the text layout only gets the styles that change the size of the text`() {
+        val color = SpanStyle(color = Color.Red, textDecoration = TextDecoration.Underline)
+        val bold = SpanStyle(color = Color.Red, fontWeight = FontWeight.Bold)
+        assertFalse(color.changesTextSize())
+        assertTrue(bold.changesTextSize())
+
+        val rule = object : LanguageRule {
+            override fun findMatches(text: CharSequence) = listOf(RuleMatch(0, 3))
+        }
+        val boldRule = object : LanguageRule {
+            override fun findMatches(text: CharSequence) = listOf(RuleMatch(4, 7))
+        }
+        val highlighting = CachedHighlighting(
+            object : LanguageRuleBook {
+                override fun getRules() = listOf(rule, boldRule)
+            },
+            object : ColorScheme<SpanStyle> {
+                override fun getStyles(type: LanguageRule): Set<StyleFactory<SpanStyle>> =
+                    setOf(if (type === rule) ({ color }) else ({ bold }))
+            },
+        )
+        val forLayout = highlighting.filter(AnnotatedString("one two")).text
+        assertEquals(listOf(bold), forLayout.spanStyles.map { it.item })
+        assertEquals(2, highlighting.stylesOf("one two").size)
+        assertEquals(emptyList<Any>(), highlighting.stylesOf("something else"))
     }
 
     private fun styledLayout(text: AnnotatedString): TextLayoutResult {

@@ -50,6 +50,7 @@ internal fun VisibleLines(
     selection: TextRange?,
     textStyle: TextStyle,
     window: State<IntRect>,
+    highlighting: CachedHighlighting,
 ) {
     val measurer = rememberTextMeasurer(cacheSize = LINE_LAYOUT_CACHE_SIZE)
     val selectionColor = LocalTextSelectionColors.current.backgroundColor
@@ -70,7 +71,8 @@ internal fun VisibleLines(
                         val end = selection.max.coerceAtMost(layout.getLineEnd(lines.last))
                         if (start < end) drawPath(layout.getPathForRange(start, end), selectionColor)
                     }
-                    lineTexts(layout, lines).forEachIndexed { index, line ->
+                    val styles = highlighting.stylesOf(layout.layoutInput.text.text)
+                    lineTexts(layout, lines, styles).forEachIndexed { index, line ->
                         if (line.isNotEmpty()) {
                             drawTextLine(layout, measurer, lines.first + index, line, textStyle)
                         }
@@ -101,8 +103,16 @@ private fun DrawScope.drawTextLine(
  * The text and the styles of each of the given [lines].
  *
  * [AnnotatedString.subSequence] looks at every style of the document, for each line. This looks at each one once.
+ *
+ * @param layout the text layout, its own styles (e.g. the underline of the text the keyboard is composing) are used too
+ * @param lines the lines to get
+ * @param styles further styles for the text of [layout]
  */
-internal fun lineTexts(layout: TextLayoutResult, lines: IntRange): List<AnnotatedString> {
+internal fun lineTexts(
+    layout: TextLayoutResult,
+    lines: IntRange,
+    styles: List<AnnotatedString.Range<SpanStyle>> = emptyList(),
+): List<AnnotatedString> {
     val text = layout.layoutInput.text
     val starts = IntArray(lines.count()) { layout.getLineStart(lines.first + it) }
     val ends = IntArray(lines.count()) { layout.getLineEnd(lines.first + it) }
@@ -110,7 +120,7 @@ internal fun lineTexts(layout: TextLayoutResult, lines: IntRange): List<Annotate
     val first = starts.first()
     val last = ends.last()
 
-    text.spanStyles.forEach { span ->
+    (styles + text.spanStyles).forEach { span ->
         if (span.end <= first || span.start >= last) return@forEach
         val startLine = layout.getLineForOffset(span.start.coerceAtLeast(first)) - lines.first
         val endLine = layout.getLineForOffset((span.end - 1).coerceAtMost(last - 1)) - lines.first

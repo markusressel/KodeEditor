@@ -14,6 +14,10 @@ import kotlinx.coroutines.runBlocking
  * Highlights the text of the editor. The text field asks for this whenever its value changes, also when only the
  * selection changed, so the result for the last text is kept. Because the result only depends on the text,
  * the rule book and the color scheme, it can not get out of date.
+ *
+ * The text field only gets the styles that change the size of the text, which it needs to position things correctly.
+ * Android looks through all styles of a text for each of its lines during layout, so any style that is not needed
+ * there makes each keystroke slower. All of them are drawn by [VisibleLines].
  */
 internal class CachedHighlighting(
     languageRuleBook: LanguageRuleBook,
@@ -22,13 +26,33 @@ internal class CachedHighlighting(
 
     private val highlighter = AnnotatedStringHighlighter(languageRuleBook, colorScheme)
     private var lastText: String? = null
-    private var lastResult = AnnotatedString("")
+    private var lastHighlighted = AnnotatedString("")
+    private var lastForLayout = AnnotatedString("")
 
     override fun filter(text: AnnotatedString): TransformedText {
         if (text.text != lastText) {
-            lastResult = runBlocking { highlighter.highlight(text.text) }
+            lastHighlighted = runBlocking { highlighter.highlight(text.text) }
+            lastForLayout = AnnotatedString(
+                text = text.text,
+                spanStyles = lastHighlighted.spanStyles.filter { it.item.changesTextSize() },
+            )
             lastText = text.text
         }
-        return TransformedText(lastResult, OffsetMapping.Identity)
+        return TransformedText(lastForLayout, OffsetMapping.Identity)
     }
+
+    /**
+     * @param text the text to get the styles for
+     * @return all styles of [text], empty if it is not the last highlighted text
+     */
+    fun stylesOf(text: String): List<AnnotatedString.Range<SpanStyle>> {
+        return if (text == lastText) lastHighlighted.spanStyles else emptyList()
+    }
+}
+
+/**
+ * Color, background, shadow and decoration can be left out of the layout, anything else can change the size of the text
+ */
+internal fun SpanStyle.changesTextSize(): Boolean {
+    return this != SpanStyle(color = color, background = background, shadow = shadow, textDecoration = textDecoration)
 }
