@@ -48,9 +48,9 @@ jobs:
           mkdir -p $HOME/.android
           cp ./.ci/debug.keystore $HOME/.android/debug.keystore
 
-      # The release build has to get through R8 on every PR, and the Telegram notification sends the debug build.
+      # The release build has to get through R8 on every PR. Base Checks covers the debug build.
       - name: Execute APK build
-        run: ./gradlew app:assembleDebug app:assembleRelease --stacktrace
+        run: ./gradlew app:assembleRelease --stacktrace
 
       - uses: actions/upload-artifact@v7
         with:
@@ -97,7 +97,7 @@ jobs:
         run: |
           tag="build-${{ github.run_number }}"
           gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$tag" "$(find apk/release -name '*.apk')" \
+          gh release create "$tag" "$(find apk -name '*.apk')" \
             --prerelease --target "${{ github.sha }}" \
             --title "Build ${{ github.run_number }}" \
             --notes "Release build of the demo app from ${{ github.sha }}, signed with .ci/debug.keystore."
