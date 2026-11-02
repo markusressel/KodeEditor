@@ -55,22 +55,73 @@ KodeEditor(
 )
 ```
 
+### Large documents and collaborative editing
+
+The editor keeps the text itself, in a `KodeEditorState`, and each change happens there directly on the main thread.
+Hand the state to the editor instead of a `TextFieldValue` to avoid a second copy of the text. This is the fastest way
+to use the editor, and changes can not overtake each other:
+
+```kotlin
+val state = rememberKodeEditorState(initialText)
+
+DisposableEffect(state) {
+    val listener = object : KodeEditorListener {
+        // the user changed the text, this is called within the change
+        override fun onLocalEdit(splice: TextSplice) = sync.send(splice)
+    }
+    state.addListener(listener)
+    onDispose { state.removeListener(listener) }
+}
+
+// changes of other users, the cursor and the keyboard stay in the right place
+state.applyRemote(splices)
+
+KodeEditor(
+    state = state,
+    languageRuleBook = ruleBook,
+    colorScheme = colorScheme,
+)
+```
+
+All lines have the same height, so a style with a larger font size does not make its line taller.
+
 ### Overlay
 
 Use the `overlay` parameter to draw on top of the editor text, e.g. the cursors and selections of other users.
-The content moves with zoom and scroll and receives the current `TextLayoutResult` of the editor text:
+The content moves with zoom and scroll and receives the `KodeEditorLayout` of the editor text:
 
 ```kotlin
 KodeEditor(
     [...]
-    overlay = { textLayoutResult ->
-        val cursorRect = textLayoutResult.getCursorRect(remoteCursorIndex)
+    overlay = { layout ->
+        val cursorRect = layout.getCursorRect(remoteCursorIndex)
         Canvas(modifier = Modifier.matchParentSize()) {
             drawLine(Color.Red, cursorRect.topCenter, cursorRect.bottomCenter, strokeWidth = 2.dp.toPx())
         }
     }
 )
 ```
+
+### Keyboard
+
+The editor works with hardware keyboards:
+
+| Keys | Action |
+|---|---|
+| Arrow keys | move the cursor |
+| Ctrl or Alt + Left/Right | move by word |
+| Ctrl or Alt + Up/Down | move by paragraph |
+| Page Up, Page Down | move by the visible height |
+| Home, End | move to the start or end of the line, with Ctrl of the text |
+| Tab | insert a tab (in a read-only editor it moves the focus) |
+| Ctrl + A, C, X, V | select all, copy, cut, paste |
+| Ctrl + Z, Ctrl + Y or Ctrl + Shift + Z | undo, redo |
+| Shift + Tab | move the focus out of the editor |
+| Shift + a key to move the cursor | extend the selection |
+| Ctrl + Plus, Minus, 0 | zoom in, zoom out, reset the zoom |
+
+Home, End, Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V and Ctrl+Z are handled by the text field.
+The D-pad of a TV remote or a gamepad still moves the focus between the elements of the screen.
 
 ## Add to your layout
 
