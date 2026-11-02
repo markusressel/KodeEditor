@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "de.markusressel.kodeeditor"
-        versionCode = 1
+        versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toInt() ?: 1
         versionName = "6.0.0"
     }
 
