@@ -14,6 +14,28 @@ A simple code editor with syntax highlighting and pinch to zoom
 * [x] "Minimap" style document overview
 * [x] Written entirely in Kotlin
 
+# Try the demo app
+Every build of `master` publishes the demo app as a pre-release `build-<n>`, a release build with R8 that is signed
+with the public key `.ci/debug.keystore`. The newest 5 are kept, and they are built from the current code, which can be
+ahead of the latest library release.
+
+The easiest way to install and update it is [Obtainium](https://github.com/ImranR98/Obtainium). In **Add App**, enter
+the address `https://github.com/markusressel/KodeEditor` and use these settings:
+
+| Setting in Obtainium | Value |
+|---|---|
+| Include prereleases | **on** |
+| Filter release titles by regex | `^Build ` |
+| Fallback to older releases | on |
+| Sort method | Release date |
+
+Everything else stays at its default. Tap **Add**, then **Install**. Obtainium checks for new builds and offers the
+update.
+
+The title filter skips the library releases, which have no APK. All builds have the same key and get a higher version
+code from CI, so they update each other. The version name only changes with a library release, so if Obtainium reports
+a version mismatch, turn off its version detection for this app.
+
 # How to use
 Have a look at the demo app (`app`  module) for a complete sample.
 
