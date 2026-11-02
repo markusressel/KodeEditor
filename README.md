@@ -115,6 +115,33 @@ KodeEditor(
 
 All lines have the same height, so a style with a larger font size does not make its line taller.
 
+
+### The bar next to the text
+
+`gutterColumns` decides what the bar shows, from left to right. By default that is the line numbers. A column draws
+one cell per line and can react to taps, which is enough for warning markers or buttons to collapse a block. Reading
+snapshot state in `drawCell` draws the bar again when that state changes.
+
+```kotlin
+class WarningColumn(private val warnings: SnapshotStateList<Int>) : KodeEditorGutterColumn {
+    override fun width(lineCount: Int) = 48
+
+    override fun DrawScope.drawCell(cell: GutterCell) {
+        if (cell.line in warnings) drawCircle(Color.Yellow, 12f, Offset(cell.width / 2, cell.height / 2))
+    }
+
+    override fun onTap(line: Int): Boolean {
+        // show the warning of this line
+        return line in warnings
+    }
+}
+
+KodeEditor(
+    // ...
+    gutterColumns = listOf(warningColumn, rememberLineNumberColumn(textStyle, colors)),
+)
+```
+
 ### Overlay
 
 Use the `overlay` parameter to draw on top of the editor text, e.g. the cursors and selections of other users.
