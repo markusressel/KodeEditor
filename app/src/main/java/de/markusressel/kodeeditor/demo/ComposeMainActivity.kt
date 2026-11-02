@@ -1,11 +1,6 @@
 package de.markusressel.kodeeditor.demo
 
 import de.markusressel.kodeeditor.library.compose.rememberLineNumberColumn
-import de.markusressel.kodeeditor.library.compose.KodeEditorGutterColumn
-import de.markusressel.kodeeditor.library.compose.GutterCell
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.runtime.mutableStateListOf
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
@@ -80,6 +76,22 @@ class ComposeMainActivity : ComponentActivity() {
                         },
                     )
 
+                    val columnWidth = with(LocalDensity.current) { 20.dp.roundToPx() }
+                    val warnings = remember(columnWidth) { WarningColumn(columnWidth, Color(0xFFFFC107)) }
+                    val bookmarks = remember(columnWidth) { BookmarkColumn(columnWidth, Teal200) }
+
+                    LaunchedEffect(text.text) {
+                        warnings.warnings = withContext(Dispatchers.Default) { findWarnings(text.text) }
+                    }
+
+                    Text(
+                        modifier = Modifier.padding(4.dp),
+                        text = warnings.selectedMessage
+                            ?: "Tap \u25B2 to read it, the left edge to bookmark",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                    )
+
                     LaunchedEffect(text.text) {
                         stats.lines = text.text.count { it == '\n' } + 1
                         stats.highlightMs = withContext(Dispatchers.Default) {
@@ -95,7 +107,6 @@ class ComposeMainActivity : ComponentActivity() {
                         fontSize = currentFontSize.sp,
                         lineHeight = currentFontSize.sp
                     )
-                    val bookmarks = remember { BookmarkColumn(Teal200) }
 
                     KodeEditor(
                         modifier = Modifier
@@ -114,6 +125,7 @@ class ComposeMainActivity : ComponentActivity() {
                         lineWrapping = lineWrapping,
                         gutterColumns = listOf(
                             bookmarks,
+                            warnings,
                             rememberLineNumberColumn(editorTextStyle, KodeEditorDefaults.editorColors()),
                         ),
                         overlay = { layout ->
@@ -133,26 +145,6 @@ class ComposeMainActivity : ComponentActivity() {
                     )
                 }
             }
-        }
-    }
-
-    /**
-     * Shows how to put more than line numbers into the bar: tapping it sets a marker on a line
-     */
-    private class BookmarkColumn(private val color: Color) : KodeEditorGutterColumn {
-        private val lines = mutableStateListOf<Int>()
-
-        override fun width(lineCount: Int) = 48
-
-        override fun DrawScope.drawCell(cell: GutterCell) {
-            if (cell.line in lines) {
-                drawCircle(color, radius = 12f, center = Offset(cell.width / 2, cell.height / 2))
-            }
-        }
-
-        override fun onTap(line: Int): Boolean {
-            if (!lines.remove(line)) lines += line
-            return true
         }
     }
 
