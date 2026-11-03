@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.onInterceptKeyBeforeSoftKeyboard
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
@@ -660,6 +661,16 @@ fun KodeEditor(
                 editable
             }
 
+            // like in IntelliJ: the current line and a selection in it stay as they are
+            KeyboardCommand.StartNewLine -> {
+                if (editable) {
+                    val line = state.lineOf(current.end)
+                    val end = state.lineEnd(line)
+                    state.localEdit(end, end, "\n" + indentOf(state.rawText, state.lineStart(line)))
+                }
+                editable
+            }
+
             KeyboardCommand.Backspace -> {
                 if (editable) deleteTo(state, previousCharacter(state.rawText, current.min))
                 editable
@@ -745,6 +756,13 @@ fun KodeEditor(
             .background(colors.textFieldBackgroundColor().value)
             // on the parent, so these see the events of the zoom layout and the handles, without taking them away
             .pointerInput(gestures) { detectEditorGestures(gestures) }
+            // the keyboard app gets the keys first, and it would turn this one into a line break or drop it
+            .onInterceptKeyBeforeSoftKeyboard { event ->
+                val intercept = event.toKeyboardCommand() == KeyboardCommand.StartNewLine &&
+                    enabled && !readOnly && event.isFromTextKeyboard()
+                if (intercept) onKeyEvent(event)
+                intercept
+            }
             .onPreviewKeyEvent { onKeyEvent(it) }
             .onFocusChanged {
                 if (focused && !it.isFocused) keyboard?.hide()
