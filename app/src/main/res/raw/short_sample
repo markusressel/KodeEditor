@@ -1,8 +1,17 @@
 # KodeEditor
-A simple code editor with syntax highlighting and pinch to zoom
+Pinch to zoom and **watch the text flow**. No text field, only the visible lines get drawn, so even `10k lines` feel _light_.
 
-## The bar next to the text
-The bar has columns: bookmarks, warnings and line numbers.
-This line ends with a space, so it has a warning. 
-TODO: this one has a warning too
-#And so does this heading
+## Written together
+Jane is fixing the
+syntax highlighting right now.
+
+## Try it
+- Pinch until the lines wrap again
+- Tap a warning to read it
+- Tap the left edge to set a bookmark
+
+> Fine print: this editor notices things.
+
+TODO: write the next great app 
+#Headings like a space too
+Trailing spaces never hide. 
