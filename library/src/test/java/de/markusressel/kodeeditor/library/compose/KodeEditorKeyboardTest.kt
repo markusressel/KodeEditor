@@ -162,12 +162,54 @@ class KodeEditorKeyboardTest {
     }
 
     @Test
+    fun shiftEnterStartsANewLineWithoutSplittingTheCurrentOne() {
+        show("abc\ndef", TextRange(1))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } }
+        assertEquals("abc\n\ndef", value.text)
+        assertEquals(TextRange(4), value.selection)
+    }
+
+    @Test
+    fun shiftEnterOnTheLastLineAddsALineAtTheEnd() {
+        show("abc", TextRange(1))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } }
+        assertEquals("abc\n", value.text)
+        assertEquals(TextRange(4), value.selection)
+    }
+
+    @Test
+    fun shiftEnterKeepsTheIndentOfTheCurrentLine() {
+        show("a\n \tbc\nd", TextRange(5))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } }
+        assertEquals("a\n \tbc\n \t\nd", value.text)
+        assertEquals(TextRange(9), value.selection)
+    }
+
+    @Test
+    fun shiftEnterKeepsTheSelectedText() {
+        show("abc\ndef", TextRange(0, 2))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } }
+        assertEquals("abc\n\ndef", value.text)
+        assertEquals(TextRange(4), value.selection)
+    }
+
+    @Test
+    fun shiftEnterIsOneUndoStep() {
+        show("abc", TextRange(1))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } }
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Z) } }
+        assertEquals("abc", value.text)
+        assertEquals(TextRange(1), value.selection)
+    }
+
+    @Test
     fun aReadOnlyEditorTypesNothing() {
         show("abc", TextRange(1), readOnly = true)
         keys {
             pressKey(Key.A)
             pressKey(Key.Backspace)
             pressKey(Key.Enter)
+            withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) }
         }
         assertEquals("abc", value.text)
     }

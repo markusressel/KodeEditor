@@ -18,6 +18,7 @@ internal sealed interface KeyboardCommand {
     data class Move(val move: CursorMove) : KeyboardCommand
     data object InsertTab : KeyboardCommand
     data object InsertLine : KeyboardCommand
+    data object StartNewLine : KeyboardCommand
     data object Backspace : KeyboardCommand
     data object Delete : KeyboardCommand
     data object BackspaceWord : KeyboardCommand
@@ -63,7 +64,7 @@ internal fun keyboardCommandFor(
     if (move != null) return KeyboardCommand.Move(move)
     if (!ctrl && !alt) {
         when (key) {
-            Key.Enter, Key.NumPadEnter -> return KeyboardCommand.InsertLine
+            Key.Enter, Key.NumPadEnter -> return if (shift) KeyboardCommand.StartNewLine else KeyboardCommand.InsertLine
             Key.Backspace -> return KeyboardCommand.Backspace
             Key.Delete -> return KeyboardCommand.Delete
         }
@@ -196,6 +197,13 @@ internal class KeyboardCursor {
         )
         val VERTICAL = setOf(CursorMove.LineUp, CursorMove.LineDown, CursorMove.PageUp, CursorMove.PageDown)
     }
+}
+
+/** the whitespace at the start of the line that begins at [lineStart] */
+internal fun indentOf(text: String, lineStart: Int): String {
+    var end = lineStart
+    while (end < text.length && (text[end] == ' ' || text[end] == '\t')) end++
+    return text.substring(lineStart, end)
 }
 
 /** the character before [offset], a whole emoji or a letter with its combining marks */

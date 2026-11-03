@@ -660,6 +660,16 @@ fun KodeEditor(
                 editable
             }
 
+            // like in IntelliJ: the current line and a selection in it stay as they are
+            KeyboardCommand.StartNewLine -> {
+                if (editable) {
+                    val line = state.lineOf(current.end)
+                    val end = state.lineEnd(line)
+                    state.localEdit(end, end, "\n" + indentOf(state.rawText, state.lineStart(line)))
+                }
+                editable
+            }
+
             KeyboardCommand.Backspace -> {
                 if (editable) deleteTo(state, previousCharacter(state.rawText, current.min))
                 editable

@@ -193,6 +193,7 @@ The editor works with hardware keyboards:
 | Ctrl or Alt + Up/Down | move by paragraph |
 | Page Up, Page Down | move by the visible height |
 | Home, End | move to the start or end of the line, with Ctrl of the text |
+| Shift + Enter | start a new line below the current one, without splitting it |
 | Tab | insert a tab (in a read-only editor it moves the focus) |
 | Ctrl + A, C, X, V | select all, copy, cut, paste |
 | Ctrl + Z, Ctrl + Y or Ctrl + Shift + Z | undo, redo |
