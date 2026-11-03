@@ -19,8 +19,10 @@ import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -86,6 +88,103 @@ class EditorGutterTest {
         assertSame(first, gutterColumnAt(columns, 1, 9.9f))
         assertSame(second, gutterColumnAt(columns, 1, 10f))
         assertNull(gutterColumnAt(columns, 1, 30f))
+    }
+
+    @Test
+    fun `the bar animates to a new width`() {
+        val column = object : KodeEditorGutterColumn {
+            val tapped = mutableListOf<Int>()
+            override fun width(lineCount: Int) = if (lineCount < 10) 40 else 120
+            override fun DrawScope.drawCell(cell: GutterCell) = Unit
+            override fun onTap(line: Int): Boolean {
+                tapped += line
+                return true
+            }
+        }
+        val state = KodeEditorState("\n".repeat(8))
+        show(state, column)
+        composeRule.mainClock.advanceTimeBy(1000)
+
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnIdle { state.applyRemote(listOf(TextSplice(0, 0, "\n"))) }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        val y = layout!!.getLineTop(1) + layout!!.lineHeight / 2
+        composeRule.onNodeWithTag("editor").performTouchInput { down(Offset(100f, y)); up() }
+        composeRule.mainClock.advanceTimeByFrame()
+        assertEquals("the bar does not reach this position yet", emptyList<Int>(), column.tapped)
+
+        composeRule.mainClock.autoAdvance = true
+        composeRule.mainClock.advanceTimeBy(1000)
+        composeRule.onNodeWithTag("editor").performTouchInput { down(Offset(100f, y)); up() }
+        composeRule.waitForIdle()
+        assertEquals(listOf(1), column.tapped)
+    }
+
+    @Test
+    fun `new line numbers fade in`() {
+        val fades = LineNumberFades(9)
+        fades.onLineCountChanged(10)
+        assertEquals(0f, fades.alpha(9), 0f)
+        assertEquals(1f, fades.alpha(8), 0f)
+        assertEquals(emptyList<Int>(), fades.removedLines)
+
+        fades.onFrame(1000)
+        fades.onFrame(1000L + GUTTER_ANIMATION_MS / 2)
+        assertEquals(0.5f, fades.alpha(9), 0.01f)
+
+        fades.onFrame(1000L + GUTTER_ANIMATION_MS)
+        assertEquals(1f, fades.alpha(9), 0f)
+        assertFalse(fades.active)
+    }
+
+    @Test
+    fun `removed line numbers fade out behind the end of the document`() {
+        val fades = LineNumberFades(10)
+        fades.onLineCountChanged(8)
+        assertEquals(listOf(8, 9), fades.removedLines)
+        assertEquals(1f, fades.alpha(9), 0f)
+
+        fades.onFrame(1000)
+        fades.onFrame(1000L + GUTTER_ANIMATION_MS)
+        assertEquals(emptyList<Int>(), fades.removedLines)
+        assertFalse(fades.active)
+    }
+
+    @Test
+    fun `a line number that changes direction continues from where it is`() {
+        val fades = LineNumberFades(9)
+        fades.onLineCountChanged(10)
+        fades.onFrame(1000)
+        fades.onFrame(1000L + GUTTER_ANIMATION_MS / 2)
+
+        fades.onLineCountChanged(9)
+        assertEquals(0.5f, fades.alpha(9), 0.01f)
+        assertEquals(listOf(9), fades.removedLines)
+
+        fades.onFrame(2000)
+        fades.onFrame(2000L + GUTTER_ANIMATION_MS)
+        assertFalse(fades.active)
+    }
+
+    @Test
+    fun `a large change does not fade`() {
+        val fades = LineNumberFades(1)
+        fades.onLineCountChanged(1000)
+        assertFalse(fades.active)
+        fades.onLineCountChanged(1)
+        assertFalse(fades.active)
+        assertEquals(emptyList<Int>(), fades.removedLines)
+    }
+
+    @Test
+    fun `line numbers are as wide as the highest number needs`() {
+        lateinit var column: KodeEditorGutterColumn
+        composeRule.setContent { column = rememberLineNumberColumn() }
+        composeRule.runOnIdle {
+            assertTrue(column.width(9) < column.width(10))
+            assertTrue(column.width(99) < column.width(100))
+        }
     }
 
     @Test
