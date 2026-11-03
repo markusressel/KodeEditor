@@ -1,7 +1,7 @@
 # KodeEditor
 A fast code editor for Jetpack Compose, with syntax highlighting, line wrapping and pinch to zoom.
 
-![KodeEditor showing Markdown with line numbers, warnings, a bookmark and the cursor of another user](screenshot/KodeEditor.png)
+![KodeEditor showing Markdown with line numbers, a folded section, warnings, a bookmark and the cursor of another user](screenshot/KodeEditor.png)
 
 # Features
 * Stays responsive with large documents, because only the visible lines are measured and drawn

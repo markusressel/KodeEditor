@@ -5,6 +5,10 @@ Pinch to zoom and **watch the text flow**. No text field, only the visible lines
 Jane is fixing the
 syntax highlighting right now.
 
+## Folded away
+This section is hidden, tap its arrow to get it back.
+Line numbers stay the same.
+
 ## Try it
 - Pinch until the lines wrap again
 - Tap a warning to read it
