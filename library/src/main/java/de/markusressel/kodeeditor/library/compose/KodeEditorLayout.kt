@@ -233,12 +233,16 @@ internal class EditorLineLayout(
 
     /**
      * @param y a vertical position before the width of the wrapped lines changed
-     * @return the position of the same text now, null if the width did not change since the last call
+     * @param anchors positions in the text that should stay where they are, the first visible one is used
+     * @param visibleHeight how much of the document is visible below [y]
+     * @return the position that keeps the first visible anchor in its place, otherwise the position of the same text at
+     * [y], null if the width did not change since the last call
      */
-    fun takePositionAfterResize(y: Float): Float? {
+    fun takePositionAfterResize(y: Float, anchors: List<Int>, visibleHeight: Float): Float? {
         val wrapped = wrappedRows ?: return null
         wrapped.update(wrapWidth())
-        val position = wrapped.takePositionAfterResize(y / lineHeight) ?: return null
+        val position = wrapped.takePositionAfterResize(y / lineHeight, anchors, visibleHeight / lineHeight)
+            ?: return null
         widestDrawnLine = 0f
         return position * lineHeight
     }
