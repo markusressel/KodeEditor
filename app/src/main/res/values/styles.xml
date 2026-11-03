@@ -1,24 +1,11 @@
 <resources>
 
     <!-- Base application theme. -->
-    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
         <!-- Customize your theme here. -->
-        <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
-
-        <!-- CodeEditorView -->
-        <item name="ke_lineNumbers_backgroundColor">#ccc</item>
-        <item name="ke_lineNumbers_textColor">#000</item>
-        <item name="ke_divider_enabled">false</item>
-        <item name="ke_divider_color">#000</item>
-        <item name="ke_editor_backgroundColor">#fff</item>
-        <item name="ke_editor_maxZoom">10.0</item>
-        <item name="ke_minimap_enabled">true</item>
-        <item name="ke_minimap_maxDimension">200dp</item>
-        <item name="ke_minimap_borderColor">#0f0</item>
-        <item name="ke_minimap_indicatorColor">#f00</item>
-
+        <item name="android:colorPrimary">@color/colorPrimary</item>
+        <item name="android:colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="android:colorAccent">@color/colorAccent</item>
     </style>
 
 </resources>
