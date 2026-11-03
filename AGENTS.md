@@ -5,7 +5,7 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 ## Layout
 
 - `library`: the published library, package `de.markusressel.kodeeditor.library`.
-  - `compose`: the Compose editor (`KodeEditor`, `KodeEditorState`, `KodeEditorLayout`, `ZoomLayout`, `EditorGutter`, `KodeEditorColors`/`KodeEditorDefaults`). There is no text field: `KodeEditorState` holds the only copy of the text, `EditorInputConnection` connects the keyboard to it, and only visible lines are measured and drawn.
+  - `compose`: the Compose editor (`KodeEditor`, `KodeEditorState`, `KodeEditorLayout`, `ZoomLayout`, `EditorGutter`, `EditorFolds`, `KodeEditorColors`/`KodeEditorDefaults`). There is no text field: `KodeEditorState` holds the only copy of the text, `EditorInputConnection` connects the keyboard to it, and only visible lines are measured and drawn.
 - `app`: demo app, package `de.markusressel.kodeeditor.demo`. `ComposeMainActivity` (launcher) shows the editor.
 - `build-logic`: Gradle convention plugins (`kodeeditor.android.library`, `...compose`, `...publishing`, ...). Versions live in `gradle/libs.versions.toml`.
 

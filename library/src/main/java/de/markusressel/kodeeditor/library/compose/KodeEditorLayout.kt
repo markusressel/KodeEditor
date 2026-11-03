@@ -113,6 +113,14 @@ interface KodeEditorLayout {
      * @return the word at that position, a single character if there is no word
      */
     fun getWordBoundary(offset: Int): TextRange
+
+    /**
+     * The places of a hidden line and its positions are at the end of the line that hides it.
+     *
+     * @param line a line
+     * @return whether the line is hidden by a fold
+     */
+    fun isLineHidden(line: Int): Boolean = false
 }
 
 /**
@@ -123,6 +131,7 @@ interface KodeEditorLayout {
  * @param breaker finds where lines break, null if they don't wrap
  * @param wrapWidth the width to wrap the lines at
  * @param animateReflow whether what is shown moves to its new place when lines wrap differently
+ * @param folds what is folded, null if the editor does not fold
  */
 internal class EditorLineLayout(
     private val state: KodeEditorState,
@@ -133,6 +142,7 @@ internal class EditorLineLayout(
     breaker: RowBreaker? = null,
     private val wrapWidth: () -> Float = { 0f },
     private val animateReflow: Boolean = false,
+    private val folds: EditorFolds? = null,
 ) : KodeEditorLayout {
 
     private val reference = measurer.measure("X", style = textStyle, softWrap = false)
@@ -147,10 +157,12 @@ internal class EditorLineLayout(
             state = state,
             onReflow = { firstRows, breaks ->
                 if (animateReflow) {
-                    reflow = ReflowTransition(state, firstRows, breaks, reflow, lineHeight, ::measureBetween)
+                    val shownFirstRows = folds?.hidden?.shownFirstRows(firstRows) ?: firstRows
+                    reflow = ReflowTransition(state, shownFirstRows, breaks, reflow, lineHeight, ::measureBetween)
                 }
             },
             sameBreaks = it::breakAlike,
+            hiddenLines = { folds?.hidden },
             breaker = it::breaks,
         )
     }
@@ -202,10 +214,28 @@ internal class EditorLineLayout(
         get() {
             // the rows are no state of their own, whoever reads them depends on what they are made from
             state.version
-            val wrapped = wrappedRows ?: return unwrappedRows
-            wrapped.update(wrapWidth())
-            return wrapped
+            val wrapped = wrappedRows
+            wrapped?.update(wrapWidth())
+            val base = wrapped ?: unwrappedRows
+            val hidden = folds?.hidden
+            if (hidden !== rowsHidden) {
+                // where things come from is about other rows now
+                reflow = null
+                rowsHidden = hidden
+                foldedRows = null
+            }
+            hidden ?: return base
+            val generation = wrapped?.generation ?: 0
+            if (foldedRows == null || foldedGeneration != generation) {
+                foldedRows = FoldedRows(base, hidden)
+                foldedGeneration = generation
+            }
+            return foldedRows!!
         }
+
+    private var rowsHidden: HiddenLines? = null
+    private var foldedRows: FoldedRows? = null
+    private var foldedGeneration = -1
 
     /** tells the rows about changes of the text */
     val rowObserver: ((TextSplice) -> Unit)? = wrappedRows?.let { it::onSplice }
@@ -384,8 +414,51 @@ internal class EditorLineLayout(
 
     override fun getWordBoundary(offset: Int): TextRange = wordAt(state.text, offset)
 
+    override fun isLineHidden(line: Int): Boolean = folds?.isHidden(line) ?: false
+
+    /** the next position from [offset] in the given direction that is not folded away */
+    fun shownPosition(offset: Int, forward: Boolean) = folds?.shownPosition(offset, forward) ?: offset
+
+    private val foldMarker by lazy { measurer.measure(FOLD_MARKER, style = textStyle, softWrap = false) }
+
+    /**
+     * Unfolds the line whose marker is at a point
+     *
+     * @param position a point
+     * @return true if there is a marker at the point
+     */
+    fun unfoldAt(position: Offset): Boolean {
+        val folds = folds ?: return false
+        if (folds.hidden == null) return false
+        val rows = rows
+        val row = rowAt(position.y)
+        val line = rows.lineOf(row)
+        if (row != rows.lastRow(line) || !folds.isFolded(line)) return false
+        val start = xOf(row, rows.end(row))
+        if (position.x < start || position.x > start + foldMarker.size.width + lineHeight) return false
+        return folds.toggle(line)
+    }
+
+    /** the markers of folded lines within what [linesWithin] found last */
+    var drawnFoldMarkers = emptyList<FoldMarker>()
+        private set
+
+    private fun foldMarkersIn(shown: IntRange, rows: EditorRows): List<FoldMarker> {
+        val folds = folds ?: return emptyList()
+        if (folds.hidden == null) return emptyList()
+        return shown.mapNotNull { row ->
+            val line = rows.lineOf(row)
+            if (row != rows.lastRow(line) || !folds.isFolded(line)) return@mapNotNull null
+            val x = measureRow(row).size.width.toFloat()
+            FoldMarker(foldMarker, Offset(x, row * lineHeight + baseline - foldMarker.firstBaseline))
+        }
+    }
+
     /** the styled single line layout of [line], which is not wrapped */
-    private fun measureLine(line: Int): TextLayoutResult = measureRow(line)
+    private fun measureLine(line: Int): TextLayoutResult {
+        val text = lineTexts(state, line..line, currentStyles(), state.composition, unwrappedRows).single()
+        return measurer.measure(text, style = textStyle, softWrap = false)
+    }
 
     /** the styled single line layout of [row] */
     private fun measureRow(row: Int): TextLayoutResult {
@@ -401,6 +474,7 @@ internal class EditorLineLayout(
     private var drawnGeneration = -1
     private var drawnStyles: List<AnnotatedString.Range<SpanStyle>>? = null
     private var drawnComposition: TextRange? = null
+    private var drawnHidden: HiddenLines? = null
     private var drawnLines = emptyList<DrawnLine>()
 
     /**
@@ -415,7 +489,7 @@ internal class EditorLineLayout(
         val generation = wrappedRows?.generation ?: 0
         if (
             shown == drawnArea && state.rawVersion == drawnVersion && generation == drawnGeneration &&
-            styles === drawnStyles && composition == drawnComposition
+            styles === drawnStyles && composition == drawnComposition && rowsHidden === drawnHidden
         ) {
             return drawnLines
         }
@@ -433,6 +507,8 @@ internal class EditorLineLayout(
         drawnGeneration = generation
         drawnStyles = styles
         drawnComposition = composition
+        drawnHidden = rowsHidden
+        drawnFoldMarkers = foldMarkersIn(shown, rows)
         return drawnLines
     }
 
@@ -466,6 +542,14 @@ internal class EditorLineLayout(
      * @param position where to draw the row
      */
     class DrawnLine(val row: Int, val layout: TextLayoutResult, val position: Offset)
+
+    /**
+     * What shows that a line hides the lines below it
+     *
+     * @param layout the layout of the marker
+     * @param position where to draw it
+     */
+    class FoldMarker(val layout: TextLayoutResult, val position: Offset)
 
     /**
      * @param left where the part starts in the row
@@ -529,6 +613,8 @@ internal fun lineTexts(
 
 private val COMPOSING_STYLE = SpanStyle(textDecoration = TextDecoration.Underline)
 
+private const val FOLD_MARKER = " ⋯"
+
 /** the word at [offset], or the single character there if it is not a part of a word */
 internal fun wordAt(text: String, offset: Int): TextRange {
     if (text.isEmpty()) return TextRange(0)
@@ -572,4 +658,5 @@ internal class EditorTextLines(private val layout: EditorLineLayout) : TextLines
         layout.getOffsetForPosition(Offset(x, layout.rowTop(line) + layout.lineHeight / 2))
     override fun startOf(offset: Int) = layout.rowStart(offset)
     override fun endOf(offset: Int) = layout.rowEnd(offset)
+    override fun shownPosition(offset: Int, forward: Boolean) = layout.shownPosition(offset, forward)
 }

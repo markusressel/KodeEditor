@@ -213,6 +213,7 @@ internal fun gutterLinesWithin(layout: KodeEditorLayout, top: Float, bottom: Flo
     val first = layout.getLineForVerticalPosition(top)
     val last = layout.getLineForVerticalPosition(bottom)
     return (first..last).mapNotNull { line ->
+        if (layout.isLineHidden(line)) return@mapNotNull null
         val lineTop = layout.getLineTop(line)
         // a wrapped line that starts above the window has nothing to show in it
         if (lineTop + layout.lineHeight < top) null else GutterLine(line, lineTop, layout.getLineBaseline(line))

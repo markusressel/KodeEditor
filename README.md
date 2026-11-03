@@ -7,6 +7,7 @@ A fast code editor for Jetpack Compose, with syntax highlighting, line wrapping 
 * Stays responsive with large documents, because only the visible lines are measured and drawn
 * Pinch to zoom and fling
 * Line wrapping
+* Folding, with sections of Markdown built in and your own rules for other languages
 * A bar next to the text with line numbers and your own columns, like warnings or bookmarks
 * Syntax highlighting for many languages with [KodeHighlighter](https://github.com/markusressel/KodeHighlighter), or your own rules
 * Hardware keyboard support, selection handles and a text menu
@@ -82,6 +83,7 @@ Have a look at the demo app (`app` module) for a complete sample.
 | `autoCorrect` | whether the keyboard may correct words on its own, it can still offer suggestions without this | `false` |
 | `gutterColumns` | what [the bar next to the text](#the-bar-next-to-the-text) shows | line numbers |
 | `animations` | what [the editor animates](#animations) | everything |
+| `foldProvider` | what [can be folded](#folding) | nothing |
 | `overlay` | [content on top of the text](#overlay) | nothing |
 | `onTextLayout` | called with the `KodeEditorLayout` when the text changed | nothing |
 
@@ -164,6 +166,24 @@ KodeEditor(
 ```
 
 `KodeEditorAnimations.None` turns off all of them.
+
+## Folding
+
+`foldProvider` decides what can be folded, and adds a column with arrows to the end of the bar. Tap an arrow or the `⋯`
+behind a folded line. The editor handles everything else, so only finding the regions depends on the language:
+
+```kotlin
+KodeEditor(
+    // ...
+    foldProvider = MarkdownFoldProvider,
+)
+
+// any other language
+val braces = KodeEditorFoldProvider { text -> listOf(FoldRegion(startLine = 0, endLine = 3)) }
+```
+
+Line numbers stay the same, the arrow keys skip folded text, and a cursor that ends up in it or a change across its edge
+unfolds it. The folds are not saved with the text.
 
 ## Overlay
 

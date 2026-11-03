@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.collectLatest
 /** enough single line layouts for the lines of a whole window at the lowest zoom, so unchanged lines are reused */
 internal const val LINE_LAYOUT_CACHE_SIZE = 2048
 
+private const val FOLD_MARKER_ALPHA = 0.6f
+
 /**
  * Places the content at the rectangle given by [rect] and takes no space in the parent, so it works at any size of
  * the document. Reading the rectangle only affects the placement, nothing recomposes when it changes.
@@ -73,6 +75,9 @@ internal fun VisibleLines(layout: EditorLineLayout, window: State<IntRect>) {
                                 }
                             }
                         }
+                    }
+                    layout.drawnFoldMarkers.forEach { marker ->
+                        drawText(textLayoutResult = marker.layout, topLeft = marker.position, alpha = FOLD_MARKER_ALPHA)
                     }
                 }
             },
