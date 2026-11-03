@@ -42,15 +42,9 @@ dependencies {
 
     implementation(libs.kotlin.stdlib.jdk8)
 
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
-
-    implementation(libs.fuel)
-    implementation(libs.fuel.android)
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)

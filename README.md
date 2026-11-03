@@ -204,8 +204,8 @@ The D-pad of a TV remote or a gamepad still moves the focus between the elements
 
 # View based editor
 
-The View based editor (`CodeEditorLayout`, `CodeEditorView`) is deprecated and gets no new features. Use `KodeEditor` for
-new code. Its XML attributes and APIs are described in the
+The View based editor (`CodeEditorLayout`, `CodeEditorView`) was removed in 8.0.0. Version 7.0.0 is the last one that has
+it, and its XML attributes and APIs are described in the
 [README of 7.0.0](https://github.com/markusressel/KodeEditor/blob/7.0.0/README.md#add-to-your-layout).
 
 # Contributing
