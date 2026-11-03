@@ -1,18 +1,17 @@
-# KodeEditor  [![codebeat badge](https://codebeat.co/badges/f7fa8602-1d15-457e-904d-cb585e984952)](https://codebeat.co/projects/github-com-markusressel-kodeeditor-master)
-A simple code editor with syntax highlighting and pinch to zoom
+# KodeEditor
+A fast code editor for Jetpack Compose, with syntax highlighting, line wrapping and pinch to zoom.
 
-![Editing](screenshot/KodeEditor.png)
+![KodeEditor showing Markdown with line numbers, warnings, a bookmark and the cursor of another user](screenshot/KodeEditor.png)
 
 # Features
-* [x] Pinch-To-Zoom
-* [x] Line wrapping (Compose editor, `lineWrapping = true`)
-* [x] Line numbers
-* [x] Syntax highlighting
-  * [x] import languages you need
-  * [x] or simply create your own highlighter using **regex** or other techniques
-  * [x] themes
-* [x] "Minimap" style document overview
-* [x] Written entirely in Kotlin
+* Stays responsive with large documents, because only the visible lines are measured and drawn
+* Pinch to zoom and fling
+* Line wrapping
+* A bar next to the text with line numbers and your own columns, like warnings or bookmarks
+* Syntax highlighting for many languages with [KodeHighlighter](https://github.com/markusressel/KodeHighlighter), or your own rules
+* Hardware keyboard support, selection handles and a text menu
+* Built for collaborative editing, with changes of other users and an overlay for their cursors
+* Animations for all of this, which can be turned off
 
 # Try the demo app
 Every build of `master` publishes the demo app as a pre-release `build-<n>`, a release build with R8 that is signed
@@ -31,36 +30,30 @@ Without that switch Obtainium reports "Could not find a suitable release", becau
 All builds have the same key and get a higher version code from CI, so they update each other, and Obtainium checks for
 new builds and offers the update.
 
-# How to use
-Have a look at the demo app (`app`  module) for a complete sample.
+# Installation
+The editor requires `minSdk` 24 and `compileSdk` 37. It is published through JitPack, so add that to your repositories:
 
-## Gradle
-To use this library just include it in your dependencies using
-
-    repositories {
-        ...
-        maven { url "https://jitpack.io" }
-    }
-
-in your project build.gradle file and
-
-```
-dependencies {
-    ...
-
-    def codeEditorVersion = "7.0.0"
-    implementation("com.github.markusressel:KodeEditor:${codeEditorVersion}")
+```kotlin
+repositories {
+    maven { url = uri("https://jitpack.io") }
 }
 ```
 
-in your desired module ```build.gradle``` file.
+Then add the editor, and the [KodeHighlighter](https://github.com/markusressel/KodeHighlighter) module of each language
+you need:
 
-## Compose
+```kotlin
+dependencies {
+    implementation("com.github.markusressel:KodeEditor:7.0.0")
+    implementation("com.github.markusressel.KodeHighlighter:markdown:6.0.0")
+}
+```
+
+# Usage
 
 ```kotlin
 var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-    val initialText = readResourceFileAsText(R.raw.short_sample)
-    mutableStateOf(TextFieldValue(initialText))
+    mutableStateOf(TextFieldValue("# Hello KodeEditor"))
 }
 
 KodeEditor(
@@ -69,11 +62,36 @@ KodeEditor(
     colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
     text = text,
     onValueChange = { text = it },
-    colors = KodeEditorDefaults.editorColors()
+    lineWrapping = true,
 )
 ```
 
-### Large documents and collaborative editing
+Have a look at the demo app (`app` module) for a complete sample.
+
+## Options
+
+| Parameter | Description | Default |
+|---|---|---|
+| `colors` | colors of the text and the bar, see `KodeEditorDefaults.editorColors()` | Material theme |
+| `textStyle` | style of the text, a monospaced font makes line wrapping cheap | `LocalTextStyle.current` |
+| `enabled` | whether the user can interact with the editor | `true` |
+| `readOnly` | whether the text can be selected but not changed | `enabled.not()` |
+| `lineWrapping` | whether long lines continue in the next row instead of scrolling sideways | `false` |
+| `minZoom`, `maxZoom` | limits of the zoom | `0.25f`, `10f` |
+| `keepCursorVisible` | whether the view follows the cursor while the user edits | `true` |
+| `autoCorrect` | whether the keyboard may correct words on its own, it can still offer suggestions without this | `false` |
+| `gutterColumns` | what [the bar next to the text](#the-bar-next-to-the-text) shows | line numbers |
+| `animations` | what [the editor animates](#animations) | everything |
+| `overlay` | [content on top of the text](#overlay) | nothing |
+| `onTextLayout` | called with the `KodeEditorLayout` when the text changed | nothing |
+
+## Syntax highlighting
+
+`languageRuleBook` decides what is highlighted, and `colorScheme` how it looks. There is no detection of the language of
+a document, so pass the rule book that fits. The available languages and how to write your own are described in
+[KodeHighlighter](https://github.com/markusressel/KodeHighlighter).
+
+## Large documents and collaborative editing
 
 The editor keeps the text itself, in a `KodeEditorState`, and each change happens there directly on the main thread.
 Hand the state to the editor instead of a `TextFieldValue` to avoid a second copy of the text. This is the fastest way
@@ -103,8 +121,7 @@ KodeEditor(
 
 All lines have the same height, so a style with a larger font size does not make its line taller.
 
-
-### The bar next to the text
+## The bar next to the text
 
 `gutterColumns` decides what the bar shows, from left to right. By default that is the line numbers. A column draws
 one cell per line and can react to taps, which is enough for warning markers or bookmarks. Reading snapshot state in
@@ -134,7 +151,7 @@ KodeEditor(
 )
 ```
 
-### Animations
+## Animations
 
 The bar next to the text animates to a new width, the numbers of new and removed lines fade, and with line wrapping
 everything moves to its new place when lines wrap differently. Each can be turned off:
@@ -148,24 +165,24 @@ KodeEditor(
 
 `KodeEditorAnimations.None` turns off all of them.
 
-### Overlay
+## Overlay
 
 Use the `overlay` parameter to draw on top of the editor text, e.g. the cursors and selections of other users.
 The content moves with zoom and scroll and receives the `KodeEditorLayout` of the editor text:
 
 ```kotlin
 KodeEditor(
-    [...]
+    // ...
     overlay = { layout ->
         val cursorRect = layout.getCursorRect(remoteCursorIndex)
         Canvas(modifier = Modifier.matchParentSize()) {
             drawLine(Color.Red, cursorRect.topCenter, cursorRect.bottomCenter, strokeWidth = 2.dp.toPx())
         }
-    }
+    },
 )
 ```
 
-### Keyboard
+## Keyboard
 
 The editor works with hardware keyboards:
 
@@ -183,169 +200,13 @@ The editor works with hardware keyboards:
 | Shift + a key to move the cursor | extend the selection |
 | Ctrl + Plus, Minus, 0 | zoom in, zoom out, reset the zoom |
 
-Home, End, Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V and Ctrl+Z are handled by the text field.
 The D-pad of a TV remote or a gamepad still moves the focus between the elements of the screen.
 
-## Add to your layout
+# View based editor
 
-> **Deprecated:** the View based editor (`CodeEditorLayout`, `CodeEditorView`) is deprecated, use the [Compose editor](#compose) for new code. The sections "Add to your layout", "Styling" and "APIs" describe the View based editor.
-
-To use this editor simply add something similar to this to your desired layout xml file:
-
-```xml
-<de.markusressel.kodeeditor.library.view.CodeEditorLayout
-        android:id="@+id/codeEditorView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:ke_divider_color="?android:attr/textColorPrimary"
-        app:ke_divider_enabled="true"
-        app:ke_editor_backgroundColor="?android:attr/windowBackground"
-        app:ke_editor_maxZoom="10.0"
-        app:ke_lineNumbers_backgroundColor="#ccc"
-        app:ke_lineNumbers_textColor="#000"
-        app:ke_minimap_enabled="true"
-        app:ke_minimap_maxDimension="200dp"
-        app:ke_minimap_borderColor="#000"
-        app:ke_minimap_indicatorColor="#f00"
-        />
-```
-
-## Syntax highlighting
-
-### Language Autodetection
-
-Currently there is no auto detection for the language used in a document.
-You have to manage the syntax highlighter yourself and call the `setSyntaxHighlighter` method when appropriate.
-
-### Integrated syntax highlighters
-
-Have a look at the [KodeHighlighter section about this](https://github.com/markusressel/KodeHighlighter).
-
-### Writing a custom syntax highlighter
-
-Have a look at the [KodeHighlighter section about this](https://github.com/markusressel/KodeHighlighter).
-
-## Styling
-
-KodeEditor can be styled in multiple ways:
-
-1. xml attributes on KodeEditor
-1. theme attributes in your custom theme
-1. methods on the view object itself
-
-### Theme Attributes
-
-| Name                      | Description                              | Type     | Default                                |
-|---------------------------|------------------------------------------|----------|----------------------------------------|
-| ke_lineNumbers_textColor | Specifies the text color of line numbers | Color    | `android.R.attr.textColorPrimary`      |
-| ke_lineNumbers_backgroundColor | Specifies the background color of the line numbers view | Color | `android.R.attr.windowBackground` |
-| ke_divider_enabled | Specifies if a divider should be drawn between line numbers and the actual code editor content | Boolean | `true` |
-| ke_divider_color | Specifies the color of the divider (has no effect if `ke_divider_enabled` is set to `false`) | Color | `android.R.attr.textColorPrimary` |
-| ke_editor_backgroundColor | Specifies the background color of the code editor view | Color | `android.R.attr.windowBackground` |
-| ke_editor_maxZoom | Specifies the maximum zoom level of the editor | Float | `10` |
-| ke_minimap_enabled | Enables the minimap | Boolean | `true` |
-| ke_minimap_maxDimension | Specifies the maximum dimension of the minimap for both axis | Dimension | `150dp` |
-| ke_minimap_borderColor | Specifies the border color of the minimap | Color | `Color.BLACK` |
-| ke_minimap_indicatorColor | Specifies the color of the minimap indicator | Color | `Color.RED` |
-
-You can either use those attributes directly on the view in your layout like this:
-
-```xml
-<de.markusressel.kodeeditor.library.view.CodeEditorView
-    android:id="@+id/codeEditorView"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    [...]
-    app:ke_divider_color="?android:attr/textColorPrimary"
-    app:ke_divider_enabled="true"
-    app:ke_editor_backgroundColor="?android:attr/windowBackground"
-    app:ke_editor_maxZoom="10.0"
-    app:ke_lineNumbers_backgroundColor="#ccc"
-    app:ke_lineNumbers_textColor="#000"
-    app:ke_minimap_enabled="true"
-    app:ke_minimap_maxDimension="200dp" 
-    app:ke_divider="true"
-    [...] />
-```
-
-or specify them in your application theme (`styles.xml` in dem app) for to apply a style globally:
-
-```xml
-<resources>
-
-    <!-- Base application theme. -->
-    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-        <!-- Other theme attributes of your application -->
-        <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
-
-        <!-- CodeEditorView -->
-        <item name="ke_lineNumbers_backgroundColor">#ccc</item>
-        <item name="ke_lineNumbers_textColor">#000</item>
-        <item name="ke_divider_enabled">false</item>
-        <item name="ke_divider_color">#000</item>
-        <item name="ke_editor_backgroundColor">#fff</item>
-        <item name="ke_editor_maxZoom">10.0</item>
-        <item name="ke_editor_followCursor">true</item>
-        <item name="ke_minimap_enabled">true</item>
-        <item name="ke_minimap_maxDimension">200dp</item>
-        [...]
-         
-    </style>
-
-</resources>
-```
-
-# APIs
-
-All styling attributes can also be specified using code. Since `KodeEditorLayout`
-is just a wrapper to extend the `CodeEditorView` with line numbers and the minimap to use
-some of those methods you need to access the matching property of the `KodeEditorLayout` first.
-
-## KodeEditorLayout
-
-| Name | Description | Type |
-|------|-------------|------|
-| text | Sets the given text in the editor. | String |
-| setText(@StringRes) | Sets the given string resource as the text in the editor. | Int |
-| languageRuleBook | Gets/Sets the active language rule book used for highlighting. Use `null` to disable highlighting altogether. | LanguageRuleBook? |
-| editable | Gets/Sets if the editor content is editable. | Boolean |
-
-### Line numbers
-
-| Name | Description | Type |
-|------|-------------|------|
-| showDivider | Gets/Sets if the divider between line numbers and code editor is shown. | Boolean |
-| lineNumberGenerator | Sets text to show for line number based on total number of lines | (Long) -> List<String> |
-
-### Minimap
-
-| Name | Description | Type |
-|------|-------------|------|
-| showMinimap | Gets/Sets if the minimap is shown. | Boolean |
-| minimapMaxDimension | Gets/Sets the maximum dimension of the minimap in pixels. | Float |
-| minimapBorderWidth | Gets/Sets the minimap border size in in pixels. | Number |
-| minimapBorderColor | Gets/Sets the minimap border color. | @ColorInt |
-| minimapIndicatorColor | Gets/Sets the minimap indicator color. | @ColorInt |
-| minimapGravity | Gets/Sets the minimap positioning gravity. | Int |
-
-## CodeEditorView
-
-To acces these API methods use the `codeEditorLayout.codeEditorView` property.
-
-| Name | Description | Type |
-|------|-------------|------|
-| text | Sets the given text in the editor. | String |
-| setText(@StringRes) | Sets the given string resource as the text in the editor. | Int |
-| getLineCount() | Returns the current line count. | Long |
-| languageRuleBook | Gets/Sets the active language rule book used for highlighting. Use `null` to disable highlighting altogether. | LanguageRuleBook? |
-| editable | Gets/Sets if the editor content is editable. | Boolean |
-| hasSelection | True when a range is selected. | Boolean |
-| selectionStart | The start index of the current selection. | Int |
-| selectionEnd | The end index of the current selection. | Int |
-| selectionChangedListener | Gets/Sets the Listener for selection changes. | SelectionChangedListener? |
-
+The View based editor (`CodeEditorLayout`, `CodeEditorView`) is deprecated and gets no new features. Use `KodeEditor` for
+new code. Its XML attributes and APIs are described in the
+[README of 7.0.0](https://github.com/markusressel/KodeEditor/blob/7.0.0/README.md#add-to-your-layout).
 
 # Contributing
 

@@ -10,13 +10,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
@@ -30,12 +28,10 @@ import androidx.compose.ui.unit.sp
 import de.markusressel.kodeeditor.demo.ui.theme.KodeEditorTheme
 import de.markusressel.kodeeditor.demo.ui.theme.Teal200
 import de.markusressel.kodeeditor.library.compose.KodeEditor
-import de.markusressel.kodeeditor.library.compose.KodeEditorAnimations
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
 import de.markusressel.kodeeditor.library.compose.KodeEditorLayout
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
-import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -44,24 +40,12 @@ class ComposeMainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             KodeEditorTheme {
-                var currentFontSize by remember {
-                    mutableStateOf(14)
-                }
                 val ruleBook = remember { MarkdownRuleBook() }
                 val colorScheme = remember { DarkBackgroundColorSchemeWithSpanStyle() }
-                val stats = remember { EditorStats() }
-                var lineWrapping by remember { mutableStateOf(true) }
-                var animated by remember { mutableStateOf(true) }
 
                 Column(
                     modifier = Modifier.background(MaterialTheme.colorScheme.background),
                 ) {
-                    KodeEditorConfigurationMenu(
-                        currentFontSize = currentFontSize,
-                        onIncreaseFontSize = { currentFontSize++ },
-                        onDecreaseFontSize = { currentFontSize-- },
-                    )
-
                     // not saveable, a large document does not fit into the saved instance state
                     var text by remember {
                         val initialText = readResourceFileAsText(R.raw.short_sample)
@@ -72,46 +56,24 @@ class ComposeMainActivity : ComponentActivity() {
                     val warnings = remember(columnWidth) { WarningColumn(columnWidth, Color(0xFFFFC107)) }
                     val bookmarks = remember(columnWidth) { BookmarkColumn(columnWidth, Teal200) }
 
-                    PerformanceMenu(
-                        stats = stats,
-                        lineWrapping = lineWrapping,
-                        onToggleLineWrapping = { lineWrapping = !lineWrapping },
-                        animated = animated,
-                        onToggleAnimated = { animated = !animated },
-                        onLoadLines = { lines ->
-                            val sample = readResourceFileAsText(R.raw.sample_text).lines()
-                            text = TextFieldValue((0 until lines).joinToString("\n") { sample[it % sample.size] })
-                            bookmarks.clear()
-                            warnings.clearSelection()
-                        },
-                    )
-
                     LaunchedEffect(text.text) {
                         warnings.warnings = withContext(Dispatchers.Default) { findWarnings(text.text) }
                     }
 
-                    Text(
-                        modifier = Modifier.padding(4.dp),
-                        text = warnings.selectedMessage
-                            ?: "Tap \u25B2 to read it, the left edge to bookmark",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                    )
-
-                    LaunchedEffect(text.text) {
-                        stats.lines = text.text.count { it == '\n' } + 1
-                        stats.highlightMs = withContext(Dispatchers.Default) {
-                            measureTimeMillis {
-                                ruleBook.getRules().forEach { it.findMatches(text.text) }
-                            }
-                        }
+                    warnings.selectedMessage?.let { message ->
+                        Text(
+                            modifier = Modifier.padding(4.dp),
+                            text = message,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                        )
                     }
 
                     val editorTextStyle = LocalTextStyle.current.copy(
                         color = MaterialTheme.colorScheme.onSurface,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = currentFontSize.sp,
-                        lineHeight = currentFontSize.sp
+                        fontSize = 14.sp,
+                        lineHeight = 14.sp,
                     )
 
                     KodeEditor(
@@ -123,18 +85,15 @@ class ComposeMainActivity : ComponentActivity() {
                         text = text,
                         onValueChange = {
                             if (it.text != text.text) {
-                                stats.editStartedAt = System.nanoTime()
                                 val edit = LineEdit(text.text, it.text)
                                 bookmarks.onEdit(edit)
                                 warnings.onEdit(edit)
                             }
                             text = it
                         },
-                        onTextLayout = { stats.onTextLayout() },
                         textStyle = editorTextStyle,
                         colors = KodeEditorDefaults.editorColors(),
-                        lineWrapping = lineWrapping,
-                        animations = if (animated) KodeEditorAnimations() else KodeEditorAnimations.None,
+                        lineWrapping = true,
                         gutterColumns = listOf(
                             bookmarks,
                             warnings,
@@ -154,104 +113,6 @@ class ComposeMainActivity : ComponentActivity() {
                                 )
                             }
                         }
-                    )
-                }
-            }
-        }
-    }
-
-    /**
-     * Timings of the last edit, to see where the time goes in a large document
-     */
-    private class EditorStats {
-        var lines by mutableStateOf(0)
-        var highlightMs by mutableStateOf(0L)
-        var editToLayoutMs by mutableStateOf(0L)
-        var editStartedAt = 0L
-
-        fun onTextLayout() {
-            if (editStartedAt != 0L) {
-                editToLayoutMs = (System.nanoTime() - editStartedAt) / 1_000_000
-                editStartedAt = 0L
-            }
-        }
-    }
-
-    @Composable
-    private fun PerformanceMenu(
-        stats: EditorStats,
-        lineWrapping: Boolean,
-        onToggleLineWrapping: () -> Unit,
-        animated: Boolean,
-        onToggleAnimated: () -> Unit,
-        onLoadLines: (Int) -> Unit,
-    ) {
-        Column(modifier = Modifier.padding(4.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                listOf(2_000, 5_000, 10_000).forEach { lines ->
-                    Button(onClick = { onLoadLines(lines) }) {
-                        Text(
-                            text = "${lines / 1000}k",
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    }
-                }
-                Button(onClick = onToggleLineWrapping) {
-                    Text(
-                        text = if (lineWrapping) "Wrap on" else "Wrap off",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                }
-                Button(onClick = onToggleAnimated) {
-                    Text(
-                        text = if (animated) "Anim on" else "Anim off",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                }
-            }
-            Text(
-                text = "${stats.lines} lines, highlight rules ${stats.highlightMs} ms, " +
-                    "edit to layout ${stats.editToLayoutMs} ms",
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-    }
-
-    @Composable
-    private fun KodeEditorConfigurationMenu(
-        currentFontSize: Int,
-        onIncreaseFontSize: () -> Unit,
-        onDecreaseFontSize: () -> Unit,
-    ) {
-        Column(
-            modifier = Modifier.padding(4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    modifier = Modifier.weight(1f),
-                    text = "Font Size: $currentFontSize",
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-
-                Button(onClick = onIncreaseFontSize) {
-                    Text(
-                        text = "+",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                }
-
-                Spacer(modifier = Modifier.size(4.dp))
-
-                Button(onClick = onDecreaseFontSize) {
-                    Text(
-                        text = "-",
-                        color = MaterialTheme.colorScheme.onPrimary,
                     )
                 }
             }
