@@ -4,6 +4,7 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import java.util.BitSet
 import kotlin.math.abs
 
 /**
@@ -48,10 +49,14 @@ internal class UnwrappedRows(private val state: KodeEditorState) : EditorRows {
  * The rows of a text with wrapped lines. Each line knows the positions where it breaks, relative to its start, so a
  * change of the text only needs the rows of the changed lines again.
  *
+ * @param onReflow called with the rows before a change of the width that made lines break differently
+ * @param sameBreaks whether two widths are known to break all lines at the same positions, which saves going through them
  * @param breaker finds the positions where a line of the text breaks at a width, null if the line fits
  */
 internal class WrappedRows(
     private val state: KodeEditorState,
+    private val onReflow: (firstRows: IntArray, breaks: Array<IntArray?>) -> Unit = { _, _ -> },
+    private val sameBreaks: (first: Float, second: Float) -> Boolean = { _, _ -> false },
     private val breaker: (text: String, start: Int, end: Int, width: Float) -> IntArray?,
 ) : EditorRows {
     private var width = 0f
@@ -66,12 +71,24 @@ internal class WrappedRows(
 
     override val count get() = firstRows[breaks.size]
 
+    /** changes when the rows may have changed */
+    var generation = 0
+        private set
+
     /** Brings the rows up to date, which is cheap if nothing changed */
     fun update(width: Float) {
         if (width != this.width) {
+            if (this.width > 0f && version == state.rawVersion && sameBreaks(this.width, width)) {
+                this.width = width
+                return
+            }
             if (this.width > 0f && rowsBeforeResize == null) rowsBeforeResize = PreviousRows(firstRows, breaks)
+            val before = breaks
+            val firstRowsBefore = firstRows
+            val hadWidth = this.width > 0f && version == state.rawVersion
             this.width = width
             rebuild()
+            if (hadWidth && !before.contentDeepEquals(breaks)) onReflow(firstRowsBefore, before)
         } else if (version != state.rawVersion) {
             rebuild()
         }
@@ -99,6 +116,7 @@ internal class WrappedRows(
             if ((before?.size ?: 0) != (after?.size ?: 0)) rowsChanged = true
         }
         breaks = next
+        generation++
         if (rowsChanged) countRows()
         version = state.rawVersion
     }
@@ -106,6 +124,7 @@ internal class WrappedRows(
     private fun rebuild() {
         val lines = state.lineCount
         breaks = Array(lines) { breaksOf(it) }
+        generation++
         countRows()
         version = state.rawVersion
     }
@@ -197,6 +216,20 @@ internal class RowBreaker(private val measurer: TextMeasurer, private val textSt
     private val cellWidth = advanceOf("M")
     private val monospaced = cellWidth > 0f && abs(advanceOf("i") - cellWidth) < 0.01f
 
+    /** the text that [checkedLines] and [cellLines] are about, which only have to be found once for it */
+    private var checkedText: String? = null
+    private val checkedLines = BitSet()
+    private val cellLines = BitSet()
+
+    /** a measured line can break differently at any width */
+    private var measuredLines = false
+
+    /** @return true if lines are known to break at the same positions at both widths */
+    fun breakAlike(first: Float, second: Float) =
+        monospaced && !measuredLines && first > 0f && second > 0f && cellsOf(first) == cellsOf(second)
+
+    private fun cellsOf(width: Float) = (width / cellWidth).toInt().coerceAtLeast(1)
+
     private fun advanceOf(character: String): Float {
         val text = character.repeat(REFERENCE_LENGTH)
         val width = measurer.measure(text, style = textStyle, softWrap = false)
@@ -209,16 +242,35 @@ internal class RowBreaker(private val measurer: TextMeasurer, private val textSt
         val length = end - start
         if (length == 0 || width <= 0f) return null
         if (!monospaced) return measuredBreaks(text, start, end, width)
-        val cells = (width / cellWidth).toInt().coerceAtLeast(1)
+        val cells = cellsOf(width)
         // no character is wider than two cells
         if (length * 2 <= cells) return null
-        for (index in start until end) {
-            if (!text[index].fillsOneCell()) return measuredBreaks(text, start, end, width)
-        }
+        if (!fillsCells(text, start, end)) return measuredBreaks(text, start, end, width)
         return cellBreaks(text, start, end, cells)
     }
 
+    /** A change of the width goes through all lines again, what their characters are stays the same for it */
+    private fun fillsCells(text: String, start: Int, end: Int): Boolean {
+        if (text !== checkedText) {
+            checkedText = text
+            checkedLines.clear()
+            cellLines.clear()
+        }
+        if (checkedLines.get(start)) return cellLines.get(start)
+        var fills = true
+        for (index in start until end) {
+            if (!text[index].fillsOneCell()) {
+                fills = false
+                break
+            }
+        }
+        checkedLines.set(start)
+        cellLines.set(start, fills)
+        return fills
+    }
+
     private fun measuredBreaks(text: String, start: Int, end: Int, width: Float): IntArray? {
+        measuredLines = true
         val result = measurer.measure(
             text.substring(start, end),
             style = textStyle,

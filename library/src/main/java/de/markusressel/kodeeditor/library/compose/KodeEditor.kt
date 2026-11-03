@@ -4,6 +4,7 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.KeyCharacterMap
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -121,6 +122,7 @@ private val TEXT_START_PADDING = 4.dp
  * scrolling sideways. They keep one line number. A monospaced font makes this cheap for long documents, all other
  * fonts have to measure each long line
  * @param gutterColumns what the bar next to the text shows, from left to right. No columns remove the bar
+ * @param animations what the editor animates
  */
 @Composable
 fun KodeEditor(
@@ -141,6 +143,7 @@ fun KodeEditor(
     autoCorrect: Boolean = false,
     lineWrapping: Boolean = false,
     gutterColumns: List<KodeEditorGutterColumn> = listOf(rememberLineNumberColumn(textStyle, colors, enabled)),
+    animations: KodeEditorAnimations = KodeEditorAnimations(),
 ) {
     val state = remember { KodeEditorState(text.text, text.selection) }
     val controlled = remember(state) { ControlledValue(state) }
@@ -167,6 +170,7 @@ fun KodeEditor(
         autoCorrect = autoCorrect,
         lineWrapping = lineWrapping,
         gutterColumns = gutterColumns,
+        animations = animations,
     )
 }
 
@@ -246,6 +250,7 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * scrolling sideways. They keep one line number. A monospaced font makes this cheap for long documents, all other
  * fonts have to measure each long line
  * @param gutterColumns what the bar next to the text shows, from left to right. No columns remove the bar
+ * @param animations what the editor animates
  */
 @Composable
 fun KodeEditor(
@@ -265,6 +270,7 @@ fun KodeEditor(
     autoCorrect: Boolean = false,
     lineWrapping: Boolean = false,
     gutterColumns: List<KodeEditorGutterColumn> = listOf(rememberLineNumberColumn(textStyle, colors, enabled)),
+    animations: KodeEditorAnimations = KodeEditorAnimations(),
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableFloatStateOf(1f.coerceIn(minZoom, maxZoom)) }
@@ -358,7 +364,7 @@ fun KodeEditor(
     }
     val gutterWidth by animateIntAsState(
         targetValue = targetGutterWidth,
-        animationSpec = tween(GUTTER_ANIMATION_MS),
+        animationSpec = if (animations.gutterWidth) tween(GUTTER_ANIMATION_MS) else snap(),
         label = "gutterWidth",
     )
 
@@ -387,7 +393,7 @@ fun KodeEditor(
 
     val measurer = rememberTextMeasurer(cacheSize = LINE_LAYOUT_CACHE_SIZE)
     val breakMeasurer = rememberTextMeasurer(cacheSize = 0)
-    val layout = remember(state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping) {
+    val layout = remember(state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping, animations.reflow) {
         EditorLineLayout(
             state = state,
             measurer = measurer,
@@ -396,6 +402,7 @@ fun KodeEditor(
             window = drawWindow,
             breaker = if (lineWrapping) RowBreaker(breakMeasurer, fieldTextStyle) else null,
             wrapWidth = { wrapWidth.value },
+            animateReflow = animations.reflow,
         )
     }
     DisposableEffect(state, layout) {
@@ -417,7 +424,9 @@ fun KodeEditor(
     // the text at the top of the view stays there when the lines wrap differently
     LaunchedEffect(layout, wrapWidth.value) {
         layout.takePositionAfterResize(offset.y)?.let { y ->
+            val before = offset.y
             offset = EditorGeometry.coerce(offset.copy(y = y), maxOffset)
+            layout.onScrolledByReflow(offset.y - before)
         }
     }
 
@@ -513,7 +522,7 @@ fun KodeEditor(
 
     /** the point the handle at this text position points at, null outside the visible text */
     fun handleAnchor(position: Int): Offset? {
-        val cursor = layout.getCursorRect(position)
+        val cursor = layout.shownCursorRect(position)
         val point = geometry.toEditor(cursor.bottomCenter, offset)
         val visibleX = point.x >= geometry.gutterOnScreen && point.x <= totalSize.width
         return point.takeIf { visibleX && it.y >= 0f && it.y <= totalSize.height }
@@ -761,6 +770,7 @@ fun KodeEditor(
             geometry = { geometry },
             targetWidth = { targetGutterWidth },
             offsetY = { offset.y },
+            fadeLineNumbers = animations.lineNumbers,
         )
 
         // all of the editor reacts to gestures, but the text does not show up behind the bar
@@ -811,7 +821,7 @@ fun KodeEditor(
                         IntRect(0, 0, totalSize.width, totalSize.height)
                     },
                 ) {
-                    overlay(layout)
+                    overlay(remember(layout) { ShownEditorLayout(layout) })
                 }
             }
         }
@@ -872,7 +882,7 @@ private fun KeyEvent.insertTypedCharacter(state: KodeEditorState): Boolean {
  * The cursor of the editor. It has its own small layer, so blinking only changes the alpha of that layer.
  */
 @Composable
-private fun EditorCursor(state: KodeEditorState, layout: KodeEditorLayout, color: Color, blinking: Boolean) {
+private fun EditorCursor(state: KodeEditorState, layout: EditorLineLayout, color: Color, blinking: Boolean) {
     var alpha by remember { mutableFloatStateOf(1f) }
     val width = LocalDensity.current.run { CURSOR_WIDTH.roundToPx() }.coerceAtLeast(1)
 
@@ -889,7 +899,7 @@ private fun EditorCursor(state: KodeEditorState, layout: KodeEditorLayout, color
     Box(
         modifier = Modifier
             .placedAt {
-                val rect = layout.getCursorRect(state.selection.end)
+                val rect = layout.shownCursorRect(state.selection.end)
                 val left = rect.left.roundToInt()
                 IntRect(left, rect.top.roundToInt(), left + width, rect.bottom.roundToInt())
             }

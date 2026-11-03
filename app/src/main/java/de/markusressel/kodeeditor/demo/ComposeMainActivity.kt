@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import de.markusressel.kodeeditor.demo.ui.theme.KodeEditorTheme
 import de.markusressel.kodeeditor.demo.ui.theme.Teal200
 import de.markusressel.kodeeditor.library.compose.KodeEditor
+import de.markusressel.kodeeditor.library.compose.KodeEditorAnimations
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
 import de.markusressel.kodeeditor.library.compose.KodeEditorLayout
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
@@ -50,6 +51,7 @@ class ComposeMainActivity : ComponentActivity() {
                 val colorScheme = remember { DarkBackgroundColorSchemeWithSpanStyle() }
                 val stats = remember { EditorStats() }
                 var lineWrapping by remember { mutableStateOf(true) }
+                var animated by remember { mutableStateOf(true) }
 
                 Column(
                     modifier = Modifier.background(MaterialTheme.colorScheme.background),
@@ -74,6 +76,8 @@ class ComposeMainActivity : ComponentActivity() {
                         stats = stats,
                         lineWrapping = lineWrapping,
                         onToggleLineWrapping = { lineWrapping = !lineWrapping },
+                        animated = animated,
+                        onToggleAnimated = { animated = !animated },
                         onLoadLines = { lines ->
                             val sample = readResourceFileAsText(R.raw.sample_text).lines()
                             text = TextFieldValue((0 until lines).joinToString("\n") { sample[it % sample.size] })
@@ -130,6 +134,7 @@ class ComposeMainActivity : ComponentActivity() {
                         textStyle = editorTextStyle,
                         colors = KodeEditorDefaults.editorColors(),
                         lineWrapping = lineWrapping,
+                        animations = if (animated) KodeEditorAnimations() else KodeEditorAnimations.None,
                         gutterColumns = listOf(
                             bookmarks,
                             warnings,
@@ -177,6 +182,8 @@ class ComposeMainActivity : ComponentActivity() {
         stats: EditorStats,
         lineWrapping: Boolean,
         onToggleLineWrapping: () -> Unit,
+        animated: Boolean,
+        onToggleAnimated: () -> Unit,
         onLoadLines: (Int) -> Unit,
     ) {
         Column(modifier = Modifier.padding(4.dp)) {
@@ -195,6 +202,12 @@ class ComposeMainActivity : ComponentActivity() {
                 Button(onClick = onToggleLineWrapping) {
                     Text(
                         text = if (lineWrapping) "Wrap on" else "Wrap off",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+                Button(onClick = onToggleAnimated) {
+                    Text(
+                        text = if (animated) "Anim on" else "Anim off",
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
                 }
