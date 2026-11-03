@@ -10,6 +10,9 @@ import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.toRect
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -32,6 +35,31 @@ internal fun Modifier.placedAt(rect: () -> IntRect) = layout { measurable, const
     val placeable = measurable.measure(Constraints.fixed(target.width, target.height))
     layout(constraints.minWidth, constraints.minHeight) {
         placeable.place(target.left, target.top)
+    }
+}
+
+/**
+ * Draws that are not part of the text, and know nothing about being faded. What has the same alpha goes through one
+ * layer, so a whole fold that fades costs about as much as a single line.
+ */
+internal class FadingDraws {
+    private var groups: HashMap<Float, MutableList<() -> Unit>>? = null
+
+    /**
+     * @param alpha how visible this should be
+     * @param draw what to draw
+     */
+    fun add(alpha: Float, draw: () -> Unit) {
+        val current = groups ?: HashMap<Float, MutableList<() -> Unit>>().also { groups = it }
+        current.getOrPut(alpha) { mutableListOf() } += draw
+    }
+
+    fun DrawScope.drawAll() {
+        groups?.forEach { (alpha, draws) ->
+            drawContext.canvas.saveLayer(size.toRect(), Paint().also { it.alpha = alpha })
+            draws.forEach { it() }
+            drawContext.canvas.restore()
+        }
     }
 }
 
@@ -59,35 +87,45 @@ internal fun VisibleLines(
             .graphicsLayer {}
             .drawBehind {
                 val area = window.value
-                translate(-area.left.toFloat(), -area.top.toFloat()) {
+                val left = -area.left.toFloat()
+                val top = -area.top.toFloat()
+                // alpha of drawText does not reach the colors of the highlighting, a layer does
+                val fading = FadingDraws()
+                translate(left, top) {
                     layout.linesWithin(area).forEach { line ->
                         val parts = layout.movingParts(line)
                         if (parts == null) {
                             drawText(textLayoutResult = line.layout, topLeft = line.position)
                         } else {
-                            val alpha = layout.rowAlpha(line.row)
-                            parts.forEach { part ->
-                                translate(part.distance.x, part.distance.y) {
-                                    clipRect(
-                                        left = line.position.x + part.left,
-                                        top = line.position.y,
-                                        right = line.position.x + part.right,
-                                        bottom = line.position.y + line.layout.size.height,
-                                    ) {
-                                        drawText(textLayoutResult = line.layout, topLeft = line.position, alpha = alpha)
+                            val drawParts = {
+                                parts.forEach { part ->
+                                    translate(part.distance.x, part.distance.y) {
+                                        clipRect(
+                                            left = line.position.x + part.left,
+                                            top = line.position.y,
+                                            right = line.position.x + part.right,
+                                            bottom = line.position.y + line.layout.size.height,
+                                        ) {
+                                            drawText(textLayoutResult = line.layout, topLeft = line.position)
+                                        }
                                     }
                                 }
                             }
+                            val alpha = layout.rowAlpha(line.row)
+                            if (alpha >= 1f) drawParts() else fading.add(alpha) { translate(left, top) { drawParts() } }
                         }
                     }
                     layout.shownLeavingRows.forEach { row ->
-                        val top = row.baseline - row.layout.firstBaseline
-                        drawText(textLayoutResult = row.layout, topLeft = Offset(0f, top), alpha = row.alpha)
+                        val position = Offset(0f, row.baseline - row.layout.firstBaseline)
+                        fading.add(row.alpha) {
+                            translate(left, top) { drawText(textLayoutResult = row.layout, topLeft = position) }
+                        }
                     }
                     layout.trailingTextsWithin(area, decorations).forEach { text ->
                         drawText(textLayoutResult = text.layout, topLeft = text.position)
                     }
                 }
+                with(fading) { drawAll() }
             },
     )
 }
@@ -115,19 +153,31 @@ internal fun LineDecorationLayer(
                 val area = window.value
                 val first = layout.getLineForVerticalPosition(area.top.toFloat())
                 val last = layout.getLineForVerticalPosition(area.bottom.toFloat())
-                for (line in first..last) {
-                    if (layout.isLineHidden(line)) continue
-                    val top = layout.getLineTop(line)
+                val fading = FadingDraws()
+
+                fun drawLine(line: Int, top: Float, height: Float, alpha: Float) {
                     val decorated = DecoratedLine(
                         line = line,
                         width = area.width + textPadding,
-                        height = layout.getLineBottom(line) - top,
+                        height = height,
                         textStart = textPadding - area.left,
                     )
-                    translate(-textPadding, top + layout.shownLineDistance(line) - area.top) {
-                        decorations.forEach { decoration -> with(decoration) { drawBackground(decorated) } }
+                    val draw = {
+                        translate(-textPadding, top - area.top) {
+                            decorations.forEach { decoration -> with(decoration) { drawBackground(decorated) } }
+                        }
                     }
+                    if (alpha >= 1f) draw() else fading.add(alpha, draw)
                 }
+
+                for (line in first..last) {
+                    if (layout.isLineHidden(line)) continue
+                    val top = layout.getLineTop(line)
+                    val height = layout.getLineBottom(line) - top
+                    drawLine(line, top + layout.shownLineDistance(line), height, layout.lineAlpha(line))
+                }
+                layout.shownLeavingRows.forEach { row -> drawLine(row.line, row.top, layout.lineHeight, row.alpha) }
+                with(fading) { drawAll() }
             },
     )
 }

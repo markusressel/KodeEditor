@@ -298,6 +298,8 @@ internal fun EditorGutter(
                         val stretch = cellStretch.value
                         val areaTop = window.value.top
 
+                        val fading = FadingDraws()
+
                         fun drawLine(
                             line: Int,
                             top: Float,
@@ -316,15 +318,23 @@ internal fun EditorGutter(
                                         height = layout.lineHeight / stretch,
                                         baseline = (baseline - top) / stretch,
                                     )
-                                    withTransform({
-                                        translate(start, top - areaTop)
-                                        scale(1f, stretch, Offset.Zero)
-                                    }) {
-                                        if (column is LineNumberColumn) {
-                                            with(column) { drawNumber(cell, alpha) }
-                                        } else {
-                                            with(column) { drawCell(cell) }
+                                    val cellStart = start
+                                    val draw = {
+                                        withTransform({
+                                            translate(cellStart, top - areaTop)
+                                            scale(1f, stretch, Offset.Zero)
+                                        }) {
+                                            if (column is LineNumberColumn) {
+                                                with(column) { drawNumber(cell, alpha) }
+                                            } else {
+                                                with(column) { drawCell(cell) }
+                                            }
                                         }
+                                    }
+                                    if (column is LineNumberColumn || alpha >= 1f) {
+                                        draw()
+                                    } else {
+                                        fading.add(alpha, draw)
                                     }
                                 }
                                 start += width
@@ -338,10 +348,10 @@ internal fun EditorGutter(
                             drawLine(line, top + distance, baseline + distance, removed = false, alpha = alpha)
                         }
 
-                        // the numbers of lines that a fold just hid leave with their lines
+                        // the bar shows the lines that a fold just hid until they are gone
                         layout.shownLeavingRows.forEach { row ->
                             if (row.firstOfLine) {
-                                drawLine(row.line, row.top, row.baseline, removed = true, alpha = row.alpha)
+                                drawLine(row.line, row.top, row.baseline, removed = false, alpha = row.alpha)
                             }
                         }
 
@@ -353,6 +363,8 @@ internal fun EditorGutter(
                             val top = end + (line - lastLine - 1) * layout.lineHeight
                             drawLine(line, top, top + baselineInRow, removed = true)
                         }
+
+                        with(fading) { drawAll() }
                     },
             )
         }

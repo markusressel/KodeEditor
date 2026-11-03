@@ -6,11 +6,12 @@ import androidx.compose.runtime.Immutable
  * What the [KodeEditor] animates.
  *
  * @param gutterWidth whether the bar next to the text animates to a new width
- * @param lineNumbers whether the numbers of new and removed lines fade
+ * @param lineNumbers whether new lines fade in the bar, and the numbers of removed lines fade out. Other columns only
+ * know the lines of the document, so they have nothing to show for removed lines
  * @param reflow whether the text, the bar, the selection, the cursor and the overlay move to their new place when lines
  * wrap differently, which only applies with line wrapping
- * @param folding whether what is below a fold moves to its new place, and the lines of the fold fade, when it folds or
- * unfolds
+ * @param folding whether what is below a fold moves to its new place, and the lines of the fold fade with their columns
+ * and decorations, when it folds or unfolds
  */
 @Immutable
 data class KodeEditorAnimations(
