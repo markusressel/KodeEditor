@@ -6,9 +6,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 
 /**
@@ -303,5 +306,33 @@ internal class FoldColumn(
     private companion object {
         const val ARROW_SIZE = 0.2f
         const val ARROW_RISE = 0.25f
+    }
+}
+
+/**
+ * Shows that a line hides the lines below it, like most editors do: a background across the line, and a placeholder
+ * behind its text that unfolds it.
+ *
+ * @param folds what is folded
+ * @param backgroundColor the color behind the line
+ * @param placeholderColor the color of the placeholder
+ */
+internal class FoldedLineDecoration(
+    private val folds: EditorFolds,
+    private val backgroundColor: Color,
+    placeholderColor: Color,
+) : KodeEditorLineDecoration {
+    private val placeholder = AnnotatedString(PLACEHOLDER, SpanStyle(color = placeholderColor))
+
+    override fun DrawScope.drawBackground(line: DecoratedLine) {
+        if (folds.isFolded(line.line)) drawRect(backgroundColor, size = Size(line.width, line.height))
+    }
+
+    override fun trailingText(line: Int) = placeholder.takeIf { folds.isFolded(line) }
+
+    override fun onTrailingTextTap(line: Int) = folds.toggle(line)
+
+    private companion object {
+        const val PLACEHOLDER = " ⋯"
     }
 }

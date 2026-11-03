@@ -84,6 +84,7 @@ Have a look at the demo app (`app` module) for a complete sample.
 | `gutterColumns` | what [the bar next to the text](#the-bar-next-to-the-text) shows | line numbers |
 | `animations` | what [the editor animates](#animations) | everything |
 | `foldProvider` | what [can be folded](#folding) | nothing |
+| `lineDecorations` | what [the editor shows on whole lines](#line-decorations) | nothing |
 | `overlay` | [content on top of the text](#overlay) | nothing |
 | `onTextLayout` | called with the `KodeEditorLayout` when the text changed | nothing |
 
@@ -182,8 +183,38 @@ KodeEditor(
 val braces = KodeEditorFoldProvider { text -> listOf(FoldRegion(startLine = 0, endLine = 3)) }
 ```
 
-Line numbers stay the same, the arrow keys skip folded text, and a cursor that ends up in it or a change across its edge
-unfolds it. The folds are not saved with the text.
+A folded line gets a background and a placeholder, their colors are `foldedLineBackgroundColor` and
+`foldPlaceholderColor` of `KodeEditorColors`. Line numbers stay the same, the arrow keys skip folded text, and a cursor
+that ends up in it or a change across its edge unfolds it. The folds are not saved with the text.
+
+## Line decorations
+
+`lineDecorations` shows something on whole lines: a background behind the selection and the text, text behind the end of
+the line, or both. This fits a highlight of the current line, lines with errors, changed lines or notes next to the
+code. Only visible lines are asked, and reading snapshot state in a decoration updates it when that state changes.
+
+```kotlin
+class ErrorLines(private val errors: SnapshotStateMap<Int, String>) : KodeEditorLineDecoration {
+    override fun DrawScope.drawBackground(line: DecoratedLine) {
+        if (line.line in errors) drawRect(Color.Red.copy(alpha = 0.15f), size = Size(line.width, line.height))
+    }
+
+    override fun trailingText(line: Int) = errors[line]?.let { AnnotatedString("  $it", SpanStyle(Color.Red)) }
+
+    override fun onTrailingTextTap(line: Int): Boolean {
+        // show the whole error of this line
+        return line in errors
+    }
+}
+
+KodeEditor(
+    // ...
+    lineDecorations = listOf(errorLines),
+)
+```
+
+Decorations work with line numbers like the columns of the bar, so they have to move when an edit moves their line. To
+mark a part of a line or to draw on top of the text, use the [overlay](#overlay).
 
 ## Overlay
 

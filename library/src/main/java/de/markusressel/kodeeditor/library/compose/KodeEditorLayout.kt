@@ -419,39 +419,58 @@ internal class EditorLineLayout(
     /** the next position from [offset] in the given direction that is not folded away */
     fun shownPosition(offset: Int, forward: Boolean) = folds?.shownPosition(offset, forward) ?: offset
 
-    private val foldMarker by lazy { measurer.measure(FOLD_MARKER, style = textStyle, softWrap = false) }
+    /**
+     * @param area the part of the document to draw, [linesWithin] has to be called for it first
+     * @param decorations what shows text behind the lines
+     * @return the text behind the lines within the area
+     */
+    fun trailingTextsWithin(area: IntRect, decorations: List<KodeEditorLineDecoration>): List<TrailingText> {
+        if (decorations.isEmpty()) return emptyList()
+        val rows = rows
+        val transition = activeReflow
+        val result = ArrayList<TrailingText>()
+        var drawn = 0
+        for (row in rowAt(area.top.toFloat())..rowAt(area.bottom.toFloat())) {
+            val line = rows.lineOf(row)
+            if (row != rows.lastRow(line)) continue
+            while (drawn < drawnLines.size && drawnLines[drawn].row < row) drawn++
+            // an empty row has no layout
+            val end = drawnLines.getOrNull(drawn)?.takeIf { it.row == row }?.layout?.size?.width?.toFloat() ?: 0f
+            var x = end
+            val y = row * lineHeight
+            val distance = transition?.let { distanceOf(it, rows.end(row), end, y) } ?: Offset.Zero
+            decorations.forEach { decoration ->
+                val text = decoration.trailingText(line) ?: return@forEach
+                val layout = measurer.measure(text, style = textStyle, softWrap = false)
+                result += TrailingText(layout, Offset(x, y + baseline - layout.firstBaseline) + distance)
+                x += layout.size.width
+            }
+            if (wrappedRows == null && x > widestDrawnLine) widestDrawnLine = x
+        }
+        return result
+    }
 
     /**
-     * Unfolds the line whose marker is at a point
-     *
      * @param position a point
-     * @return true if there is a marker at the point
+     * @param decorations what shows text behind the lines
+     * @return true if there is text of a decoration at the point, and the decoration did something with the tap
      */
-    fun unfoldAt(position: Offset): Boolean {
-        val folds = folds ?: return false
-        if (folds.hidden == null) return false
+    fun tapTrailingText(position: Offset, decorations: List<KodeEditorLineDecoration>): Boolean {
+        if (decorations.isEmpty()) return false
         val rows = rows
         val row = rowAt(position.y)
         val line = rows.lineOf(row)
-        if (row != rows.lastRow(line) || !folds.isFolded(line)) return false
-        val start = xOf(row, rows.end(row))
-        if (position.x < start || position.x > start + foldMarker.size.width + lineHeight) return false
-        return folds.toggle(line)
-    }
-
-    /** the markers of folded lines within what [linesWithin] found last */
-    var drawnFoldMarkers = emptyList<FoldMarker>()
-        private set
-
-    private fun foldMarkersIn(shown: IntRange, rows: EditorRows): List<FoldMarker> {
-        val folds = folds ?: return emptyList()
-        if (folds.hidden == null) return emptyList()
-        return shown.mapNotNull { row ->
-            val line = rows.lineOf(row)
-            if (row != rows.lastRow(line) || !folds.isFolded(line)) return@mapNotNull null
-            val x = measureRow(row).size.width.toFloat()
-            FoldMarker(foldMarker, Offset(x, row * lineHeight + baseline - foldMarker.firstBaseline))
+        if (row != rows.lastRow(line)) return false
+        val texts = decorations.mapNotNull { decoration -> decoration.trailingText(line)?.let { decoration to it } }
+        var x = xOf(row, rows.end(row))
+        texts.forEachIndexed { index, (decoration, text) ->
+            val width = measurer.measure(text, style = textStyle, softWrap = false).size.width
+            // something small next to a line is hard to hit with a finger
+            val slack = if (index == texts.lastIndex) lineHeight else 0f
+            if (position.x >= x && position.x <= x + width + slack) return decoration.onTrailingTextTap(line)
+            x += width
         }
+        return false
     }
 
     /** the styled single line layout of [line], which is not wrapped */
@@ -508,7 +527,6 @@ internal class EditorLineLayout(
         drawnStyles = styles
         drawnComposition = composition
         drawnHidden = rowsHidden
-        drawnFoldMarkers = foldMarkersIn(shown, rows)
         return drawnLines
     }
 
@@ -544,12 +562,10 @@ internal class EditorLineLayout(
     class DrawnLine(val row: Int, val layout: TextLayoutResult, val position: Offset)
 
     /**
-     * What shows that a line hides the lines below it
-     *
-     * @param layout the layout of the marker
+     * @param layout the layout of the text
      * @param position where to draw it
      */
-    class FoldMarker(val layout: TextLayoutResult, val position: Offset)
+    class TrailingText(val layout: TextLayoutResult, val position: Offset)
 
     /**
      * @param left where the part starts in the row
@@ -612,8 +628,6 @@ internal fun lineTexts(
 }
 
 private val COMPOSING_STYLE = SpanStyle(textDecoration = TextDecoration.Underline)
-
-private const val FOLD_MARKER = " ⋯"
 
 /** the word at [offset], or the single character there if it is not a part of a word */
 internal fun wordAt(text: String, offset: Int): TextRange {

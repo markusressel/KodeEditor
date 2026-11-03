@@ -96,6 +96,7 @@ class ComposeMainActivity : ComponentActivity() {
                         colors = KodeEditorDefaults.editorColors(),
                         lineWrapping = true,
                         foldProvider = MarkdownFoldProvider,
+                        lineDecorations = listOf(warnings),
                         gutterColumns = listOf(
                             bookmarks,
                             warnings,

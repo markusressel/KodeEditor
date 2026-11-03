@@ -22,8 +22,6 @@ import kotlinx.coroutines.flow.collectLatest
 /** enough single line layouts for the lines of a whole window at the lowest zoom, so unchanged lines are reused */
 internal const val LINE_LAYOUT_CACHE_SIZE = 2048
 
-private const val FOLD_MARKER_ALPHA = 0.6f
-
 /**
  * Places the content at the rectangle given by [rect] and takes no space in the parent, so it works at any size of
  * the document. Reading the rectangle only affects the placement, nothing recomposes when it changes.
@@ -41,7 +39,11 @@ internal fun Modifier.placedAt(rect: () -> IntRect) = layout { measurable, const
  * moving cursor or selection records no text at all.
  */
 @Composable
-internal fun VisibleLines(layout: EditorLineLayout, window: State<IntRect>) {
+internal fun VisibleLines(
+    layout: EditorLineLayout,
+    window: State<IntRect>,
+    decorations: List<KodeEditorLineDecoration> = emptyList(),
+) {
     LaunchedEffect(layout) {
         snapshotFlow { layout.currentWrapWidth }.collectLatest {
             while (layout.reflowing) {
@@ -76,8 +78,48 @@ internal fun VisibleLines(layout: EditorLineLayout, window: State<IntRect>) {
                             }
                         }
                     }
-                    layout.drawnFoldMarkers.forEach { marker ->
-                        drawText(textLayoutResult = marker.layout, topLeft = marker.position, alpha = FOLD_MARKER_ALPHA)
+                    layout.trailingTextsWithin(area, decorations).forEach { text ->
+                        drawText(textLayoutResult = text.layout, topLeft = text.position)
+                    }
+                }
+            },
+    )
+}
+
+/**
+ * Draws the backgrounds of the [decorations] in a layer of its own, below the selection and the text.
+ *
+ * @param layout where the lines are
+ * @param decorations what to draw
+ * @param window the part of the document that is drawn
+ * @param textPadding the padding in front of the text, which the backgrounds cover too
+ */
+@Composable
+internal fun LineDecorationLayer(
+    layout: EditorLineLayout,
+    decorations: List<KodeEditorLineDecoration>,
+    window: State<IntRect>,
+    textPadding: Float,
+) {
+    Box(
+        modifier = Modifier
+            .placedAt { window.value }
+            .graphicsLayer {}
+            .drawBehind {
+                val area = window.value
+                val first = layout.getLineForVerticalPosition(area.top.toFloat())
+                val last = layout.getLineForVerticalPosition(area.bottom.toFloat())
+                for (line in first..last) {
+                    if (layout.isLineHidden(line)) continue
+                    val top = layout.getLineTop(line)
+                    val decorated = DecoratedLine(
+                        line = line,
+                        width = area.width + textPadding,
+                        height = layout.getLineBottom(line) - top,
+                        textStart = textPadding - area.left,
+                    )
+                    translate(-textPadding, top + layout.shownLineDistance(line) - area.top) {
+                        decorations.forEach { decoration -> with(decoration) { drawBackground(decorated) } }
                     }
                 }
             },

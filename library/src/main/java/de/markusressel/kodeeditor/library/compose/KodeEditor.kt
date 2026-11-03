@@ -89,6 +89,8 @@ private val HANDLE_EDGE_SIZE = 48.dp
 private val HANDLE_EDGE_SPEED = 12.dp
 private val TEXT_START_PADDING = 4.dp
 private val FOLD_COLUMN_WIDTH = 24.dp
+private const val FOLDED_LINE_SELECTION_ALPHA = 0.5f
+private const val FOLD_PLACEHOLDER_ALPHA = 0.6f
 
 /**
  * A code editor for a [TextFieldValue] that the application keeps.
@@ -127,6 +129,7 @@ private val FOLD_COLUMN_WIDTH = 24.dp
  * @param animations what the editor animates
  * @param foldProvider finds what can be folded, which adds a column with arrows to the end of the bar, null folds
  * nothing
+ * @param lineDecorations what the editor shows on whole lines, from bottom to top
  */
 @Composable
 fun KodeEditor(
@@ -149,6 +152,7 @@ fun KodeEditor(
     gutterColumns: List<KodeEditorGutterColumn> = listOf(rememberLineNumberColumn(textStyle, colors, enabled)),
     animations: KodeEditorAnimations = KodeEditorAnimations(),
     foldProvider: KodeEditorFoldProvider? = null,
+    lineDecorations: List<KodeEditorLineDecoration> = emptyList(),
 ) {
     val state = remember { KodeEditorState(text.text, text.selection) }
     val controlled = remember(state) { ControlledValue(state) }
@@ -177,6 +181,7 @@ fun KodeEditor(
         gutterColumns = gutterColumns,
         animations = animations,
         foldProvider = foldProvider,
+        lineDecorations = lineDecorations,
     )
 }
 
@@ -259,6 +264,7 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param animations what the editor animates
  * @param foldProvider finds what can be folded, which adds a column with arrows to the end of the bar, null folds
  * nothing
+ * @param lineDecorations what the editor shows on whole lines, from bottom to top
  */
 @Composable
 fun KodeEditor(
@@ -280,6 +286,7 @@ fun KodeEditor(
     gutterColumns: List<KodeEditorGutterColumn> = listOf(rememberLineNumberColumn(textStyle, colors, enabled)),
     animations: KodeEditorAnimations = KodeEditorAnimations(),
     foldProvider: KodeEditorFoldProvider? = null,
+    lineDecorations: List<KodeEditorLineDecoration> = emptyList(),
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableFloatStateOf(1f.coerceIn(minZoom, maxZoom)) }
@@ -385,6 +392,16 @@ fun KodeEditor(
         folds?.let { FoldColumn(it, foldColumnWidth, foldColor) }
     }
     val columns = if (foldColumn == null) gutterColumns else gutterColumns + foldColumn
+    val selectionColor = LocalTextSelectionColors.current.backgroundColor
+    val foldedBackground = colors.foldedLineBackgroundColor().value
+        .takeOrElse { selectionColor.copy(alpha = selectionColor.alpha * FOLDED_LINE_SELECTION_ALPHA) }
+    val foldPlaceholderColor = colors.foldPlaceholderColor().value
+        .takeOrElse { foldColor.copy(alpha = foldColor.alpha * FOLD_PLACEHOLDER_ALPHA) }
+    val foldDecoration = remember(folds, foldedBackground, foldPlaceholderColor) {
+        folds?.let { FoldedLineDecoration(it, foldedBackground, foldPlaceholderColor) }
+    }
+    val decorations = if (foldDecoration == null) lineDecorations else listOf(foldDecoration) + lineDecorations
+    val currentDecorations by rememberUpdatedState(decorations)
     val targetGutterWidth by remember(state, gutterColumns, foldColumn) {
         derivedStateOf { columns.sumOf { it.width(state.lineCount) } }
     }
@@ -532,7 +549,7 @@ fun KodeEditor(
             override fun onTap(position: Offset) {
                 // this touch only stops the fling
                 if (!enabled || stoppedFling || tapGutter(position)) return
-                if (layout.unfoldAt(geometry.toText(position, offset))) return
+                if (layout.tapTrailingText(geometry.toText(position, offset), currentDecorations)) return
                 focusAndShowKeyboard()
                 state.setSelection(TextRange(offsetAt(position)))
             }
@@ -872,12 +889,20 @@ fun KodeEditor(
             contentStart = { geometry.gutterOnScreen(it) },
         ) {
             Box(modifier = Modifier.matchParentSize().padding(start = TEXT_START_PADDING)) {
+                if (decorations.isNotEmpty()) {
+                    LineDecorationLayer(
+                        layout = layout,
+                        decorations = decorations,
+                        window = drawWindow,
+                        textPadding = textStartPadding,
+                    )
+                }
                 SelectionLayer(
                     layout = layout,
                     selection = { state.selection.takeIf { focused } },
                     window = drawWindow,
                 )
-                VisibleLines(layout = layout, window = drawWindow)
+                VisibleLines(layout = layout, window = drawWindow, decorations = decorations)
                 if (focused && enabled && !readOnly && selection.collapsed) {
                     EditorCursor(
                         state = state,
