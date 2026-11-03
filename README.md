@@ -134,6 +134,20 @@ KodeEditor(
 )
 ```
 
+### Animations
+
+The bar next to the text animates to a new width, the numbers of new and removed lines fade, and with line wrapping
+everything moves to its new place when lines wrap differently. Each can be turned off:
+
+```kotlin
+KodeEditor(
+    // ...
+    animations = KodeEditorAnimations(reflow = false),
+)
+```
+
+`KodeEditorAnimations.None` turns off all of them.
+
 ### Overlay
 
 Use the `overlay` parameter to draw on top of the editor text, e.g. the cursors and selections of other users.

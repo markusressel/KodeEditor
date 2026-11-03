@@ -56,7 +56,11 @@ class EditorGutterTest {
 
     private var layout: KodeEditorLayout? = null
 
-    private fun show(state: KodeEditorState, vararg columns: KodeEditorGutterColumn) {
+    private fun show(
+        state: KodeEditorState,
+        vararg columns: KodeEditorGutterColumn,
+        animations: KodeEditorAnimations = KodeEditorAnimations(),
+    ) {
         composeRule.setContent {
             KodeEditor(
                 modifier = Modifier.size(400.dp).testTag("editor"),
@@ -65,6 +69,7 @@ class EditorGutterTest {
                 colorScheme = noColors,
                 onTextLayout = { layout = it },
                 gutterColumns = columns.toList(),
+                animations = animations,
             )
         }
         composeRule.waitForIdle()
@@ -107,16 +112,45 @@ class EditorGutterTest {
 
         composeRule.mainClock.autoAdvance = false
         composeRule.runOnIdle { state.applyRemote(listOf(TextSplice(0, 0, "\n"))) }
-        composeRule.mainClock.advanceTimeByFrame()
-        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.waitForIdle()
+        repeat(3) { composeRule.mainClock.advanceTimeByFrame() }
         val y = layout!!.getLineTop(1) + layout!!.lineHeight / 2
         composeRule.onNodeWithTag("editor").performTouchInput { down(Offset(100f, y)); up() }
+        composeRule.waitForIdle()
         composeRule.mainClock.advanceTimeByFrame()
+        composeRule.waitForIdle()
         assertEquals("the bar does not reach this position yet", emptyList<Int>(), column.tapped)
 
         composeRule.mainClock.autoAdvance = true
         composeRule.mainClock.advanceTimeBy(1000)
         composeRule.onNodeWithTag("editor").performTouchInput { down(Offset(100f, y)); up() }
+        composeRule.waitForIdle()
+        assertEquals(listOf(1), column.tapped)
+    }
+
+    @Test
+    fun `without animations the bar has its new width at once`() {
+        val column = object : KodeEditorGutterColumn {
+            val tapped = mutableListOf<Int>()
+            override fun width(lineCount: Int) = if (lineCount < 10) 40 else 120
+            override fun DrawScope.drawCell(cell: GutterCell) = Unit
+            override fun onTap(line: Int): Boolean {
+                tapped += line
+                return true
+            }
+        }
+        val state = KodeEditorState("\n".repeat(8))
+        show(state, column, animations = KodeEditorAnimations.None)
+        composeRule.mainClock.advanceTimeBy(1000)
+
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnIdle { state.applyRemote(listOf(TextSplice(0, 0, "\n"))) }
+        composeRule.waitForIdle()
+        repeat(3) { composeRule.mainClock.advanceTimeByFrame() }
+        val y = layout!!.getLineTop(1) + layout!!.lineHeight / 2
+        composeRule.onNodeWithTag("editor").performTouchInput { down(Offset(100f, y)); up() }
+        composeRule.waitForIdle()
+        composeRule.mainClock.advanceTimeByFrame()
         composeRule.waitForIdle()
         assertEquals(listOf(1), column.tapped)
     }

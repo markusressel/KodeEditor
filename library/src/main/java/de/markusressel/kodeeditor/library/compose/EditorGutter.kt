@@ -231,17 +231,19 @@ internal fun gutterLinesWithin(layout: KodeEditorLayout, top: Float, bottom: Flo
  * @param geometry where things are in the editor
  * @param targetWidth the width of the bar at zoom 1 when its animation ends, which the columns are laid out for
  * @param offsetY the current vertical scroll offset
+ * @param fadeLineNumbers whether the numbers of new and removed lines fade
  */
 @Composable
 internal fun EditorGutter(
     modifier: Modifier = Modifier,
-    layout: KodeEditorLayout,
+    layout: EditorLineLayout,
     columns: List<KodeEditorGutterColumn>,
     backgroundColor: Color,
     window: State<IntRect>,
     geometry: () -> EditorGeometry,
     targetWidth: () -> Int,
     offsetY: () -> Float,
+    fadeLineNumbers: Boolean = true,
 ) {
     // a change within a line does not move the bar, so typing does not record it again
     val lines = remember(layout) {
@@ -251,9 +253,9 @@ internal fun EditorGutter(
         }
     }
     val lineCount = layout.lineCount
-    val fades = remember(layout) { LineNumberFades(lineCount) }
+    val fades = remember(layout, fadeLineNumbers) { LineNumberFades(lineCount) }
     var fadeFrame by remember { mutableLongStateOf(0L) }
-    SideEffect { fades.onLineCountChanged(lineCount) }
+    SideEffect { if (fadeLineNumbers) fades.onLineCountChanged(lineCount) }
     LaunchedEffect(fades, lineCount) {
         while (fades.active) {
             withFrameMillis { now ->
@@ -323,7 +325,11 @@ internal fun EditorGutter(
                             }
                         }
 
-                        lines.value.forEach { (line, top, baseline) -> drawLine(line, top, baseline, removed = false) }
+                        lines.value.forEach { (line, top, baseline) ->
+                            // the bar moves with the text when lines wrap differently
+                            val distance = layout.shownLineDistance(line)
+                            drawLine(line, top + distance, baseline + distance, removed = false)
+                        }
 
                         // removed lines have no place in the document anymore, they fade below its end
                         val lastLine = layout.lineCount - 1

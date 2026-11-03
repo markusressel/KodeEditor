@@ -5,6 +5,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -121,6 +122,7 @@ interface KodeEditorLayout {
  * @param window the part of the document that is drawn
  * @param breaker finds where lines break, null if they don't wrap
  * @param wrapWidth the width to wrap the lines at
+ * @param animateReflow whether what is shown moves to its new place when lines wrap differently
  */
 internal class EditorLineLayout(
     private val state: KodeEditorState,
@@ -130,6 +132,7 @@ internal class EditorLineLayout(
     private val window: State<IntRect>,
     breaker: RowBreaker? = null,
     private val wrapWidth: () -> Float = { 0f },
+    private val animateReflow: Boolean = false,
 ) : KodeEditorLayout {
 
     private val reference = measurer.measure("X", style = textStyle, softWrap = false)
@@ -139,7 +142,61 @@ internal class EditorLineLayout(
     private val lineCountState = derivedStateOf { state.lineCount }
 
     private val unwrappedRows = UnwrappedRows(state)
-    private val wrappedRows = breaker?.let { WrappedRows(state, it::breaks) }
+    private val wrappedRows = breaker?.let {
+        WrappedRows(
+            state = state,
+            onReflow = { firstRows, breaks ->
+                if (animateReflow) {
+                    reflow = ReflowTransition(state, firstRows, breaks, reflow, lineHeight, ::measureBetween)
+                }
+            },
+            sameBreaks = it::breakAlike,
+            breaker = it::breaks,
+        )
+    }
+
+    private var reflow: ReflowTransition? = null
+
+    /** whoever shows something at its moving place reads this, and is updated on each frame of a reflow */
+    private var reflowFrame by mutableLongStateOf(0L)
+
+    private val activeReflow: ReflowTransition?
+        get() {
+            reflowFrame
+            rows
+            return reflow?.takeIf { it.valid }
+        }
+
+    /** the text between two positions of a row, without its styles, which is enough to know where it was */
+    private fun measureBetween(start: Int, end: Int): Float {
+        if (start == end) return 0f
+        val text = state.text.substring(start, end)
+        return measurer.measure(text, style = textStyle, softWrap = false)
+            .getHorizontalPosition(text.length, usePrimaryDirection = true)
+    }
+
+    /** the width the lines currently wrap at */
+    val currentWrapWidth: Float get() = wrapWidth()
+
+    /** whether the text is moving to where a change of the wrap width put it */
+    val reflowing: Boolean
+        get() {
+            rows
+            return reflow != null
+        }
+
+    /** @param nowMs the time of the frame */
+    fun onReflowFrame(nowMs: Long) {
+        val current = reflow ?: return
+        current.onFrame(nowMs)
+        if (!current.valid || current.progress >= 1f) reflow = null
+        reflowFrame = nowMs
+    }
+
+    /** @param distance how far the view scrolled to keep its text in place after the lines wrapped differently */
+    fun onScrolledByReflow(distance: Float) {
+        reflow?.let { it.scrolled += distance }
+    }
 
     private val rows: EditorRows
         get() {
@@ -236,7 +293,32 @@ internal class EditorLineLayout(
         return measureRow(row).getHorizontalPosition(inRow, usePrimaryDirection = true)
     }
 
-    override fun getPathForRange(start: Int, end: Int): Path {
+    override fun getPathForRange(start: Int, end: Int) = pathForRange(start, end, moving = false)
+
+    /** like [getPathForRange], at the place where the range is on the screen during a reflow */
+    fun shownPathForRange(start: Int, end: Int) = pathForRange(start, end, moving = true)
+
+    /** like [getCursorRect], at the place where the cursor is on the screen during a reflow */
+    fun shownCursorRect(offset: Int): Rect {
+        val rect = getCursorRect(offset)
+        val transition = activeReflow ?: return rect
+        return rect.translate(distanceOf(transition, offset, rect.left, rect.top))
+    }
+
+    /** @return how far the start of the [line] is away from its place on the screen during a reflow */
+    fun shownLineDistance(line: Int): Float {
+        val transition = activeReflow ?: return 0f
+        val top = getLineTop(line)
+        return distanceOf(transition, getLineStart(line), 0f, top).y
+    }
+
+    private fun distanceOf(transition: ReflowTransition, offset: Int, x: Float, y: Float): Offset {
+        val origin = transition.startOf(offset)
+        val remaining = 1f - transition.progress
+        return Offset((origin.x - x) * remaining, (origin.y - y) * remaining)
+    }
+
+    private fun pathForRange(start: Int, end: Int, moving: Boolean): Path {
         val path = Path()
         val first = minOf(start, end).coerceIn(0, state.text.length)
         val last = maxOf(start, end).coerceIn(0, state.text.length)
@@ -252,9 +334,42 @@ internal class EditorLineLayout(
             // a selected line break is shown as a bit of space, so an empty line can be seen as selected
             val lineBreak = if (row == rows.lastRow(rows.lineOf(row))) lineHeight / 4 else 0f
             val right = if (last > rowEnd) xOf(row, rowEnd) + lineBreak else xOf(row, last)
-            path.addRect(Rect(minOf(left, right), row * lineHeight, maxOf(left, right), (row + 1) * lineHeight))
+            val transition = if (moving) activeReflow else null
+            if (transition == null) {
+                path.addRect(Rect(minOf(left, right), row * lineHeight, maxOf(left, right), (row + 1) * lineHeight))
+            } else {
+                addMovingRects(path, transition, row, first, last, right)
+            }
         }
         return path
+    }
+
+    /** adds the selected parts of the [row], each at the place it moves through */
+    private fun addMovingRects(path: Path, transition: ReflowTransition, row: Int, first: Int, last: Int, right: Float) {
+        val rows = rows
+        val from = maxOf(first, rows.start(row))
+        val to = minOf(last, rows.end(row))
+        val y = row * lineHeight
+        val parts = insideBreaks(transition, row).filter { it in (from + 1) until to }
+        (listOf(from) + parts).forEachIndexed { index, partStart ->
+            val partLeft = xOf(row, partStart)
+            val partRight = parts.getOrNull(index)?.let { xOf(row, it) } ?: right
+            val distance = distanceOf(transition, partStart, partLeft, y)
+            path.addRect(
+                Rect(minOf(partLeft, partRight), y, maxOf(partLeft, partRight), y + lineHeight).translate(distance),
+            )
+        }
+    }
+
+    /** @return the positions in the [row] where a line broke before the reflow */
+    private fun insideBreaks(transition: ReflowTransition, row: Int): List<Int> {
+        val rows = rows
+        val start = rows.start(row)
+        val end = rows.end(row)
+        val line = rows.lineOf(row)
+        val breaks = transition.breaksOf(line) ?: return emptyList()
+        val lineStart = state.lineStart(line)
+        return breaks.map { lineStart + it }.filter { it in (start + 1) until end }
     }
 
     override fun getOffsetForPosition(position: Offset): Int {
@@ -276,23 +391,84 @@ internal class EditorLineLayout(
 
     private fun currentStyles() = highlighting.styles
 
+    /** what [linesWithin] found last, a reflow draws the same rows on all of its frames */
+    private var drawnArea: IntRange? = null
+    private var drawnVersion = -1
+    private var drawnGeneration = -1
+    private var drawnStyles: List<AnnotatedString.Range<SpanStyle>>? = null
+    private var drawnComposition: TextRange? = null
+    private var drawnLines = emptyList<DrawnLine>()
+
     /**
      * @param area the part of the document to draw
      * @return the rows within the area, each with its layout and where to draw it
      */
     fun linesWithin(area: IntRect): List<DrawnLine> {
+        val rows = rows
         val shown = rowAt(area.top.toFloat())..rowAt(area.bottom.toFloat())
-        val texts = lineTexts(state, shown, currentStyles(), state.composition, rows)
-        return texts.mapIndexedNotNull { index, line ->
+        val styles = currentStyles()
+        val composition = state.composition
+        val generation = wrappedRows?.generation ?: 0
+        if (
+            shown == drawnArea && state.rawVersion == drawnVersion && generation == drawnGeneration &&
+            styles === drawnStyles && composition == drawnComposition
+        ) {
+            return drawnLines
+        }
+        val texts = lineTexts(state, shown, styles, composition, rows)
+        drawnLines = texts.mapIndexedNotNull { index, line ->
             if (line.isEmpty()) return@mapIndexedNotNull null
             val layout = measurer.measure(line, style = textStyle, softWrap = false)
             val width = layout.size.width.toFloat()
             if (width > widestDrawnLine) widestDrawnLine = width
-            DrawnLine(layout, Offset(0f, (shown.first + index) * lineHeight + baseline - layout.firstBaseline))
+            val row = shown.first + index
+            DrawnLine(row, layout, Offset(0f, row * lineHeight + baseline - layout.firstBaseline))
+        }
+        drawnArea = shown
+        drawnVersion = state.rawVersion
+        drawnGeneration = generation
+        drawnStyles = styles
+        drawnComposition = composition
+        return drawnLines
+    }
+
+    /** @return the parts of the [line] that move on their own during a reflow, null if nothing is moving */
+    fun movingParts(line: DrawnLine): List<MovingPart>? {
+        val transition = activeReflow ?: return null
+        val row = line.row
+        val y = row * lineHeight
+        return transition.partsOf(row) { rowParts(transition, row, line.layout) }.map { part ->
+            MovingPart(part.left, part.right, distanceOf(transition, part.start, part.left, y))
         }
     }
 
-    class DrawnLine(val layout: TextLayoutResult, val position: Offset)
+    private fun rowParts(transition: ReflowTransition, row: Int, layout: TextLayoutResult): List<ReflowTransition.RowPart> {
+        val start = rows.start(row)
+        val inside = insideBreaks(transition, row)
+        return (listOf(start) + inside).mapIndexed { index, from ->
+            ReflowTransition.RowPart(
+                start = from,
+                left = layout.getHorizontalPosition(from - start, usePrimaryDirection = true),
+                right = inside.getOrNull(index)
+                    ?.let { layout.getHorizontalPosition(it - start, usePrimaryDirection = true) }
+                    ?: layout.size.width.toFloat(),
+            )
+        }
+    }
+
+    /**
+     * @param row the row
+     * @param layout the layout of the whole row
+     * @param position where to draw the row
+     */
+    class DrawnLine(val row: Int, val layout: TextLayoutResult, val position: Offset)
+
+    /**
+     * @param left where the part starts in the row
+     * @param right where the part ends in the row
+     * @param distance how far the part is away from its place
+     */
+    class MovingPart(val left: Float, val right: Float, val distance: Offset)
 }
 
 /**
@@ -367,6 +543,18 @@ internal fun wordAt(text: String, offset: Int): TextRange {
         position > 0 && text[position - 1] != '\n' -> TextRange(position - 1, position)
         else -> TextRange(position)
     }
+}
+
+/**
+ * What the overlay sees: the places of things as they are on the screen, also while they move during a reflow. Reading
+ * them updates the overlay on each of its frames.
+ */
+internal class ShownEditorLayout(private val layout: EditorLineLayout) : KodeEditorLayout by layout {
+    override fun getLineTop(line: Int) = layout.getLineTop(line) + layout.shownLineDistance(line)
+    override fun getLineBottom(line: Int) = layout.getLineBottom(line) + layout.shownLineDistance(line)
+    override fun getLineBaseline(line: Int) = layout.getLineBaseline(line) + layout.shownLineDistance(line)
+    override fun getCursorRect(offset: Int) = layout.shownCursorRect(offset)
+    override fun getPathForRange(start: Int, end: Int) = layout.shownPathForRange(start, end)
 }
 
 /** moving the cursor with the keys uses the same rows the editor shows */
