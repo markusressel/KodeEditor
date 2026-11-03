@@ -170,11 +170,28 @@ internal class WrappedRows(
 
     /**
      * @param rowPosition a position in rows before the width changed
-     * @return the position of the same text in the current rows, null if the width did not change since the last call
+     * @param anchors positions in the text that should stay where they are, the first visible one is used
+     * @param visibleRows how many rows are visible below the [rowPosition]
+     * @return the position that keeps the first visible anchor in its place, otherwise the position of the same text at
+     * [rowPosition], null if the width did not change since the last call
      */
-    fun takePositionAfterResize(rowPosition: Float): Float? {
+    fun takePositionAfterResize(
+        rowPosition: Float,
+        anchors: List<Int> = emptyList(),
+        visibleRows: Float = 0f,
+    ): Float? {
         val previous = rowsBeforeResize ?: return null
         rowsBeforeResize = null
+        if (previous.breaks.size == breaks.size) {
+            anchors.forEach { anchor ->
+                val line = state.lineOf(anchor)
+                val inLine = anchor - state.lineStart(line)
+                val rowBefore = previous.firstRows[line] + rowInLine(previous.breaks[line], inLine)
+                if (rowBefore + 1 > rowPosition && rowBefore < rowPosition + visibleRows) {
+                    return rowPosition + firstRows[line] + rowInLine(breaks[line], inLine) - rowBefore
+                }
+            }
+        }
         val row = rowPosition.toInt().coerceIn(0, previous.firstRows.last() - 1)
         val line = lineOf(previous.firstRows, previous.breaks.size, row)
         val index = row - previous.firstRows[line]

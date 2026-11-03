@@ -421,9 +421,12 @@ fun KodeEditor(
         }
     }
 
-    // the text at the top of the view stays there when the lines wrap differently
+    // what the user works on, the cursor and the moving end of a selection first
+    fun anchors() = if (focused) listOf(state.selection.end, state.selection.start) else emptyList()
+
+    // the cursor or the selection stays where it is when the lines wrap differently, otherwise the top of the view does
     LaunchedEffect(layout, wrapWidth.value) {
-        layout.takePositionAfterResize(offset.y)?.let { y ->
+        layout.takePositionAfterResize(offset.y, anchors(), settledGeometry.visibleSize.height)?.let { y ->
             val before = offset.y
             offset = EditorGeometry.coerce(offset.copy(y = y), maxOffset)
             layout.onScrolledByReflow(offset.y - before)
@@ -451,6 +454,26 @@ fun KodeEditor(
             viewport = settledGeometry.visibleSize,
             maxOffset = maxOffset,
         )
+    }
+
+    /** Zooms without fingers to zoom around, so the cursor or the selection stays in its place if it is visible */
+    fun zoomAroundCursor(newZoom: Float) {
+        val visible = geometry.visibleSize
+        val anchor = anchors().map { layout.getCursorRect(it).topLeft }
+            .firstOrNull { it.y >= offset.y && it.y < offset.y + visible.height }
+        if (anchor != null) {
+            val moved = zoomedOffset(
+                offset = offset,
+                oldZoom = zoom,
+                newZoom = newZoom,
+                centroid = geometry.toEditor(anchor, offset),
+                pan = Offset.Zero,
+                oldStart = geometry.gutterOnScreen(zoom),
+                newStart = geometry.gutterOnScreen(newZoom),
+            )
+            offset = Offset(moved.x.coerceAtLeast(0f), moved.y.coerceAtLeast(0f))
+        }
+        zoom = newZoom
     }
 
     fun offsetAt(position: Offset) = layout.getOffsetForPosition(geometry.toText(position, offset))
@@ -688,17 +711,17 @@ fun KodeEditor(
             }
 
             KeyboardCommand.ZoomIn -> {
-                zoom = (zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(maxZoom)
+                zoomAroundCursor((zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(maxZoom))
                 true
             }
 
             KeyboardCommand.ZoomOut -> {
-                zoom = (zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(minZoom)
+                zoomAroundCursor((zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(minZoom))
                 true
             }
 
             KeyboardCommand.ZoomReset -> {
-                zoom = 1f.coerceIn(minZoom, maxZoom)
+                zoomAroundCursor(1f.coerceIn(minZoom, maxZoom))
                 true
             }
         }

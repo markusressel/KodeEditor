@@ -125,6 +125,41 @@ class EditorRowsTest {
     }
 
     @Test
+    fun `a visible anchor stays in its place when the width changes`() {
+        val text = "aaaa bbbb cccc dddd eeee ffff\nsecond"
+        val state = KodeEditorState(text)
+        val rows = rowsOf(state)
+
+        rows.update(5f)
+
+        // "eeee" was in row 2, which is 0.5 below the position, and is in row 4 now
+        assertEquals(3.5f, rows.takePositionAfterResize(1.5f, listOf(text.indexOf("eeee")), 3f))
+    }
+
+    @Test
+    fun `the first visible anchor is used`() {
+        val text = "aaaa bbbb cccc dddd eeee ffff\nsecond"
+        val state = KodeEditorState(text)
+        val rows = rowsOf(state)
+
+        rows.update(5f)
+
+        // "second" is below the view, so "cccc" decides: it was in row 1 and is in row 2 now
+        assertEquals(1f, rows.takePositionAfterResize(0f, listOf(text.indexOf("second"), text.indexOf("cccc")), 2f))
+    }
+
+    @Test
+    fun `an anchor out of view does not move the view`() {
+        val text = "aaaa bbbb cccc dddd eeee ffff\nsecond"
+        val state = KodeEditorState(text)
+        val rows = rowsOf(state)
+
+        rows.update(5f)
+
+        assertEquals(2.5f, rows.takePositionAfterResize(1.5f, listOf(0), 1f))
+    }
+
+    @Test
     fun `a position in a line that is gone stays within the text`() {
         val state = KodeEditorState("a\nb\nc\nd")
         val rows = rowsOf(state)
