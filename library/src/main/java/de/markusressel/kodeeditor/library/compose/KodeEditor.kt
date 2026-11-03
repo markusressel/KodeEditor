@@ -3,6 +3,8 @@ package de.markusressel.kodeeditor.library.compose
 import android.view.inputmethod.BaseInputConnection
 import android.view.KeyCharacterMap
 import android.view.KeyEvent as AndroidKeyEvent
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -80,7 +82,7 @@ private const val KEYBOARD_ZOOM_STEP = 1.1f
 private const val CURSOR_BLINK_MS = 500L
 private val CURSOR_WIDTH = 2.dp
 private const val MENU_DELAY_MS = 250L
-private const val REFLOW_DELAY_MS = 200L
+internal const val GUTTER_ANIMATION_MS = 150
 private val HANDLE_EDGE_SIZE = 48.dp
 private val HANDLE_EDGE_SPEED = 12.dp
 private val TEXT_START_PADDING = 4.dp
@@ -351,9 +353,14 @@ fun KodeEditor(
     val fieldColors = colors.textFieldColors(enabled = enabled).value
     val fieldTextColor = fieldColors.textColor(enabled).value
     val fieldTextStyle = textStyle.copy(color = textStyle.color.takeOrElse { fieldTextColor })
-    val gutterWidth by remember(state, gutterColumns) {
+    val targetGutterWidth by remember(state, gutterColumns) {
         derivedStateOf { gutterColumns.sumOf { it.width(state.lineCount) } }
     }
+    val gutterWidth by animateIntAsState(
+        targetValue = targetGutterWidth,
+        animationSpec = tween(GUTTER_ANIMATION_MS),
+        label = "gutterWidth",
+    )
 
     // Text Editor
     var totalSize by remember { mutableStateOf(IntSize.Zero) }
@@ -361,21 +368,19 @@ fun KodeEditor(
     val geometry by remember(textStartPadding) {
         derivedStateOf { EditorGeometry(totalSize, gutterWidth, textStartPadding, zoom) }
     }
+    // the bar animates on its own, what depends on the room of the text only has to change once for that
+    val settledGeometry by remember(textStartPadding) {
+        derivedStateOf { EditorGeometry(totalSize, targetGutterWidth, textStartPadding, zoom) }
+    }
     val drawWindow = remember(textStartPadding) {
         derivedStateOf {
             DrawWindow.around(Offset(offset.x - textStartPadding, offset.y), geometry.visibleSize)
         }
     }
 
-    // the text reflows when a zoom is over, doing it on each of its frames would make the text jump around
-    var settledZoom by remember { mutableFloatStateOf(zoom) }
-    LaunchedEffect(zoom) {
-        delay(REFLOW_DELAY_MS)
-        settledZoom = zoom
-    }
     val wrapWidth = remember(textStartPadding) {
         derivedStateOf {
-            val visible = geometry.copy(zoom = settledZoom).visibleSize.width
+            val visible = settledGeometry.visibleSize.width
             floor(visible - 2 * textStartPadding.roundToInt()).coerceAtLeast(0f)
         }
     }
@@ -405,7 +410,7 @@ fun KodeEditor(
     val maxOffset by remember(layout, textStartPadding) {
         derivedStateOf {
             val size = layout.contentSize
-            geometry.maxOffset(IntSize(size.width + 2 * textStartPadding.roundToInt(), size.height))
+            settledGeometry.maxOffset(IntSize(size.width + 2 * textStartPadding.roundToInt(), size.height))
         }
     }
 
@@ -434,7 +439,7 @@ fun KodeEditor(
         offset = CursorVisibility.offsetFor(
             offset = offset,
             cursor = layout.getCursorRect(selection.end).translate(textStartPadding, 0f),
-            viewport = geometry.visibleSize,
+            viewport = settledGeometry.visibleSize,
             maxOffset = maxOffset,
         )
     }
@@ -445,7 +450,8 @@ fun KodeEditor(
     fun tapGutter(position: Offset): Boolean {
         if (position.x >= geometry.gutterOnScreen) return false
         val lines = layout.lineCount
-        val column = gutterColumnAt(gutterColumns, lines, position.x / geometry.gutterScale) ?: return false
+        val x = position.x / geometry.gutterScale + targetGutterWidth - geometry.gutterWidth
+        val column = gutterColumnAt(gutterColumns, lines, x) ?: return false
         return column.onTap(layout.getLineForVerticalPosition(geometry.toText(position, offset).y))
     }
 
@@ -753,6 +759,7 @@ fun KodeEditor(
             backgroundColor = colors.lineNumberBackgroundColor().value,
             window = drawWindow,
             geometry = { geometry },
+            targetWidth = { targetGutterWidth },
             offsetY = { offset.y },
         )
 

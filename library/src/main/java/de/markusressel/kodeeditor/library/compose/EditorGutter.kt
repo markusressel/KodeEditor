@@ -4,11 +4,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.structuralEqualityPolicy
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -28,8 +34,10 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.min
 
 /**
  * A column of the bar next to the text, e.g. line numbers, warning markers or bookmarks.
@@ -75,12 +83,10 @@ class GutterCell(
     val baseline: Float,
 )
 
-private const val MIN_LINE_NUMBER_DIGITS = 3
 private val LINE_NUMBER_PADDING = 4.dp
 
 /**
- * The column of the line numbers, the default content of the bar. It always has room for three digits, so the text
- * does not jump around in short documents.
+ * The column of the line numbers, the default content of the bar. It is as wide as the highest line number needs.
  *
  * @param textStyle the style of the text of the editor
  * @param colors the colors of the editor
@@ -100,7 +106,7 @@ fun rememberLineNumberColumn(
     return remember(measurer, style, padding) { LineNumberColumn(measurer, style, padding) }
 }
 
-private class LineNumberColumn(
+internal class LineNumberColumn(
     private val measurer: TextMeasurer,
     private val style: TextStyle,
     private val padding: Float,
@@ -109,7 +115,7 @@ private class LineNumberColumn(
     private var measuredWidth = 0
 
     override fun width(lineCount: Int): Int {
-        val digits = max(lineCount.toString().length, MIN_LINE_NUMBER_DIGITS)
+        val digits = lineCount.toString().length
         if (digits != measuredDigits) {
             val text = measurer.measure("9".repeat(digits), style = style, softWrap = false)
             measuredWidth = ceil(text.size.width + 2 * padding).toInt()
@@ -118,12 +124,70 @@ private class LineNumberColumn(
         return measuredWidth
     }
 
-    override fun DrawScope.drawCell(cell: GutterCell) {
+    override fun DrawScope.drawCell(cell: GutterCell) = drawNumber(cell, alpha = 1f)
+
+    /** Draws the number of the line of the [cell], which can be a line that was just removed */
+    fun DrawScope.drawNumber(cell: GutterCell, alpha: Float) {
         val number = measurer.measure("${cell.line + 1}", style = style, softWrap = false)
         drawText(
             textLayoutResult = number,
             topLeft = Offset(cell.width - padding - number.size.width, cell.baseline - number.firstBaseline),
+            alpha = alpha,
         )
+    }
+}
+
+/**
+ * How visible the numbers of new and removed lines are while they fade. A change of more than [MAX_FADING_LINES] lines
+ * does not fade, it would show nothing more on the screen and only cost time.
+ *
+ * @param lineCount the number of lines of the document
+ */
+internal class LineNumberFades(private var lineCount: Int) {
+    private class Fade(val from: Float, val to: Float) {
+        var startMs = -1L
+        var alpha = from
+    }
+
+    private val fades = HashMap<Int, Fade>()
+
+    /** whether a line is still fading */
+    val active: Boolean get() = fades.isNotEmpty()
+
+    /** the lines behind the end of the document that are still visible, from top to bottom */
+    val removedLines: List<Int> get() = fades.keys.filter { it >= lineCount }.sorted()
+
+    /** @param count the new number of lines of the document */
+    fun onLineCountChanged(count: Int) {
+        val previous = lineCount
+        lineCount = count
+        if (abs(count - previous) > MAX_FADING_LINES) {
+            fades.clear()
+            return
+        }
+        val appearing = count > previous
+        for (line in min(count, previous) until max(count, previous)) {
+            // a line that changes direction continues from where it is
+            val current = fades[line]?.alpha ?: if (appearing) 0f else 1f
+            fades[line] = Fade(from = current, to = if (appearing) 1f else 0f)
+        }
+    }
+
+    /** @param nowMs the time of the frame */
+    fun onFrame(nowMs: Long) {
+        fades.values.removeAll { fade ->
+            if (fade.startMs < 0) fade.startMs = nowMs
+            val progress = ((nowMs - fade.startMs) / GUTTER_ANIMATION_MS.toFloat()).coerceAtMost(1f)
+            fade.alpha = fade.from + (fade.to - fade.from) * progress
+            progress >= 1f
+        }
+    }
+
+    /** @return how visible the number of the [line] is */
+    fun alpha(line: Int): Float = fades[line]?.alpha ?: 1f
+
+    private companion object {
+        const val MAX_FADING_LINES = 256
     }
 }
 
@@ -165,6 +229,7 @@ internal fun gutterLinesWithin(layout: KodeEditorLayout, top: Float, bottom: Flo
  * @param backgroundColor the color of the bar
  * @param window the part of the document to record for drawing, in text coordinates
  * @param geometry where things are in the editor
+ * @param targetWidth the width of the bar at zoom 1 when its animation ends, which the columns are laid out for
  * @param offsetY the current vertical scroll offset
  */
 @Composable
@@ -175,6 +240,7 @@ internal fun EditorGutter(
     backgroundColor: Color,
     window: State<IntRect>,
     geometry: () -> EditorGeometry,
+    targetWidth: () -> Int,
     offsetY: () -> Float,
 ) {
     // a change within a line does not move the bar, so typing does not record it again
@@ -184,6 +250,19 @@ internal fun EditorGutter(
             gutterLinesWithin(layout, area.top.toFloat(), area.bottom.toFloat())
         }
     }
+    val lineCount = layout.lineCount
+    val fades = remember(layout) { LineNumberFades(lineCount) }
+    var fadeFrame by remember { mutableLongStateOf(0L) }
+    SideEffect { fades.onLineCountChanged(lineCount) }
+    LaunchedEffect(fades, lineCount) {
+        while (fades.active) {
+            withFrameMillis { now ->
+                fades.onFrame(now)
+                fadeFrame = now
+            }
+        }
+    }
+
     // changes only while the bar stopped growing with the zoom
     val cellStretch = remember { derivedStateOf { geometry().let { it.gutterScale / it.zoom } } }
 
@@ -201,34 +280,58 @@ internal fun EditorGutter(
                     transformOrigin = TransformOrigin(0f, 0f)
                     scaleX = current.gutterScale
                     scaleY = current.zoom
+                    // the columns stay next to the text while the bar animates, the left edge moves out of the editor
+                    translationX = (current.gutterWidth - targetWidth()) * current.gutterScale
                     translationY = -offsetY() * current.zoom
                 },
         ) {
             Box(
                 modifier = Modifier
-                    .placedAt { window.value.let { IntRect(0, it.top, geometry().gutterWidth, it.bottom) } }
+                    .placedAt { window.value.let { IntRect(0, it.top, targetWidth(), it.bottom) } }
                     .graphicsLayer {}
                     .drawBehind {
+                        // a read, so that the bar is drawn again on each frame of a fade
+                        fadeFrame
                         val stretch = cellStretch.value
                         val areaTop = window.value.top
-                        lines.value.forEach { (line, top, baseline) ->
+
+                        fun drawLine(line: Int, top: Float, baseline: Float, removed: Boolean) {
+                            val alpha = fades.alpha(line)
                             var start = 0f
                             columns.forEach { column ->
                                 val width = column.width(layout.lineCount).toFloat()
-                                val cell = GutterCell(
-                                    line = line,
-                                    width = width,
-                                    height = layout.lineHeight / stretch,
-                                    baseline = (baseline - top) / stretch,
-                                )
-                                withTransform({
-                                    translate(start, top - areaTop)
-                                    scale(1f, stretch, Offset.Zero)
-                                }) {
-                                    with(column) { drawCell(cell) }
+                                // other columns only know the lines of the document
+                                if (column is LineNumberColumn || !removed) {
+                                    val cell = GutterCell(
+                                        line = line,
+                                        width = width,
+                                        height = layout.lineHeight / stretch,
+                                        baseline = (baseline - top) / stretch,
+                                    )
+                                    withTransform({
+                                        translate(start, top - areaTop)
+                                        scale(1f, stretch, Offset.Zero)
+                                    }) {
+                                        if (column is LineNumberColumn) {
+                                            with(column) { drawNumber(cell, alpha) }
+                                        } else {
+                                            with(column) { drawCell(cell) }
+                                        }
+                                    }
                                 }
                                 start += width
                             }
+                        }
+
+                        lines.value.forEach { (line, top, baseline) -> drawLine(line, top, baseline, removed = false) }
+
+                        // removed lines have no place in the document anymore, they fade below its end
+                        val lastLine = layout.lineCount - 1
+                        val end = layout.getLineBottom(lastLine)
+                        val baselineInRow = layout.getLineBaseline(lastLine) - layout.getLineTop(lastLine)
+                        fades.removedLines.forEach { line ->
+                            val top = end + (line - lastLine - 1) * layout.lineHeight
+                            drawLine(line, top, top + baselineInRow, removed = true)
                         }
                     },
             )
