@@ -48,7 +48,7 @@ in your project build.gradle file and
 dependencies {
     ...
 
-    def codeEditorVersion = "6.0.0"
+    def codeEditorVersion = "7.0.0"
     implementation("com.github.markusressel:KodeEditor:${codeEditorVersion}")
 }
 ```
