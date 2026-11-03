@@ -166,6 +166,7 @@ KodeEditor(
 )
 ```
 
+Folding moves what is below a fold to its new place and fades the lines of the fold, `folding = false` turns that off.
 `KodeEditorAnimations.None` turns off all of them.
 
 ## Folding

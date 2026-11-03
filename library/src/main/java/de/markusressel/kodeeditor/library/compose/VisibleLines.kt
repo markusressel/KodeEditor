@@ -9,6 +9,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -45,7 +46,7 @@ internal fun VisibleLines(
     decorations: List<KodeEditorLineDecoration> = emptyList(),
 ) {
     LaunchedEffect(layout) {
-        snapshotFlow { layout.currentWrapWidth }.collectLatest {
+        snapshotFlow { layout.currentWrapWidth to layout.foldAnimations }.collectLatest {
             while (layout.reflowing) {
                 withFrameMillis(layout::onReflowFrame)
             }
@@ -64,6 +65,7 @@ internal fun VisibleLines(
                         if (parts == null) {
                             drawText(textLayoutResult = line.layout, topLeft = line.position)
                         } else {
+                            val alpha = layout.rowAlpha(line.row)
                             parts.forEach { part ->
                                 translate(part.distance.x, part.distance.y) {
                                     clipRect(
@@ -72,11 +74,15 @@ internal fun VisibleLines(
                                         right = line.position.x + part.right,
                                         bottom = line.position.y + line.layout.size.height,
                                     ) {
-                                        drawText(textLayoutResult = line.layout, topLeft = line.position)
+                                        drawText(textLayoutResult = line.layout, topLeft = line.position, alpha = alpha)
                                     }
                                 }
                             }
                         }
+                    }
+                    layout.shownLeavingRows.forEach { row ->
+                        val top = row.baseline - row.layout.firstBaseline
+                        drawText(textLayoutResult = row.layout, topLeft = Offset(0f, top), alpha = row.alpha)
                     }
                     layout.trailingTextsWithin(area, decorations).forEach { text ->
                         drawText(textLayoutResult = text.layout, topLeft = text.position)

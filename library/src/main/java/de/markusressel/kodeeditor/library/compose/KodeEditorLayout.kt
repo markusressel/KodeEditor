@@ -5,6 +5,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
@@ -132,6 +133,7 @@ interface KodeEditorLayout {
  * @param wrapWidth the width to wrap the lines at
  * @param animateReflow whether what is shown moves to its new place when lines wrap differently
  * @param folds what is folded, null if the editor does not fold
+ * @param animateFolds whether what is shown moves to its new place when lines fold or unfold
  */
 internal class EditorLineLayout(
     private val state: KodeEditorState,
@@ -143,6 +145,7 @@ internal class EditorLineLayout(
     private val wrapWidth: () -> Float = { 0f },
     private val animateReflow: Boolean = false,
     private val folds: EditorFolds? = null,
+    animateFolds: Boolean = false,
 ) : KodeEditorLayout {
 
     private val reference = measurer.measure("X", style = textStyle, softWrap = false)
@@ -231,6 +234,108 @@ internal class EditorLineLayout(
                 foldedGeneration = generation
             }
             return foldedRows!!
+        }
+
+    /** a fold moves the lines like a reflow does, this is what a reflow has no need for */
+    private var foldFade: FoldFade? = null
+
+    /** changes when a fold starts moving lines */
+    var foldAnimations by mutableIntStateOf(0)
+        private set
+
+    private val activeFoldFade: FoldFade?
+        get() {
+            val transition = activeReflow ?: return null
+            return foldFade?.takeIf { it.transition === transition }
+        }
+
+    init {
+        if (animateFolds) folds?.onFoldChanged = ::onFoldChanged
+    }
+
+    private fun onFoldChanged(before: HiddenLines?, after: HiddenLines?) {
+        val wrapped = wrappedRows
+        wrapped?.update(wrapWidth())
+        val base = wrapped ?: unwrappedRows
+        val lines = state.lineCount
+        val firstRows = wrapped?.currentFirstRows ?: IntArray(lines + 1) { it }
+        val breaks = wrapped?.currentBreaks ?: arrayOfNulls(lines)
+        val transition = ReflowTransition(
+            state = state,
+            firstRows = before?.shownFirstRows(firstRows) ?: firstRows,
+            breaks = breaks,
+            previous = reflow?.takeIf { it.valid },
+            lineHeight = lineHeight,
+            measure = ::measureBetween,
+        )
+        val rowsBefore = before?.let { FoldedRows(base, it) } ?: base
+        val leaving = leavingRows(rowsBefore, before, after)
+        rowsHidden = after
+        foldedRows = null
+        val rowsAfter = rows
+        reflow = transition
+        foldFade = FoldFade(
+            transition = transition,
+            appearing = before,
+            staying = after,
+            leaving = leaving.map { row ->
+                // into the place below the line that hides them
+                row.copy(targetTop = (rowsAfter.rowOf(state.lineStart(row.line)) + 1) * lineHeight)
+            },
+        )
+        foldAnimations++
+    }
+
+    /** @return the rows in the drawn part of the document that a fold is about to hide */
+    private fun leavingRows(rows: EditorRows, before: HiddenLines?, after: HiddenLines?): List<LeavingRow> {
+        after ?: return emptyList()
+        val area = window.value
+        val lastRow = rows.count - 1
+        val shown = (area.top / lineHeight).toInt().coerceIn(0, lastRow)..
+            (area.bottom / lineHeight).toInt().coerceIn(0, lastRow)
+        val hiddenRows = shown.filter { row ->
+            val line = rows.lineOf(row)
+            after.rangeOf(line) >= 0 && (before == null || before.rangeOf(line) < 0)
+        }
+        if (hiddenRows.isEmpty()) return emptyList()
+        val texts = lineTexts(state, shown, currentStyles(), state.composition, rows)
+        return hiddenRows.map { row ->
+            val line = rows.lineOf(row)
+            LeavingRow(
+                line = line,
+                firstOfLine = row == rows.firstRow(line),
+                layout = measurer.measure(texts[row - shown.first], style = textStyle, softWrap = false),
+                top = row * lineHeight,
+                targetTop = row * lineHeight,
+            )
+        }
+    }
+
+    /**
+     * @param row a row
+     * @return how visible the row is while a fold moves lines
+     */
+    fun rowAlpha(row: Int) = lineAlpha(rows.lineOf(row))
+
+    /**
+     * @param line a line
+     * @return how visible the line is while a fold moves lines
+     */
+    fun lineAlpha(line: Int): Float {
+        val fade = activeFoldFade ?: return 1f
+        return if (fade.isAppearing(line)) fade.transition.progress else 1f
+    }
+
+    /** the rows that a fold just hid, at the place and with the visibility they have at the moment */
+    val shownLeavingRows: List<ShownLeavingRow>
+        get() {
+            val fade = activeFoldFade ?: return emptyList()
+            val transition = fade.transition
+            val remaining = 1f - transition.progress
+            return fade.leaving.map { row ->
+                val top = row.targetTop + (row.top + transition.scrolled - row.targetTop) * remaining
+                ShownLeavingRow(row.line, row.firstOfLine, row.layout, top, top + baseline, remaining)
+            }
         }
 
     private var rowsHidden: HiddenLines? = null
@@ -566,6 +671,56 @@ internal class EditorLineLayout(
      * @param position where to draw it
      */
     class TrailingText(val layout: TextLayoutResult, val position: Offset)
+
+    /**
+     * @param line the line the row is a part of
+     * @param firstOfLine whether this is the first row of the line
+     * @param layout the layout of the whole row
+     * @param top the top of the row before the fold
+     * @param targetTop the top of the row where it disappears
+     */
+    private data class LeavingRow(
+        val line: Int,
+        val firstOfLine: Boolean,
+        val layout: TextLayoutResult,
+        val top: Float,
+        val targetTop: Float,
+    )
+
+    /**
+     * What a fold needs on top of its [ReflowTransition]
+     *
+     * @param transition moves the lines
+     * @param appearing the lines that were hidden
+     * @param staying the lines that are hidden now
+     * @param leaving the rows that are hidden now, and were drawn before
+     */
+    private class FoldFade(
+        val transition: ReflowTransition,
+        private val appearing: HiddenLines?,
+        private val staying: HiddenLines?,
+        val leaving: List<LeavingRow>,
+    ) {
+        fun isAppearing(line: Int) = appearing != null && appearing.rangeOf(line) >= 0 &&
+            (staying == null || staying.rangeOf(line) < 0)
+    }
+
+    /**
+     * @param line the line the row is a part of
+     * @param firstOfLine whether this is the first row of the line
+     * @param layout the layout of the whole row
+     * @param top where the top of the row is at the moment
+     * @param baseline where the baseline of the row is at the moment
+     * @param alpha how visible the row is at the moment
+     */
+    class ShownLeavingRow(
+        val line: Int,
+        val firstOfLine: Boolean,
+        val layout: TextLayoutResult,
+        val top: Float,
+        val baseline: Float,
+        val alpha: Float,
+    )
 
     /**
      * @param left where the part starts in the row

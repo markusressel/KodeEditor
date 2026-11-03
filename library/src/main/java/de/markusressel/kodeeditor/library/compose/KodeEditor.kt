@@ -437,7 +437,7 @@ fun KodeEditor(
     val measurer = rememberTextMeasurer(cacheSize = LINE_LAYOUT_CACHE_SIZE)
     val breakMeasurer = rememberTextMeasurer(cacheSize = 0)
     val layout = remember(
-        state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping, animations.reflow, folds,
+        state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping, animations.reflow, animations.folding, folds,
     ) {
         EditorLineLayout(
             state = state,
@@ -449,6 +449,7 @@ fun KodeEditor(
             wrapWidth = { wrapWidth.value },
             animateReflow = animations.reflow,
             folds = folds,
+            animateFolds = animations.folding,
         )
     }
     DisposableEffect(state, layout) {
@@ -481,7 +482,9 @@ fun KodeEditor(
 
     // the text can get shorter and the zoom can change, the view must not stay beyond the end of the text
     LaunchedEffect(maxOffset) {
+        val before = offset.y
         offset = EditorGeometry.coerce(offset, maxOffset)
+        layout.onScrolledByReflow(offset.y - before)
     }
 
     val selection = state.selection

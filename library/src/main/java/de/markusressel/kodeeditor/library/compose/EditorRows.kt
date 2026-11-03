@@ -73,6 +73,12 @@ internal class WrappedRows(
 
     override val count get() = firstRows[breaks.size]
 
+    /** the first row of each line, and the number of rows at the end */
+    val currentFirstRows: IntArray get() = firstRows
+
+    /** the positions where each line breaks */
+    val currentBreaks: Array<IntArray?> get() = breaks
+
     /** changes when the rows may have changed */
     var generation = 0
         private set

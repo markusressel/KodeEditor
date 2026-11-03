@@ -122,6 +122,23 @@ class EditorFoldsTest {
     }
 
     @Test
+    fun tellsAboutFoldsThatChangeWithoutTheText() {
+        val (state, folds) = foldsOf(document)
+        val changes = mutableListOf<Pair<Boolean, Boolean>>()
+        folds.onFoldChanged = { before, after -> changes += (before != null) to (after != null) }
+        folds.toggle(0)
+        assertEquals(listOf(false to true), changes)
+        // the cursor unfolds it
+        state.setSelection(TextRange(5))
+        assertEquals(listOf(false to true, true to false), changes)
+        // a change of the text moves things differently
+        folds.toggle(0)
+        changes.clear()
+        state.localEdit(0, 1, "")
+        assertEquals(emptyList<Pair<Boolean, Boolean>>(), changes)
+    }
+
+    @Test
     fun rowsLeaveOutHiddenLines() {
         val (state, folds) = foldsOf(document)
         folds.toggle(0)

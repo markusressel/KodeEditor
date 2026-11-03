@@ -298,8 +298,13 @@ internal fun EditorGutter(
                         val stretch = cellStretch.value
                         val areaTop = window.value.top
 
-                        fun drawLine(line: Int, top: Float, baseline: Float, removed: Boolean) {
-                            val alpha = fades.alpha(line)
+                        fun drawLine(
+                            line: Int,
+                            top: Float,
+                            baseline: Float,
+                            removed: Boolean,
+                            alpha: Float = fades.alpha(line),
+                        ) {
                             var start = 0f
                             columns.forEach { column ->
                                 val width = column.width(layout.lineCount).toFloat()
@@ -329,7 +334,15 @@ internal fun EditorGutter(
                         lines.value.forEach { (line, top, baseline) ->
                             // the bar moves with the text when lines wrap differently
                             val distance = layout.shownLineDistance(line)
-                            drawLine(line, top + distance, baseline + distance, removed = false)
+                            val alpha = fades.alpha(line) * layout.lineAlpha(line)
+                            drawLine(line, top + distance, baseline + distance, removed = false, alpha = alpha)
+                        }
+
+                        // the numbers of lines that a fold just hid leave with their lines
+                        layout.shownLeavingRows.forEach { row ->
+                            if (row.firstOfLine) {
+                                drawLine(row.line, row.top, row.baseline, removed = true, alpha = row.alpha)
+                            }
                         }
 
                         // removed lines have no place in the document anymore, they fade below its end

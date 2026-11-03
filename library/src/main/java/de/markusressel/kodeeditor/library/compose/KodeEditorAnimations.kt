@@ -9,15 +9,18 @@ import androidx.compose.runtime.Immutable
  * @param lineNumbers whether the numbers of new and removed lines fade
  * @param reflow whether the text, the bar, the selection, the cursor and the overlay move to their new place when lines
  * wrap differently, which only applies with line wrapping
+ * @param folding whether what is below a fold moves to its new place, and the lines of the fold fade, when it folds or
+ * unfolds
  */
 @Immutable
 data class KodeEditorAnimations(
     val gutterWidth: Boolean = true,
     val lineNumbers: Boolean = true,
     val reflow: Boolean = true,
+    val folding: Boolean = true,
 ) {
     companion object {
         /** Everything jumps to its new place at once */
-        val None = KodeEditorAnimations(gutterWidth = false, lineNumbers = false, reflow = false)
+        val None = KodeEditorAnimations(gutterWidth = false, lineNumbers = false, reflow = false, folding = false)
     }
 }

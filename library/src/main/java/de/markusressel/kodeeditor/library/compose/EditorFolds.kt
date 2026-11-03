@@ -143,6 +143,9 @@ internal class EditorFolds(
     private var builtFoldVersion = -1
     private var builtHidden: HiddenLines? = null
 
+    /** called when folds changed while the text stayed the same, with the hidden lines before and after that */
+    var onFoldChanged: ((before: HiddenLines?, after: HiddenLines?) -> Unit)? = null
+
     /** the lines that are hidden, null if there are none */
     val hidden: HiddenLines?
         get() {
@@ -209,16 +212,19 @@ internal class EditorFolds(
      */
     fun toggle(line: Int): Boolean {
         if (!canFold(line)) return false
+        val before = hidden
         if (isFolded(line)) {
             val start = state.lineStart(line)
             folds.removeAll { it.header == start }
             foldVersion++
+            onFoldChanged?.invoke(before, hidden)
             return true
         }
         folds += Fold(state.lineStart(line), 0, 0)
         foldVersion++
         val selection = state.selection
         val lines = hidden
+        onFoldChanged?.invoke(before, lines)
         if (lines != null) {
             val selected = state.lineOf(selection.min)..state.lineOf(selection.max)
             if (selected.first in lines || selected.last in lines) state.setSelection(TextRange(state.lineEnd(line)))
@@ -262,9 +268,13 @@ internal class EditorFolds(
         if (folds.isEmpty()) return
         val selection = state.selection
         if (!selection.collapsed) return
-        hidden
+        val sameText = builtTextVersion == state.rawVersion
+        val before = hidden
         val cursor = selection.end
-        if (folds.removeAll { cursor in it.hiddenStart..it.hiddenEnd }) foldVersion++
+        if (folds.removeAll { cursor in it.hiddenStart..it.hiddenEnd }) {
+            foldVersion++
+            if (sameText) onFoldChanged?.invoke(before, hidden)
+        }
     }
 }
 
