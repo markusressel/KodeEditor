@@ -51,12 +51,14 @@ internal class UnwrappedRows(private val state: KodeEditorState) : EditorRows {
  *
  * @param onReflow called with the rows before a change of the width that made lines break differently
  * @param sameBreaks whether two widths are known to break all lines at the same positions, which saves going through them
+ * @param hiddenLines the lines that folds hide. These rows still have them, positions from outside don't count them
  * @param breaker finds the positions where a line of the text breaks at a width, null if the line fits
  */
 internal class WrappedRows(
     private val state: KodeEditorState,
     private val onReflow: (firstRows: IntArray, breaks: Array<IntArray?>) -> Unit = { _, _ -> },
     private val sameBreaks: (first: Float, second: Float) -> Boolean = { _, _ -> false },
+    private val hiddenLines: () -> HiddenLines? = { null },
     private val breaker: (text: String, start: Int, end: Int, width: Float) -> IntArray?,
 ) : EditorRows {
     private var width = 0f
@@ -70,6 +72,12 @@ internal class WrappedRows(
     private var rowsBeforeResize: PreviousRows? = null
 
     override val count get() = firstRows[breaks.size]
+
+    /** the first row of each line, and the number of rows at the end */
+    val currentFirstRows: IntArray get() = firstRows
+
+    /** the positions where each line breaks */
+    val currentBreaks: Array<IntArray?> get() = breaks
 
     /** changes when the rows may have changed */
     var generation = 0
@@ -182,22 +190,25 @@ internal class WrappedRows(
     ): Float? {
         val previous = rowsBeforeResize ?: return null
         rowsBeforeResize = null
+        val hidden = hiddenLines()
+        val firstRowsBefore = hidden?.shownFirstRows(previous.firstRows) ?: previous.firstRows
+        val firstRowsNow = hidden?.shownFirstRows(firstRows) ?: firstRows
         if (previous.breaks.size == breaks.size) {
             anchors.forEach { anchor ->
                 val line = state.lineOf(anchor)
                 val inLine = anchor - state.lineStart(line)
-                val rowBefore = previous.firstRows[line] + rowInLine(previous.breaks[line], inLine)
+                val rowBefore = firstRowsBefore[line] + rowInLine(previous.breaks[line], inLine)
                 if (rowBefore + 1 > rowPosition && rowBefore < rowPosition + visibleRows) {
-                    return rowPosition + firstRows[line] + rowInLine(breaks[line], inLine) - rowBefore
+                    return rowPosition + firstRowsNow[line] + rowInLine(breaks[line], inLine) - rowBefore
                 }
             }
         }
-        val row = rowPosition.toInt().coerceIn(0, previous.firstRows.last() - 1)
-        val line = lineOf(previous.firstRows, previous.breaks.size, row)
-        val index = row - previous.firstRows[line]
+        val row = rowPosition.toInt().coerceIn(0, firstRowsBefore.last() - 1)
+        val line = lineOf(firstRowsBefore, previous.breaks.size, row)
+        val index = row - firstRowsBefore[line]
         val inLine = if (index == 0) 0 else previous.breaks[line]!![index - 1]
         val newLine = line.coerceAtMost(breaks.size - 1)
-        return firstRows[newLine] + rowInLine(breaks[newLine], inLine) + (rowPosition - row)
+        return firstRowsNow[newLine] + rowInLine(breaks[newLine], inLine) + (rowPosition - row)
     }
 
     private class PreviousRows(val firstRows: IntArray, val breaks: Array<IntArray?>)

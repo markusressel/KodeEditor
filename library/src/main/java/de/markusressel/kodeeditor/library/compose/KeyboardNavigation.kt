@@ -114,6 +114,9 @@ internal interface TextLines {
 
     /** the last position in the shown line of [offset] */
     fun endOf(offset: Int): Int
+
+    /** the next position from [offset] in the given direction that is not folded away */
+    fun shownPosition(offset: Int, forward: Boolean): Int = offset
 }
 
 /**
@@ -167,7 +170,7 @@ internal class KeyboardCursor {
             CursorMove.LineEnd -> lines.endOf(from)
             CursorMove.TextStart -> 0
             CursorMove.TextEnd -> text.length
-        }.coerceIn(0, text.length)
+        }.coerceIn(0, text.length).let { lines.shownPosition(it, forward = move !in BACKWARD) }
 
         if (move !in VERTICAL) column = null
         movedTo = target

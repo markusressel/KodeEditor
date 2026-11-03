@@ -5,11 +5,14 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import de.markusressel.kodeeditor.library.compose.GutterCell
+import de.markusressel.kodeeditor.library.compose.DecoratedLine
 import de.markusressel.kodeeditor.library.compose.KodeEditorGutterColumn
+import de.markusressel.kodeeditor.library.compose.KodeEditorLineDecoration
 import kotlin.math.min
 
 private val HEADING_WITHOUT_SPACE = Regex("^#{1,6}[^#\\s].*")
@@ -35,7 +38,10 @@ fun findWarnings(text: String): Map<Int, String> = buildMap {
  * @param width the width of the column in pixels
  * @param color the color of the markers
  */
-class WarningColumn(private val width: Int, private val color: Color) : KodeEditorGutterColumn {
+class WarningColumn(
+    private val width: Int,
+    private val color: Color,
+) : KodeEditorGutterColumn, KodeEditorLineDecoration {
     /** Setting an equal map changes nothing, so typing within a line does not draw the bar again. */
     var warnings by mutableStateOf(emptyMap<Int, String>())
 
@@ -58,6 +64,10 @@ class WarningColumn(private val width: Int, private val color: Color) : KodeEdit
             close()
         }
         drawPath(triangle, color)
+    }
+
+    override fun DrawScope.drawBackground(line: DecoratedLine) {
+        if (line.line in warnings) drawRect(color.copy(alpha = 0.12f), size = Size(line.width, line.height))
     }
 
     override fun onTap(line: Int): Boolean {

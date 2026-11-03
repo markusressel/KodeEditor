@@ -66,6 +66,9 @@ class KodeEditorState(
     /** told about every change of the text, wherever it came from */
     internal var spliceObserver: ((TextSplice) -> Unit)? = null
 
+    /** told about every change of the text too, for the folds */
+    internal var foldObserver: ((TextSplice) -> Unit)? = null
+
     /** told about every change of the text too, for the wrapped rows */
     internal var rowObserver: ((TextSplice) -> Unit)? = null
 
@@ -306,6 +309,7 @@ class KodeEditorState(
             lines.apply(old, splice)
             versionState.intValue++
             spliceObserver?.invoke(splice)
+            foldObserver?.invoke(splice)
             rowObserver?.invoke(splice)
         }
         selectionState = selection.coercedIn(currentText.length)

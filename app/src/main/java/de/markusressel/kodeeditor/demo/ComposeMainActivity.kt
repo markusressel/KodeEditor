@@ -29,6 +29,7 @@ import de.markusressel.kodeeditor.demo.ui.theme.KodeEditorTheme
 import de.markusressel.kodeeditor.demo.ui.theme.Teal200
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
+import de.markusressel.kodeeditor.library.compose.MarkdownFoldProvider
 import de.markusressel.kodeeditor.library.compose.KodeEditorLayout
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
@@ -94,6 +95,8 @@ class ComposeMainActivity : ComponentActivity() {
                         textStyle = editorTextStyle,
                         colors = KodeEditorDefaults.editorColors(),
                         lineWrapping = true,
+                        foldProvider = MarkdownFoldProvider,
+                        lineDecorations = listOf(warnings),
                         gutterColumns = listOf(
                             bookmarks,
                             warnings,

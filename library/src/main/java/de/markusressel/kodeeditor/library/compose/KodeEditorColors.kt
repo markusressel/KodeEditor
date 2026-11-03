@@ -43,6 +43,19 @@ interface KodeEditorColors {
     @Composable
     fun lineNumberBackgroundColor(): State<Color>
 
+    /**
+     * Represents the color behind a folded line, which should not be opaque. Unspecified uses a part of the selection
+     * color.
+     */
+    @Composable
+    fun foldedLineBackgroundColor(): State<Color> = rememberUpdatedState(Color.Unspecified)
+
+    /**
+     * Represents the color of the placeholder behind a folded line. Unspecified uses a part of the line number color.
+     */
+    @Composable
+    fun foldPlaceholderColor(): State<Color> = rememberUpdatedState(Color.Unspecified)
+
 }
 
 
@@ -62,12 +75,16 @@ object KodeEditorDefaults {
         textFieldBackgroundColor: Color = MaterialTheme.colorScheme.surface,
         lineNumberTextColor: Color = MaterialTheme.colorScheme.onSurface,
         lineNumberBackgroundColor: Color = MaterialTheme.colorScheme.surface,
+        foldedLineBackgroundColor: Color = Color.Unspecified,
+        foldPlaceholderColor: Color = Color.Unspecified,
     ): KodeEditorColors =
         DefaultKodeEditorColors(
             textFieldColors = textFieldColors,
             textFieldBackgroundColor = textFieldBackgroundColor,
             lineNumberTextColor = lineNumberTextColor,
             lineNumberBackgroundColor = lineNumberBackgroundColor,
+            foldedLineBackgroundColor = foldedLineBackgroundColor,
+            foldPlaceholderColor = foldPlaceholderColor,
         )
 }
 
@@ -77,6 +94,8 @@ private data class DefaultKodeEditorColors(
     private val textFieldBackgroundColor: Color,
     private val lineNumberTextColor: Color,
     private val lineNumberBackgroundColor: Color,
+    private val foldedLineBackgroundColor: Color,
+    private val foldPlaceholderColor: Color,
 ) : KodeEditorColors {
 
     @Composable
@@ -97,6 +116,16 @@ private data class DefaultKodeEditorColors(
     @Composable
     override fun lineNumberBackgroundColor(): State<Color> {
         return rememberUpdatedState(lineNumberBackgroundColor)
+    }
+
+    @Composable
+    override fun foldedLineBackgroundColor(): State<Color> {
+        return rememberUpdatedState(foldedLineBackgroundColor)
+    }
+
+    @Composable
+    override fun foldPlaceholderColor(): State<Color> {
+        return rememberUpdatedState(foldPlaceholderColor)
     }
 
 }

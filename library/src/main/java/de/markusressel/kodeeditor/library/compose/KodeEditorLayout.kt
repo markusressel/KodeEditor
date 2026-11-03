@@ -5,6 +5,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
@@ -113,6 +114,14 @@ interface KodeEditorLayout {
      * @return the word at that position, a single character if there is no word
      */
     fun getWordBoundary(offset: Int): TextRange
+
+    /**
+     * The places of a hidden line and its positions are at the end of the line that hides it.
+     *
+     * @param line a line
+     * @return whether the line is hidden by a fold
+     */
+    fun isLineHidden(line: Int): Boolean = false
 }
 
 /**
@@ -123,6 +132,8 @@ interface KodeEditorLayout {
  * @param breaker finds where lines break, null if they don't wrap
  * @param wrapWidth the width to wrap the lines at
  * @param animateReflow whether what is shown moves to its new place when lines wrap differently
+ * @param folds what is folded, null if the editor does not fold
+ * @param animateFolds whether what is shown moves to its new place when lines fold or unfold
  */
 internal class EditorLineLayout(
     private val state: KodeEditorState,
@@ -133,6 +144,8 @@ internal class EditorLineLayout(
     breaker: RowBreaker? = null,
     private val wrapWidth: () -> Float = { 0f },
     private val animateReflow: Boolean = false,
+    private val folds: EditorFolds? = null,
+    animateFolds: Boolean = false,
 ) : KodeEditorLayout {
 
     private val reference = measurer.measure("X", style = textStyle, softWrap = false)
@@ -147,10 +160,12 @@ internal class EditorLineLayout(
             state = state,
             onReflow = { firstRows, breaks ->
                 if (animateReflow) {
-                    reflow = ReflowTransition(state, firstRows, breaks, reflow, lineHeight, ::measureBetween)
+                    val shownFirstRows = folds?.hidden?.shownFirstRows(firstRows) ?: firstRows
+                    reflow = ReflowTransition(state, shownFirstRows, breaks, reflow, lineHeight, ::measureBetween)
                 }
             },
             sameBreaks = it::breakAlike,
+            hiddenLines = { folds?.hidden },
             breaker = it::breaks,
         )
     }
@@ -202,10 +217,130 @@ internal class EditorLineLayout(
         get() {
             // the rows are no state of their own, whoever reads them depends on what they are made from
             state.version
-            val wrapped = wrappedRows ?: return unwrappedRows
-            wrapped.update(wrapWidth())
-            return wrapped
+            val wrapped = wrappedRows
+            wrapped?.update(wrapWidth())
+            val base = wrapped ?: unwrappedRows
+            val hidden = folds?.hidden
+            if (hidden !== rowsHidden) {
+                // where things come from is about other rows now
+                reflow = null
+                rowsHidden = hidden
+                foldedRows = null
+            }
+            hidden ?: return base
+            val generation = wrapped?.generation ?: 0
+            if (foldedRows == null || foldedGeneration != generation) {
+                foldedRows = FoldedRows(base, hidden)
+                foldedGeneration = generation
+            }
+            return foldedRows!!
         }
+
+    /** a fold moves the lines like a reflow does, this is what a reflow has no need for */
+    private var foldFade: FoldFade? = null
+
+    /** changes when a fold starts moving lines */
+    var foldAnimations by mutableIntStateOf(0)
+        private set
+
+    private val activeFoldFade: FoldFade?
+        get() {
+            val transition = activeReflow ?: return null
+            return foldFade?.takeIf { it.transition === transition }
+        }
+
+    init {
+        if (animateFolds) folds?.onFoldChanged = ::onFoldChanged
+    }
+
+    private fun onFoldChanged(before: HiddenLines?, after: HiddenLines?) {
+        val wrapped = wrappedRows
+        wrapped?.update(wrapWidth())
+        val base = wrapped ?: unwrappedRows
+        val lines = state.lineCount
+        val firstRows = wrapped?.currentFirstRows ?: IntArray(lines + 1) { it }
+        val breaks = wrapped?.currentBreaks ?: arrayOfNulls(lines)
+        val transition = ReflowTransition(
+            state = state,
+            firstRows = before?.shownFirstRows(firstRows) ?: firstRows,
+            breaks = breaks,
+            previous = reflow?.takeIf { it.valid },
+            lineHeight = lineHeight,
+            measure = ::measureBetween,
+        )
+        val rowsBefore = before?.let { FoldedRows(base, it) } ?: base
+        val leaving = leavingRows(rowsBefore, before, after)
+        rowsHidden = after
+        foldedRows = null
+        val rowsAfter = rows
+        reflow = transition
+        foldFade = FoldFade(
+            transition = transition,
+            appearing = before,
+            staying = after,
+            leaving = leaving.map { row ->
+                // into the place below the line that hides them
+                row.copy(targetTop = (rowsAfter.rowOf(state.lineStart(row.line)) + 1) * lineHeight)
+            },
+        )
+        foldAnimations++
+    }
+
+    /** @return the rows in the drawn part of the document that a fold is about to hide */
+    private fun leavingRows(rows: EditorRows, before: HiddenLines?, after: HiddenLines?): List<LeavingRow> {
+        after ?: return emptyList()
+        val area = window.value
+        val lastRow = rows.count - 1
+        val shown = (area.top / lineHeight).toInt().coerceIn(0, lastRow)..
+            (area.bottom / lineHeight).toInt().coerceIn(0, lastRow)
+        val hiddenRows = shown.filter { row ->
+            val line = rows.lineOf(row)
+            after.rangeOf(line) >= 0 && (before == null || before.rangeOf(line) < 0)
+        }
+        if (hiddenRows.isEmpty()) return emptyList()
+        val texts = lineTexts(state, shown, currentStyles(), state.composition, rows)
+        return hiddenRows.map { row ->
+            val line = rows.lineOf(row)
+            LeavingRow(
+                line = line,
+                firstOfLine = row == rows.firstRow(line),
+                layout = measurer.measure(texts[row - shown.first], style = textStyle, softWrap = false),
+                top = row * lineHeight,
+                targetTop = row * lineHeight,
+            )
+        }
+    }
+
+    /**
+     * @param row a row
+     * @return how visible the row is while a fold moves lines
+     */
+    fun rowAlpha(row: Int) = lineAlpha(rows.lineOf(row))
+
+    /**
+     * @param line a line
+     * @return how visible the line is while a fold moves lines
+     */
+    fun lineAlpha(line: Int): Float {
+        val fade = activeFoldFade ?: return 1f
+        return if (fade.isAppearing(line)) fade.transition.progress else 1f
+    }
+
+    /** the rows that a fold just hid, at the place and with the visibility they have at the moment */
+    val shownLeavingRows: List<ShownLeavingRow>
+        get() {
+            val fade = activeFoldFade ?: return emptyList()
+            val transition = fade.transition
+            val remaining = 1f - transition.progress
+            return fade.leaving.map { row ->
+                val top = row.targetTop + (row.top + transition.scrolled - row.targetTop) * remaining
+                ShownLeavingRow(row.line, row.firstOfLine, row.layout, top, top + baseline, remaining)
+            }
+        }
+
+    private var rowsHidden: HiddenLines? = null
+    private var foldedRows: FoldedRows? = null
+    private var foldedGeneration = -1
 
     /** tells the rows about changes of the text */
     val rowObserver: ((TextSplice) -> Unit)? = wrappedRows?.let { it::onSplice }
@@ -384,8 +519,70 @@ internal class EditorLineLayout(
 
     override fun getWordBoundary(offset: Int): TextRange = wordAt(state.text, offset)
 
+    override fun isLineHidden(line: Int): Boolean = folds?.isHidden(line) ?: false
+
+    /** the next position from [offset] in the given direction that is not folded away */
+    fun shownPosition(offset: Int, forward: Boolean) = folds?.shownPosition(offset, forward) ?: offset
+
+    /**
+     * @param area the part of the document to draw, [linesWithin] has to be called for it first
+     * @param decorations what shows text behind the lines
+     * @return the text behind the lines within the area
+     */
+    fun trailingTextsWithin(area: IntRect, decorations: List<KodeEditorLineDecoration>): List<TrailingText> {
+        if (decorations.isEmpty()) return emptyList()
+        val rows = rows
+        val transition = activeReflow
+        val result = ArrayList<TrailingText>()
+        var drawn = 0
+        for (row in rowAt(area.top.toFloat())..rowAt(area.bottom.toFloat())) {
+            val line = rows.lineOf(row)
+            if (row != rows.lastRow(line)) continue
+            while (drawn < drawnLines.size && drawnLines[drawn].row < row) drawn++
+            // an empty row has no layout
+            val end = drawnLines.getOrNull(drawn)?.takeIf { it.row == row }?.layout?.size?.width?.toFloat() ?: 0f
+            var x = end
+            val y = row * lineHeight
+            val distance = transition?.let { distanceOf(it, rows.end(row), end, y) } ?: Offset.Zero
+            decorations.forEach { decoration ->
+                val text = decoration.trailingText(line) ?: return@forEach
+                val layout = measurer.measure(text, style = textStyle, softWrap = false)
+                result += TrailingText(layout, Offset(x, y + baseline - layout.firstBaseline) + distance)
+                x += layout.size.width
+            }
+            if (wrappedRows == null && x > widestDrawnLine) widestDrawnLine = x
+        }
+        return result
+    }
+
+    /**
+     * @param position a point
+     * @param decorations what shows text behind the lines
+     * @return true if there is text of a decoration at the point, and the decoration did something with the tap
+     */
+    fun tapTrailingText(position: Offset, decorations: List<KodeEditorLineDecoration>): Boolean {
+        if (decorations.isEmpty()) return false
+        val rows = rows
+        val row = rowAt(position.y)
+        val line = rows.lineOf(row)
+        if (row != rows.lastRow(line)) return false
+        val texts = decorations.mapNotNull { decoration -> decoration.trailingText(line)?.let { decoration to it } }
+        var x = xOf(row, rows.end(row))
+        texts.forEachIndexed { index, (decoration, text) ->
+            val width = measurer.measure(text, style = textStyle, softWrap = false).size.width
+            // something small next to a line is hard to hit with a finger
+            val slack = if (index == texts.lastIndex) lineHeight else 0f
+            if (position.x >= x && position.x <= x + width + slack) return decoration.onTrailingTextTap(line)
+            x += width
+        }
+        return false
+    }
+
     /** the styled single line layout of [line], which is not wrapped */
-    private fun measureLine(line: Int): TextLayoutResult = measureRow(line)
+    private fun measureLine(line: Int): TextLayoutResult {
+        val text = lineTexts(state, line..line, currentStyles(), state.composition, unwrappedRows).single()
+        return measurer.measure(text, style = textStyle, softWrap = false)
+    }
 
     /** the styled single line layout of [row] */
     private fun measureRow(row: Int): TextLayoutResult {
@@ -401,6 +598,7 @@ internal class EditorLineLayout(
     private var drawnGeneration = -1
     private var drawnStyles: List<AnnotatedString.Range<SpanStyle>>? = null
     private var drawnComposition: TextRange? = null
+    private var drawnHidden: HiddenLines? = null
     private var drawnLines = emptyList<DrawnLine>()
 
     /**
@@ -415,7 +613,7 @@ internal class EditorLineLayout(
         val generation = wrappedRows?.generation ?: 0
         if (
             shown == drawnArea && state.rawVersion == drawnVersion && generation == drawnGeneration &&
-            styles === drawnStyles && composition == drawnComposition
+            styles === drawnStyles && composition == drawnComposition && rowsHidden === drawnHidden
         ) {
             return drawnLines
         }
@@ -433,6 +631,7 @@ internal class EditorLineLayout(
         drawnGeneration = generation
         drawnStyles = styles
         drawnComposition = composition
+        drawnHidden = rowsHidden
         return drawnLines
     }
 
@@ -466,6 +665,62 @@ internal class EditorLineLayout(
      * @param position where to draw the row
      */
     class DrawnLine(val row: Int, val layout: TextLayoutResult, val position: Offset)
+
+    /**
+     * @param layout the layout of the text
+     * @param position where to draw it
+     */
+    class TrailingText(val layout: TextLayoutResult, val position: Offset)
+
+    /**
+     * @param line the line the row is a part of
+     * @param firstOfLine whether this is the first row of the line
+     * @param layout the layout of the whole row
+     * @param top the top of the row before the fold
+     * @param targetTop the top of the row where it disappears
+     */
+    private data class LeavingRow(
+        val line: Int,
+        val firstOfLine: Boolean,
+        val layout: TextLayoutResult,
+        val top: Float,
+        val targetTop: Float,
+    )
+
+    /**
+     * What a fold needs on top of its [ReflowTransition]
+     *
+     * @param transition moves the lines
+     * @param appearing the lines that were hidden
+     * @param staying the lines that are hidden now
+     * @param leaving the rows that are hidden now, and were drawn before
+     */
+    private class FoldFade(
+        val transition: ReflowTransition,
+        private val appearing: HiddenLines?,
+        private val staying: HiddenLines?,
+        val leaving: List<LeavingRow>,
+    ) {
+        fun isAppearing(line: Int) = appearing != null && appearing.rangeOf(line) >= 0 &&
+            (staying == null || staying.rangeOf(line) < 0)
+    }
+
+    /**
+     * @param line the line the row is a part of
+     * @param firstOfLine whether this is the first row of the line
+     * @param layout the layout of the whole row
+     * @param top where the top of the row is at the moment
+     * @param baseline where the baseline of the row is at the moment
+     * @param alpha how visible the row is at the moment
+     */
+    class ShownLeavingRow(
+        val line: Int,
+        val firstOfLine: Boolean,
+        val layout: TextLayoutResult,
+        val top: Float,
+        val baseline: Float,
+        val alpha: Float,
+    )
 
     /**
      * @param left where the part starts in the row
@@ -572,4 +827,5 @@ internal class EditorTextLines(private val layout: EditorLineLayout) : TextLines
         layout.getOffsetForPosition(Offset(x, layout.rowTop(line) + layout.lineHeight / 2))
     override fun startOf(offset: Int) = layout.rowStart(offset)
     override fun endOf(offset: Int) = layout.rowEnd(offset)
+    override fun shownPosition(offset: Int, forward: Boolean) = layout.shownPosition(offset, forward)
 }
