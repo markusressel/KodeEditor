@@ -1,2 +1,30 @@
 # KodeEditor
-A simple code editor with syntax highlighting and pinch to zoom
+Pinch to zoom and **watch the text flow**. No text field, only the visible lines get drawn, so even `10k lines` feel _light_.
+
+## Written together
+Jane is fixing the
+syntax highlighting right now.
+
+## Folded away
+This section is hidden, tap its arrow to get it back.
+Line numbers stay the same.
+
+## Try it
+- Pinch until the lines wrap again
+- Tap a warning to read it
+- Tap the left edge to set a bookmark
+- Tap an arrow to fold a section
+
+## Shorter lines
+Tap a box to see what it hides, move the cursor away to hide it again.
+Read the [KodeHighlighter docs](https://github.com/markusressel/KodeHighlighter/blob/master/README.md#usage) or look at ![a tiny image](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==) in the middle of a sentence.
+Plain addresses get shorter too: https://github.com/markusressel/KodeEditor/pull/140/files?diff=split
+<!-- a note for whoever edits this file next, nobody who reads it needs this -->
+Characters: 1 &rarr; 2 &amp; 3 &mdash; tap one.
+Code stays as it is: `[not a link](https://example.com/a/long/path)`
+
+> Fine print: this editor notices things.
+
+TODO: write the next great app 
+#Headings like a space too
+Trailing spaces never hide. 

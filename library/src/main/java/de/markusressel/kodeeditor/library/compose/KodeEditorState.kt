@@ -66,6 +66,20 @@ class KodeEditorState(
     /** told about every change of the text, wherever it came from */
     internal var spliceObserver: ((TextSplice) -> Unit)? = null
 
+    /** whether the text changes because the whole text was set, which nobody has to see as a movement */
+    internal var replacingText = false
+        private set
+
+    /** changes each time the whole text was set */
+    internal var textReplacements by mutableIntStateOf(0)
+        private set
+
+    /** told about every change of the text too, for the folds */
+    internal var foldObserver: ((TextSplice) -> Unit)? = null
+
+    /** told about every change of the text too, for the wrapped rows */
+    internal var rowObserver: ((TextSplice) -> Unit)? = null
+
     /** the version without observing it, for code that is not a part of the UI */
     internal val rawVersion: Int get() = versionState.intValue
 
@@ -171,7 +185,13 @@ class KodeEditorState(
             undoStack.clear()
             undoState++
             val mapped = selectionState.mapped(splice)
-            replace(splice, selection?.coercedIn(text.length) ?: mapped, null)
+            replacingText = true
+            try {
+                replace(splice, selection?.coercedIn(text.length) ?: mapped, null)
+            } finally {
+                replacingText = false
+            }
+            textReplacements++
             restartInBatch = true
         } else if (selection != null) {
             setSelection(selection)
@@ -303,6 +323,8 @@ class KodeEditorState(
             lines.apply(old, splice)
             versionState.intValue++
             spliceObserver?.invoke(splice)
+            foldObserver?.invoke(splice)
+            rowObserver?.invoke(splice)
         }
         selectionState = selection.coercedIn(currentText.length)
         compositionState = composition?.takeIf { !it.collapsed && it.max <= currentText.length }

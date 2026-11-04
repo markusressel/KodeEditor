@@ -3,26 +3,19 @@ activityCompose = "1.13.0"
 androidComposeMaterial3 = "1.4.0"
 androidDesugarJdkLibs = "2.1.5"
 androidGradlePlugin = "9.5.0"
-androidxAnnotation = "1.11.0"
-androidxAppCompat = "1.8.0"
-androidxComposeBom = "2026.02.01"
+androidxComposeBom = "2026.09.00"
 androidxComposeUi = "1.10.4"
 androidxComposeUiText = "1.10.4"
-androidxLifecycle = "2.10.0"
 androidxTestExtJunit = "1.3.0"
 androidxTestEspressoCore = "3.7.0"
 dokkaGradlePlugin = "2.2.0"
-fuel = "2.3.1"
-flowbindingAndroid = "1.2.0"
 junit4 = "4.13.2"
 robolectric = "4.17"
 kotlin = "2.4.21"
 kotlinCoroutinesCore = "1.11.0"
 kotlinCoroutinesAndroid = "1.11.0"
-kodehighlighter = "5.0.0"
+kodehighlighter = "6.0.0"
 ksp = "2.3.13"
-material = "1.14.0"
-zoomlayout = "1.9.0"
 
 
 [libraries]
@@ -30,9 +23,6 @@ android-desugarJdkLibs = { group = "com.android.tools", name = "desugar_jdk_libs
 android-gradle-plugin = { group = "com.android.tools.build", name = "gradle", version.ref = "androidGradlePlugin" }
 
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
-androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "androidxAnnotation" }
-
-androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "androidxAppCompat" }
 
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "androidxComposeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "androidxComposeUi" }
@@ -41,14 +31,7 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 
-androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "androidxLifecycle" }
-
 dokka-gradle-plugin = { group = "org.jetbrains.dokka", name = "dokka-gradle-plugin", version.ref = "dokkaGradlePlugin" }
-
-fuel = { group = "com.github.kittinunf.fuel", name = "fuel", version.ref = "fuel" }
-fuel-android = { group = "com.github.kittinunf.fuel", name = "fuel-android", version.ref = "fuel" }
-
-flowbinding-android = { group = "io.github.reactivecircus.flowbinding", name = "flowbinding-android", version.ref = "flowbindingAndroid" }
 
 kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
@@ -60,9 +43,6 @@ ksp-gradle-plugin = { group = "com.google.devtools.ksp", name = "com.google.devt
 
 kodehighlighter-core = { group = "com.github.markusressel.KodeHighlighter", name = "core", version.ref = "kodehighlighter" }
 kodehighlighter-markdown = { group = "com.github.markusressel.KodeHighlighter", name = "markdown", version.ref = "kodehighlighter" }
-
-material = { module = "com.google.android.material:material", version.ref = "material" }
-zoomlayout = { group = "com.otaliastudios", name = "zoomlayout", version.ref = "zoomlayout" }
 
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }

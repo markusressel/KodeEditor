@@ -179,4 +179,84 @@ class EditorInputConnectionTest {
         EditorInputConnection(state, noActions).deleteSurroundingTextInCodePoints(1, 0)
         assertEquals("ab", state.rawText)
     }
+
+    private class FoldKeyboard(var closed: Boolean = true) : KeyboardActions, InputLink {
+        var restarts = 0
+        val directions = ArrayList<Boolean>()
+
+        override fun onKeyEvent(event: KeyEvent) = false
+        override fun onContextMenuAction(id: Int) = false
+        override fun update() {}
+        override fun restart() {
+            restarts++
+        }
+
+        override fun openFoldInsteadOfDelete(backward: Boolean): Boolean {
+            directions += backward
+            return closed.also { closed = false }
+        }
+    }
+
+    private fun connectionAt(cursor: Int, keyboard: FoldKeyboard): Pair<KodeEditorState, EditorInputConnection> {
+        val state = KodeEditorState("some words")
+        state.setSelection(TextRange(cursor))
+        state.inputLink = keyboard
+        return state to EditorInputConnection(state, keyboard)
+    }
+
+    @Test
+    fun `a delete at a closed fold only opens it and the keyboard looks at the text again`() {
+        val keyboard = FoldKeyboard()
+        val (state, connection) = connectionAt(4, keyboard)
+        connection.deleteSurroundingText(1, 0)
+        assertEquals("some words", state.rawText)
+        assertEquals(1, keyboard.restarts)
+        assertEquals(listOf(true), keyboard.directions)
+        connection.deleteSurroundingText(1, 0)
+        assertEquals("som words", state.rawText)
+        assertEquals(1, keyboard.restarts)
+    }
+
+    @Test
+    fun `a delete behind the cursor at a closed fold only opens it`() {
+        val keyboard = FoldKeyboard()
+        val (state, connection) = connectionAt(5, keyboard)
+        connection.deleteSurroundingTextInCodePoints(0, 1)
+        assertEquals("some words", state.rawText)
+        assertEquals(listOf(false), keyboard.directions)
+    }
+
+    @Test
+    fun `making the composed word shorter at a closed fold only opens it`() {
+        val keyboard = FoldKeyboard()
+        val (state, connection) = connectionAt(4, keyboard)
+        connection.setComposingRegion(0, 4)
+        connection.setComposingText("som", 1)
+        assertEquals("some words", state.rawText)
+        assertEquals(1, keyboard.restarts)
+        connection.setComposingText("som", 1)
+        assertEquals("som words", state.rawText)
+    }
+
+    @Test
+    fun `a composed word that changes otherwise opens nothing`() {
+        val keyboard = FoldKeyboard()
+        val (state, connection) = connectionAt(4, keyboard)
+        connection.setComposingRegion(0, 4)
+        connection.setComposingText("somex", 1)
+        assertEquals(emptyList<Boolean>(), keyboard.directions)
+        assertEquals("somex words", state.rawText)
+    }
+
+    @Test
+    fun `a delete in front of the composed word does not ask about a fold behind the cursor`() {
+        val keyboard = FoldKeyboard()
+        val (state, connection) = connectionAt(4, keyboard)
+        connection.setComposingRegion(0, 4)
+        state.setSelection(TextRange(4))
+        connection.setComposingRegion(2, 4)
+        connection.deleteSurroundingText(1, 0)
+        assertEquals("sme words", state.rawText)
+        assertEquals(emptyList<Boolean>(), keyboard.directions)
+    }
 }

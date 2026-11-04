@@ -22,6 +22,11 @@ class KeyboardCursorTest {
             val end = if (line + 1 < lineCount) starts[line + 1] - 1 else length
             return (starts[line] + (x / 10f).toInt()).coerceAtMost(end)
         }
+        override fun startOf(offset: Int) = starts[lineOf(offset)]
+        override fun endOf(offset: Int): Int {
+            val line = lineOf(offset)
+            return if (line + 1 < lineCount) starts[line + 1] - 1 else length
+        }
     }
 
     private val cursor = KeyboardCursor()
@@ -179,5 +184,30 @@ class KeyboardCursorTest {
         assertNull(command(Key.A))
         assertNull(command(Key.DirectionLeft, meta = true))
         assertNull(command(Key.PageDown, ctrl = true))
+    }
+
+    @Test
+    fun theDefaultsCoverEveryModifierTheyDidBefore() {
+        fun command(key: Key, ctrl: Boolean = false, alt: Boolean = false, shift: Boolean = false) =
+            keyboardCommandFor(key, ctrl, alt, meta = false, shift = shift)
+
+        val wordLeft = KeyboardCommand.Move(CursorMove.WordLeft)
+        assertEquals(wordLeft, command(Key.DirectionLeft, ctrl = true, alt = true))
+        assertEquals(wordLeft, command(Key.DirectionLeft, ctrl = true, shift = true))
+        assertEquals(KeyboardCommand.Move(CursorMove.LineStart), command(Key.MoveHome, alt = true))
+        assertEquals(KeyboardCommand.Move(CursorMove.TextEnd), command(Key.MoveEnd, ctrl = true, alt = true))
+        assertNull(command(Key.PageUp, ctrl = true))
+        assertEquals(KeyboardCommand.InsertLine, command(Key.Enter))
+        assertEquals(KeyboardCommand.StartNewLine, command(Key.NumPadEnter, shift = true))
+        assertEquals(KeyboardCommand.Backspace, command(Key.Backspace, shift = true))
+        assertEquals(KeyboardCommand.BackspaceWord, command(Key.Backspace, ctrl = true, shift = true))
+        assertEquals(KeyboardCommand.SelectAll, command(Key.A, ctrl = true, shift = true))
+        assertEquals(KeyboardCommand.Undo, command(Key.Z, ctrl = true))
+        assertEquals(KeyboardCommand.Redo, command(Key.Z, ctrl = true, shift = true))
+        // on many layouts plus is shift + equals
+        assertEquals(KeyboardCommand.ZoomIn, command(Key.Equals, ctrl = true, shift = true))
+        assertNull(command(Key.Backspace, alt = true))
+        assertNull(command(Key.A, ctrl = true, alt = true))
+        assertNull(keyboardCommandFor(Key.DirectionLeft, ctrl = false, alt = false, meta = true))
     }
 }

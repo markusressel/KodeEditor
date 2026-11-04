@@ -42,31 +42,6 @@ internal enum class HandleKind(val tag: String) {
     SelectionEnd(SELECTION_END_HANDLE_TAG),
 }
 
-/**
- * Converts between text coordinates and the coordinates of the editor on screen.
- *
- * @param gutterWidth the width of the line numbers in pixels at zoom 1
- * @param textStart the padding in front of the text in pixels at zoom 1
- * @param offset the current scroll offset
- * @param zoom the current zoom factor
- */
-internal data class EditorTransform(
-    val gutterWidth: Int,
-    val textStart: Float,
-    val offset: Offset,
-    val zoom: Float,
-) {
-    fun toEditor(text: Offset) = Offset(
-        x = (gutterWidth + textStart + text.x - offset.x) * zoom,
-        y = (text.y - offset.y) * zoom,
-    )
-
-    fun toText(editor: Offset) = Offset(
-        x = editor.x / zoom + offset.x - gutterWidth - textStart,
-        y = editor.y / zoom + offset.y,
-    )
-}
-
 internal object HandleDrag {
 
     /**

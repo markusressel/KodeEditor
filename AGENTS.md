@@ -5,14 +5,16 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 ## Layout
 
 - `library`: the published library, package `de.markusressel.kodeeditor.library`.
-  - `compose`: the Compose editor (`KodeEditor`, `KodeEditorState`, `KodeEditorLayout`, `ZoomLayout`, `LineNumbers`, `KodeEditorColors`/`KodeEditorDefaults`). There is no text field: `KodeEditorState` holds the only copy of the text, `EditorInputConnection` connects the keyboard to it, and only visible lines are measured and drawn.
-  - `view`: the deprecated View based editor (`CodeEditorLayout`, `CodeEditorView`, ...), configured with the `ke_*` attributes in `res/values/attributes.xml`.
-- `app`: demo app, package `de.markusressel.kodeeditor.demo`. `ComposeMainActivity` (launcher) shows the Compose editor, `MainActivity` the View based one.
+  - `compose`: the Compose editor (`KodeEditor`, `KodeEditorState`, `KodeEditorLayout`, `ZoomLayout`, `EditorGutter`, `EditorFolds`, `KodeEditorLineDecoration`, `KodeEditorColors`/`KodeEditorDefaults`). There is no text field: `KodeEditorState` holds the only copy of the text, `EditorInputConnection` connects the keyboard to it, and only visible lines are measured and drawn.
+- `app`: demo app, package `de.markusressel.kodeeditor.demo`. `ComposeMainActivity` (launcher) shows the editor.
 - `build-logic`: Gradle convention plugins (`kodeeditor.android.library`, `...compose`, `...publishing`, ...). Versions live in `gradle/libs.versions.toml`.
 
 ## Build
 
-- CI (`.github/workflows/build.yml`) runs `./gradlew app:assembleDebug` and `./gradlew library:testDebugUnitTest` with JDK 21. JitPack also uses JDK 21 (`.jitpack.yml`).
+- CI (`.github/workflows/build.yml`) runs `./gradlew app:assembleDebug` and `./gradlew library:testDebugUnitTest app:testDebugUnitTest` with JDK 21. JitPack also uses JDK 21 (`.jitpack.yml`).
+- On `master`, the `Publish` job releases the release APK of the demo app, built with R8 and signed with the debug key, as a pre-release `build-<n>` for Obtainium and keeps the newest 5. Library releases stay normal releases with a version tag, so they remain the latest release.
+- The version code of the demo app is the CI run number, and 1 for local builds.
+- The application ID of the demo app is `de.markusressel.kodeeditor` on CI and `de.markusressel.kodeeditor.local` for local builds, so both can be installed next to each other. Local builds are called `KodeEditor DEV`.
 - Compose UI tests of the library run on the JVM with Robolectric.
 - `make build`, `make publish` (to Maven local) and `make run` exist for local use.
 

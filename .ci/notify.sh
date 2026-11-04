@@ -49,15 +49,12 @@ EOF
 
 fi
 
-# find compiled .apk file
-APK_FILE=$(find "./app/build/outputs/apk/debug" -type f -name "*.apk")
-
 if [[ -n "${TELEGRAM_CHAT_ID}" ]]; then
-  ./.ci/notify-telegram.sh "${MESSAGE}" "${APK_FILE}"
+  ./.ci/notify-telegram.sh "${MESSAGE}"
 fi
 
 if [[ -n "${MATRIX_HOMESERVER}" ]]; then
-  ./.ci/notify-matrix.sh "${MESSAGE}" "${APK_FILE}"
+  ./.ci/notify-matrix.sh "${MESSAGE}"
 fi
 
 

@@ -162,12 +162,54 @@ class KodeEditorKeyboardTest {
     }
 
     @Test
+    fun shiftEnterStartsANewLineWithoutSplittingTheCurrentOne() {
+        show("abc\ndef", TextRange(1))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } }
+        assertEquals("abc\n\ndef", value.text)
+        assertEquals(TextRange(4), value.selection)
+    }
+
+    @Test
+    fun shiftEnterOnTheLastLineAddsALineAtTheEnd() {
+        show("abc", TextRange(1))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } }
+        assertEquals("abc\n", value.text)
+        assertEquals(TextRange(4), value.selection)
+    }
+
+    @Test
+    fun shiftEnterKeepsTheIndentOfTheCurrentLine() {
+        show("a\n \tbc\nd", TextRange(5))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } }
+        assertEquals("a\n \tbc\n \t\nd", value.text)
+        assertEquals(TextRange(9), value.selection)
+    }
+
+    @Test
+    fun shiftEnterKeepsTheSelectedText() {
+        show("abc\ndef", TextRange(0, 2))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } }
+        assertEquals("abc\n\ndef", value.text)
+        assertEquals(TextRange(4), value.selection)
+    }
+
+    @Test
+    fun shiftEnterIsOneUndoStep() {
+        show("abc", TextRange(1))
+        keys { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } }
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Z) } }
+        assertEquals("abc", value.text)
+        assertEquals(TextRange(1), value.selection)
+    }
+
+    @Test
     fun aReadOnlyEditorTypesNothing() {
         show("abc", TextRange(1), readOnly = true)
         keys {
             pressKey(Key.A)
             pressKey(Key.Backspace)
             pressKey(Key.Enter)
+            withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) }
         }
         assertEquals("abc", value.text)
     }
@@ -200,5 +242,68 @@ class KodeEditorKeyboardTest {
         assertEquals(TextRange(0, 3), value.selection)
         keys { pressKey(Key.Delete) }
         assertEquals("", value.text)
+    }
+
+    private fun showWithFolds(text: String, cursor: Int) {
+        value = TextFieldValue(text, TextRange(cursor))
+        composeRule.setContent {
+            KodeEditor(
+                modifier = Modifier.fillMaxSize().testTag("editor"),
+                text = value,
+                languageRuleBook = noRules,
+                colorScheme = noColors,
+                onValueChange = { value = it },
+                foldProvider = MarkdownFoldProvider,
+            )
+        }
+        composeRule.onNode(textField).performClick()
+        composeRule.waitForIdle()
+        value = value.copy(selection = TextRange(cursor))
+        composeRule.waitForIdle()
+    }
+
+    private val linkText = "ab [x](0123456789abcdef) cd"
+
+    @Test
+    fun backspaceOpensAClosedFoldBeforeItRemovesText() {
+        val end = linkText.indexOf(')')
+        showWithFolds(linkText, end)
+        keys { pressKey(Key.Backspace) }
+        assertEquals(linkText, value.text)
+        keys { pressKey(Key.Backspace) }
+        assertEquals(linkText.removeRange(end - 1, end), value.text)
+    }
+
+    @Test
+    fun ctrlDeleteOpensAClosedFoldBeforeItRemovesText() {
+        val start = linkText.indexOf('0')
+        showWithFolds(linkText, start)
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Delete) } }
+        assertEquals(linkText, value.text)
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Delete) } }
+        assertEquals("ab [x]() cd", value.text)
+    }
+
+    @Test
+    fun aKeyCanBeBoundToSomethingElseAndAnUnboundKeyDoesNothing() {
+        value = TextFieldValue("one two", TextRange(7))
+        composeRule.setContent {
+            KodeEditor(
+                modifier = Modifier.fillMaxSize().testTag("editor"),
+                text = value,
+                languageRuleBook = noRules,
+                colorScheme = noColors,
+                onValueChange = { value = it },
+                keyBindings = listOf(KodeEditorKeyBinding(Key.D, KodeEditorKeyAction.BackspaceWord, ctrl = true)),
+            )
+        }
+        composeRule.onNode(textField).performClick()
+        composeRule.waitForIdle()
+        value = value.copy(selection = TextRange(7))
+        composeRule.waitForIdle()
+        keys { pressKey(Key.Backspace) }
+        assertEquals("one two", value.text)
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.D) } }
+        assertEquals("one ", value.text)
     }
 }

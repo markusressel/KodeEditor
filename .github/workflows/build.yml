@@ -14,7 +14,7 @@ jobs:
         with:
           java-version: 21
           distribution: temurin
-          cache: 'gradle'
+      - uses: gradle/actions/setup-gradle@v6
       - name: Perform base checks
         run: ./gradlew app:assembleDebug --stacktrace
   ANDROID_UNIT_TESTS:
@@ -26,9 +26,15 @@ jobs:
         with:
           java-version: 21
           distribution: temurin
-          cache: 'gradle'
+      - uses: gradle/actions/setup-gradle@v6
+      # Robolectric downloads its Android jars from Maven Central on its own, past Gradle and its cache
+      - uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: robolectric-
       - name: Execute unit tests
-        run: ./gradlew library:testDebugUnitTest --stacktrace
+        run: ./gradlew library:testDebugUnitTest app:testDebugUnitTest --stacktrace
   ANDROID_BUILD_APK:
     name: Build APK
     runs-on: ubuntu-latest
@@ -41,15 +47,16 @@ jobs:
         with:
           java-version: 21
           distribution: temurin
-          cache: 'gradle'
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Setup custom keystore file
         run: |
           mkdir -p $HOME/.android
           cp ./.ci/debug.keystore $HOME/.android/debug.keystore
 
+      # The release build has to get through R8 on every PR. Base Checks covers the debug build.
       - name: Execute APK build
-        run: ./gradlew app:assembleDebug --stacktrace
+        run: ./gradlew app:assembleRelease --stacktrace
 
       - uses: actions/upload-artifact@v7
         with:
@@ -62,6 +69,52 @@ jobs:
         env:
           # "failure", "success" or "cancelled"
           # see: https://docs.github.com/en/actions/reference/context-and-expression-syntax-for-github-actions#job-context
+          RUN_RESULT: ${{ job.status }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          MATRIX_HOMESERVER: ${{ secrets.MATRIX_HOMESERVER }}
+          MATRIX_ACCESS_TOKEN: ${{ secrets.MATRIX_ACCESS_TOKEN }}
+        run: .ci/notify.sh
+
+  # Every master build of the demo app becomes a pre-release, so Obtainium can install and update it
+  # (see README). A pre-release does not replace the library release marked as latest.
+  PUBLISH:
+    name: Publish
+    needs: [ANDROID_UNIT_TESTS, ANDROID_BUILD_APK]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: apk-files
+          path: apk
+
+      # All builds are signed with .ci/debug.keystore, so they update each other. Only the 5 newest
+      # pre-releases are kept.
+      - name: Publish pre-release
+        run: |
+          tag="build-${{ github.run_number }}"
+          gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$tag" "$(find apk -name '*.apk')" \
+            --prerelease --target "${{ github.sha }}" \
+            --title "Build ${{ github.run_number }}" \
+            --notes "Release build of the demo app from ${{ github.sha }}, signed with .ci/debug.keystore."
+          gh release list --limit 100 --json tagName,isPrerelease \
+            --jq '.[] | select(.isPrerelease) | .tagName' \
+            | grep '^build-' | tail -n +6 \
+            | xargs -r -I{} gh release delete {} --yes --cleanup-tag
+
+      - name: Notify
+        if: failure()
+        env:
           RUN_RESULT: ${{ job.status }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
