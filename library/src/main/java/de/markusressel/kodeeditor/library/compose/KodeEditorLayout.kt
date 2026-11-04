@@ -547,6 +547,13 @@ internal class EditorLineLayout(
         return distanceOf(transition, getLineStart(line), 0f, top).y
     }
 
+    /** @return how far the end of the [line] is away from its place on the screen during a reflow */
+    fun shownLineBottomDistance(line: Int): Float {
+        val transition = activeReflow ?: return 0f
+        val lastRowTop = getLineBottom(line) - lineHeight
+        return distanceOf(transition, getLineEnd(line), 0f, lastRowTop).y
+    }
+
     private fun distanceOf(transition: ReflowTransition, offset: Int, x: Float, y: Float): Offset {
         val origin = transition.startOf(offset)
         val remaining = 1f - transition.progress
