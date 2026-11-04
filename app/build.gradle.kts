@@ -1,7 +1,36 @@
+import com.android.build.api.artifact.SingleArtifact
+
 plugins {
     id("kodeeditor.android.application")
     id("kodeeditor.android.application.compose")
     id("kodeeditor.android.application.flavors")
+}
+
+// Android only installs an update with a higher version code, so CI uses its run number
+val appVersionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toInt() ?: 1
+
+/**
+ * Sets the version code in the merged manifest. As the versionCode of the build it would also end up in BuildConfig, and
+ * then each CI run would compile the whole app again and run R8, instead of taking them from the build cache.
+ */
+abstract class SetManifestVersionCode : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val mergedManifest: RegularFileProperty
+
+    @get:Input
+    abstract val versionCode: Property<Int>
+
+    @get:OutputFile
+    abstract val updatedManifest: RegularFileProperty
+
+    @TaskAction
+    fun run() {
+        val manifest = mergedManifest.get().asFile.readText()
+        val updated = manifest.replace(Regex("""android:versionCode="\d+""""), """android:versionCode="${versionCode.get()}"""")
+        check(updated.contains("""android:versionCode="${versionCode.get()}"""")) { "The merged manifest has no version code" }
+        updatedManifest.get().asFile.writeText(updated)
+    }
 }
 
 android {
@@ -13,7 +42,8 @@ android {
         val localBuild = providers.environmentVariable("GITHUB_ACTIONS").orNull == null
         if (localBuild) applicationIdSuffix = ".local"
         resValue("string", "app_name", if (localBuild) "KodeEditor DEV" else "KodeEditor")
-        versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toInt() ?: 1
+        // the real one is set by SetManifestVersionCode, see there
+        versionCode = 1
         versionName = "7.0.0"
     }
 
@@ -30,9 +60,16 @@ android {
 
     androidComponents {
         onVariants { variant ->
+            val setVersionCode = tasks.register<SetManifestVersionCode>("set${variant.name.replaceFirstChar { it.uppercase() }}VersionCode") {
+                versionCode.set(appVersionCode)
+            }
+            variant.artifacts.use(setVersionCode)
+                .wiredWithFiles(SetManifestVersionCode::mergedManifest, SetManifestVersionCode::updatedManifest)
+                .toTransform(SingleArtifact.MERGED_MANIFEST)
+
             variant.outputs.forEach { output ->
                 val outputImpl = output as com.android.build.api.variant.impl.VariantOutputImpl
-                outputImpl.outputFileName.set("KodeEditor_v${defaultConfig.versionName}_(${defaultConfig.versionCode}).apk")
+                outputImpl.outputFileName.set("KodeEditor_v${defaultConfig.versionName}_($appVersionCode).apk")
             }
         }
     }
