@@ -134,7 +134,12 @@ internal fun VisibleLines(
                     layout.shownLeavingRows.forEach { row ->
                         val position = Offset(0f, row.baseline - row.layout.firstBaseline)
                         fading.add(row.alpha) {
-                            translate(left, top) { drawText(textLayoutResult = row.layout, topLeft = position) }
+                            translate(left, top) {
+                                row.boxes.forEach { box ->
+                                    drawRoundRect(foldBoxColor, box.topLeft + Offset(0f, row.top), box.size, boxRadius)
+                                }
+                                drawText(textLayoutResult = row.layout, topLeft = position)
+                            }
                         }
                     }
                     layout.trailingTextsWithin(area, decorations).forEach { text ->

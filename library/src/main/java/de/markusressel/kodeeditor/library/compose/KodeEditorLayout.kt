@@ -268,7 +268,7 @@ internal class EditorLineLayout(
     }
 
     /** the cursor or a change of the text made other parts of lines collapse or open */
-    private fun onCollapsedChanged(before: CollapsedRanges?, after: CollapsedRanges?, sameText: Boolean) {
+    private fun onCollapsedChanged(before: CollapsedRanges?, after: CollapsedRanges?, animate: Boolean) {
         val changes = before?.changesTo(after) ?: after?.changesTo(null).orEmpty()
         val wrapped = wrappedRows
         wrapped?.update(wrapWidth())
@@ -277,7 +277,7 @@ internal class EditorLineLayout(
         val breaks = wrapped?.currentBreaks ?: arrayOfNulls(lines)
         wrapped?.onCollapsedChanged(changes.mapTo(HashSet()) { state.lineOf(it.min) })
         if (wrapped == null) widestDrawnLine = 0f
-        if (!sameText || !animateFolds) return
+        if (!animate || !animateFolds) return
         reflow = ReflowTransition(
             state = state,
             firstRows = folds?.hidden?.shownFirstRows(firstRows) ?: firstRows,
@@ -338,12 +338,14 @@ internal class EditorLineLayout(
         val texts = lineTexts(state, shown, currentStyles(), state.composition, rows, collapsed, foldPlaceholderStyle)
         return hiddenRows.map { row ->
             val line = rows.lineOf(row)
+            val layout = measurer.measure(texts[row - shown.first], style = textStyle, softWrap = false)
             LeavingRow(
                 line = line,
                 firstOfLine = row == rows.firstRow(line),
-                layout = measurer.measure(texts[row - shown.first], style = textStyle, softWrap = false),
+                layout = layout,
                 top = row * lineHeight,
                 targetTop = row * lineHeight,
+                boxes = collapsed?.let { placeholderBoxes(it, rows, row, layout, 0f) }.orEmpty(),
             )
         }
     }
@@ -371,7 +373,7 @@ internal class EditorLineLayout(
             val remaining = 1f - transition.progress
             return fade.leaving.map { row ->
                 val top = row.targetTop + (row.top + transition.scrolled - row.targetTop) * remaining
-                ShownLeavingRow(row.line, row.firstOfLine, row.layout, top, top + baseline, remaining)
+                ShownLeavingRow(row.line, row.firstOfLine, row.layout, top, top + baseline, remaining, row.boxes)
             }
         }
 
@@ -484,7 +486,8 @@ internal class EditorLineLayout(
         val end = rows.end(row)
         if (row == rows.lastRow(rows.lineOf(row))) return end
         val before = end - 1
-        return if (before > rows.start(row) && state.text[before].isLowSurrogate()) before - 1 else before
+        val last = if (before > rows.start(row) && state.text[before].isLowSurrogate()) before - 1 else before
+        return collapsed?.outsideOf(last) ?: last
     }
 
     private fun xOf(row: Int, offset: Int): Float {
@@ -516,7 +519,11 @@ internal class EditorLineLayout(
             val end = start + ranges.placeholders[index].length
             val left = layout.getHorizontalPosition(start, usePrimaryDirection = true)
             val right = layout.getHorizontalPosition(end, usePrimaryDirection = true)
-            if (position.x in left..right) return TextRange(ranges.starts[index], ranges.ends[index])
+            // a single character is hard to hit with a finger
+            val slack = ((lineHeight - (right - left)) / 2).coerceAtLeast(0f)
+            if (position.x >= left - slack && position.x <= right + slack) {
+                return TextRange(ranges.starts[index], ranges.ends[index])
+            }
         }
         return null
     }
@@ -609,12 +616,23 @@ internal class EditorLineLayout(
         return offset.coerceAtMost(lastPositionIn(row))
     }
 
-    override fun getWordBoundary(offset: Int): TextRange = wordAt(state.text, offset)
+    override fun getWordBoundary(offset: Int): TextRange {
+        val word = wordAt(state.text, offset)
+        return collapsed?.visiblePartOf(offset, word) ?: word
+    }
+
+    /** @param range a part of the text that the user wants to see */
+    fun openFold(range: TextRange) {
+        folds?.inline?.open(range)
+    }
 
     override fun isLineHidden(line: Int): Boolean = folds?.isHidden(line) ?: false
 
     /** the next position from [offset] in the given direction that is not folded away */
-    fun shownPosition(offset: Int, forward: Boolean) = folds?.shownPosition(offset, forward) ?: offset
+    fun shownPosition(offset: Int, forward: Boolean): Int {
+        val position = folds?.shownPosition(offset, forward) ?: offset
+        return collapsed?.skip(position, forward) ?: position
+    }
 
     /**
      * @param area the part of the document to draw, [linesWithin] has to be called for it first
@@ -724,7 +742,8 @@ internal class EditorLineLayout(
             if (width > widestDrawnLine) widestDrawnLine = width
             val row = shown.first + index
             val position = Offset(0f, row * lineHeight + baseline - layout.firstBaseline)
-            DrawnLine(row, layout, position, ranges?.let { placeholderBoxes(it, row, layout, position) }.orEmpty())
+            val top = row * lineHeight
+            DrawnLine(row, layout, position, ranges?.let { placeholderBoxes(it, rows, row, layout, top) }.orEmpty())
         }
         drawnArea = shown
         drawnVersion = state.rawVersion
@@ -737,16 +756,24 @@ internal class EditorLineLayout(
     }
 
     /** @return where the placeholders of the [row] are */
-    private fun placeholderBoxes(ranges: CollapsedRanges, row: Int, layout: TextLayoutResult, position: Offset): List<Rect> {
+    private fun placeholderBoxes(
+        ranges: CollapsedRanges,
+        rows: EditorRows,
+        row: Int,
+        layout: TextLayoutResult,
+        top: Float,
+    ): List<Rect> {
         val folds = ranges.inRow(rows.start(row), rows.end(row)) ?: return emptyList()
         return (folds.first..folds.last).map { index ->
             val start = folds.placeholderStart(index)
             val end = start + ranges.placeholders[index].length
+            // apart from what is above and below, and with a bit of room for the characters next to it
+            val inset = lineHeight * FOLD_BOX_INSET
             Rect(
-                left = position.x + layout.getHorizontalPosition(start, usePrimaryDirection = true),
-                top = row * lineHeight,
-                right = position.x + layout.getHorizontalPosition(end, usePrimaryDirection = true),
-                bottom = (row + 1) * lineHeight,
+                left = layout.getHorizontalPosition(start, usePrimaryDirection = true),
+                top = top + inset,
+                right = layout.getHorizontalPosition(end, usePrimaryDirection = true),
+                bottom = top + lineHeight - inset,
             )
         }
     }
@@ -756,9 +783,20 @@ internal class EditorLineLayout(
         val transition = activeReflow ?: return null
         val row = line.row
         val y = row * lineHeight
-        return transition.partsOf(row) { rowParts(transition, row, line.layout) }.map { part ->
-            val alpha = if (part.appearing) transition.progress else 1f
-            MovingPart(part.left, part.right, distanceOf(transition, part.start, part.left, y), alpha)
+        val parts = transition.partsOf(row) { rowParts(transition, row, line.layout) }
+        val distances = parts.map { distanceOf(transition, it.start, it.left, y) }
+        return parts.mapIndexed { index, part ->
+            val distance = distances[index]
+            var right = part.right
+            if (part.appearing) {
+                // what follows moves out of the way, and what appears only takes the room it left so far
+                val next = parts.getOrNull(index + 1)
+                val nextDistance = distances.getOrNull(index + 1)
+                if (next != null && nextDistance != null && nextDistance.y == distance.y) {
+                    right = (next.left + nextDistance.x - distance.x).coerceIn(part.left, part.right)
+                }
+            }
+            MovingPart(part.left, right, distance, if (part.appearing) transition.progress else 1f)
         }
     }
 
@@ -802,6 +840,7 @@ internal class EditorLineLayout(
      * @param layout the layout of the whole row
      * @param top the top of the row before the fold
      * @param targetTop the top of the row where it disappears
+     * @param boxes where the placeholders of the row are, relative to its top
      */
     private data class LeavingRow(
         val line: Int,
@@ -809,6 +848,7 @@ internal class EditorLineLayout(
         val layout: TextLayoutResult,
         val top: Float,
         val targetTop: Float,
+        val boxes: List<Rect>,
     )
 
     /**
@@ -836,6 +876,7 @@ internal class EditorLineLayout(
      * @param top where the top of the row is at the moment
      * @param baseline where the baseline of the row is at the moment
      * @param alpha how visible the row is at the moment
+     * @param boxes where the placeholders of the row are, relative to its top
      */
     class ShownLeavingRow(
         val line: Int,
@@ -844,6 +885,7 @@ internal class EditorLineLayout(
         val top: Float,
         val baseline: Float,
         val alpha: Float,
+        val boxes: List<Rect>,
     )
 
     /**
@@ -926,6 +968,9 @@ internal fun lineTexts(
 }
 
 private val COMPOSING_STYLE = SpanStyle(textDecoration = TextDecoration.Underline)
+
+/** how far the box behind a placeholder stays away from the edges of its row, as a part of the row height */
+private const val FOLD_BOX_INSET = 0.04f
 
 /** the word at [offset], or the single character there if it is not a part of a word */
 internal fun wordAt(text: String, offset: Int): TextRange {

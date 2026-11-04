@@ -92,7 +92,7 @@ class InlineFoldLayoutTest {
         show(state, lineWrapping = true)
         composeRule.runOnIdle {
             assertEquals(layout.lineHeight, layout.getLineBottom(0) - layout.getLineTop(0))
-            state.setSelection(TextRange(start))
+            state.setSelection(TextRange(start + 1))
         }
         composeRule.runOnIdle {
             assertTrue(layout.getLineBottom(0) - layout.getLineTop(0) > layout.lineHeight)
@@ -109,7 +109,7 @@ class InlineFoldLayoutTest {
         show(state, lineWrapping = false)
         composeRule.runOnIdle {
             val closed = layout.contentSize.width
-            state.setSelection(TextRange(start))
+            state.setSelection(TextRange(start + 1))
             composeRule.runOnIdle { assertTrue(layout.contentSize.width > closed * 2) }
         }
     }

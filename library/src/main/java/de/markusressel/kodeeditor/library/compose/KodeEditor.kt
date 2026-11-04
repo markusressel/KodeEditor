@@ -90,6 +90,9 @@ private val HANDLE_EDGE_SPEED = 12.dp
 private val TEXT_START_PADDING = 4.dp
 private val FOLD_COLUMN_WIDTH = 24.dp
 private const val FOLDED_LINE_SELECTION_ALPHA = 0.5f
+
+/** how much of the selection color is in the box behind a folded part of a line */
+private const val INLINE_FOLD_SELECTION_ALPHA = 0.7f
 private const val FOLD_PLACEHOLDER_ALPHA = 0.6f
 
 /**
@@ -332,6 +335,7 @@ fun KodeEditor(
             state.removeListener(folds)
         }
     }
+    LaunchedEffect(folds) { folds?.inline?.keepUpdated() }
 
     DisposableEffect(state, view) {
         val link = ViewInputLink(view, state)
@@ -401,6 +405,9 @@ fun KodeEditor(
         folds?.let { FoldedLineDecoration(it, foldedBackground, foldPlaceholderColor) }
     }
     val decorations = if (foldDecoration == null) lineDecorations else listOf(foldDecoration) + lineDecorations
+    val inlineFoldBackground = colors.inlineFoldBackgroundColor().value
+        .takeOrElse { selectionColor.copy(alpha = selectionColor.alpha * INLINE_FOLD_SELECTION_ALPHA) }
+    val inlineFoldText = colors.inlineFoldTextColor().value.takeOrElse { foldColor }
     val currentDecorations by rememberUpdatedState(decorations)
     val targetGutterWidth by remember(state, gutterColumns, foldColumn) {
         derivedStateOf { columns.sumOf { it.width(state.lineCount) } }
@@ -443,7 +450,7 @@ fun KodeEditor(
     val breakMeasurer = rememberTextMeasurer(cacheSize = 0)
     val layout = remember(
         state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping, animations.reflow, animations.folding, folds,
-        foldPlaceholderColor,
+        inlineFoldText,
     ) {
         EditorLineLayout(
             state = state,
@@ -456,7 +463,7 @@ fun KodeEditor(
             animateReflow = animations.reflow,
             folds = folds,
             animateFolds = animations.folding,
-            foldPlaceholderStyle = SpanStyle(color = foldPlaceholderColor),
+            foldPlaceholderStyle = SpanStyle(color = inlineFoldText),
         )
     }
     DisposableEffect(state, layout) {
@@ -559,9 +566,12 @@ fun KodeEditor(
             override fun onTap(position: Offset) {
                 // this touch only stops the fling
                 if (!enabled || stoppedFling || tapGutter(position)) return
-                if (layout.tapTrailingText(geometry.toText(position, offset), currentDecorations)) return
+                val point = geometry.toText(position, offset)
+                if (layout.tapTrailingText(point, currentDecorations)) return
                 focusAndShowKeyboard()
-                state.setSelection(TextRange(offsetAt(position)))
+                val fold = layout.foldedRangeAt(point)
+                state.setSelection(TextRange(offsetAt(position).let { if (fold == null) it else it.coerceIn(fold.min, fold.max) }))
+                fold?.let(layout::openFold)
             }
 
             override fun onDoubleTap(position: Offset) {
@@ -917,7 +927,7 @@ fun KodeEditor(
                     layout = layout,
                     window = drawWindow,
                     decorations = decorations,
-                    foldBoxColor = foldedBackground,
+                    foldBoxColor = inlineFoldBackground,
                 )
                 if (focused && enabled && !readOnly && selection.collapsed) {
                     EditorCursor(

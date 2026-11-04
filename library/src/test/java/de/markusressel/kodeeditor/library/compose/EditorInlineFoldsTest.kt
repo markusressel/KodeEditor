@@ -32,16 +32,90 @@ class EditorInlineFoldsTest {
     }
 
     @Test
-    fun aCursorAtAFoldOpensItAndLeavingClosesIt() {
+    fun aCursorNextToAFoldLeavesItClosed() {
         val (state, folds) = foldsOf(text)
         state.setSelection(TextRange(start))
-        assertNull(folds.inline.collapsed)
+        assertArrayEquals(intArrayOf(start), folds.inline.collapsed!!.starts)
         state.setSelection(TextRange(end))
-        assertNull(folds.inline.collapsed)
+        assertArrayEquals(intArrayOf(start), folds.inline.collapsed!!.starts)
+    }
+
+    @Test
+    fun aCursorWithinAFoldOpensItUntilItLeaves() {
+        val (state, folds) = foldsOf(text)
         state.setSelection(TextRange(start + 3))
+        assertNull(folds.inline.collapsed)
+        // the edges are still at it
+        state.setSelection(TextRange(end))
         assertNull(folds.inline.collapsed)
         state.setSelection(TextRange(end + 1))
         assertArrayEquals(intArrayOf(start), folds.inline.collapsed!!.starts)
+    }
+
+    @Test
+    fun aTapOpensAFoldUntilTheCursorLeaves() {
+        val (state, folds) = foldsOf(text)
+        state.setSelection(TextRange(start))
+        folds.inline.open(TextRange(start, end))
+        assertNull(folds.inline.collapsed)
+        state.setSelection(TextRange(0))
+        assertArrayEquals(intArrayOf(start), folds.inline.collapsed!!.starts)
+    }
+
+    @Test
+    fun typingAtAFoldOpensItUntilTheCursorLeavesTheLine() {
+        val (state, folds) = foldsOf(text)
+        state.setSelection(TextRange(end))
+        state.replaceSelection("x")
+        folds.inline.scanNow()
+        assertNull(folds.inline.collapsed)
+        state.setSelection(TextRange(0))
+        assertNull(folds.inline.collapsed)
+        state.setSelection(TextRange(state.rawText.length))
+        assertArrayEquals(intArrayOf(start), folds.inline.collapsed!!.starts)
+    }
+
+    @Test
+    fun whatWasJustTypedStaysOpenUntilTheCursorLeavesTheLine() {
+        val typed = "see [x](0123456789abcdef"
+        val (state, folds) = foldsOf("$typed\nnext")
+        folds.inline.scanNow()
+        assertNull(folds.inline.collapsed)
+        state.setSelection(TextRange(typed.length))
+        state.replaceSelection(")")
+        folds.inline.scanNow()
+        assertNull(folds.inline.collapsed)
+        state.replaceSelection(" and more")
+        folds.inline.scanNow()
+        assertNull(folds.inline.collapsed)
+        state.setSelection(TextRange(state.rawText.length))
+        assertArrayEquals(intArrayOf(typed.indexOf('0')), folds.inline.collapsed!!.starts)
+    }
+
+    @Test
+    fun aRemoteFoldInAnotherLineCollapsesRightAway() {
+        val (state, folds) = foldsOf("first\nsecond", 0)
+        state.applyRemote(listOf(TextSplice(6, 0, "[x](0123456789abcdef) ")))
+        folds.inline.scanNow()
+        assertArrayEquals(intArrayOf(10), folds.inline.collapsed!!.starts)
+    }
+
+    @Test
+    fun aPositionWithinAClosedFoldSkipsToItsEdge() {
+        val ranges = ranges(4, ends = intArrayOf(10), placeholders = arrayOf("x"))
+        assertEquals(10, ranges.skip(5, forward = true))
+        assertEquals(4, ranges.skip(5, forward = false))
+        assertEquals(4, ranges.skip(4, forward = true))
+        assertEquals(10, ranges.skip(10, forward = false))
+        assertEquals(11, ranges.skip(11, forward = true))
+    }
+
+    @Test
+    fun aWordDoesNotReachIntoAClosedFold() {
+        val ranges = ranges(4, ends = intArrayOf(10), placeholders = arrayOf("x"))
+        assertEquals(TextRange(0, 4), ranges.visiblePartOf(4, TextRange(0, 10)))
+        assertEquals(TextRange(10, 14), ranges.visiblePartOf(10, TextRange(4, 14)))
+        assertEquals(TextRange(4), ranges.visiblePartOf(4, TextRange(4, 10)))
     }
 
     @Test
@@ -72,6 +146,8 @@ class EditorInlineFoldsTest {
     fun foldsMoveWithAChangeInFrontOfThem() {
         val (state, folds) = foldsOf(text, 0)
         state.replaceSelection("xyz")
+        folds.inline.scanNow()
+        state.setSelection(TextRange(state.rawText.length))
         assertArrayEquals(intArrayOf(start + 3), folds.inline.collapsed!!.starts)
         assertArrayEquals(intArrayOf(end + 3), folds.inline.collapsed!!.ends)
     }
@@ -80,6 +156,7 @@ class EditorInlineFoldsTest {
     fun aRemoteChangeWithinAFoldKeepsItCollapsed() {
         val (state, folds) = foldsOf(text)
         state.applyRemote(listOf(TextSplice(start + 2, 2, "")))
+        folds.inline.scanNow()
         assertArrayEquals(intArrayOf(start), folds.inline.collapsed!!.starts)
         assertArrayEquals(intArrayOf(end - 2), folds.inline.collapsed!!.ends)
     }
@@ -88,6 +165,7 @@ class EditorInlineFoldsTest {
     fun aLineBreakWithinAFoldRemovesIt() {
         val (state, folds) = foldsOf(text)
         state.applyRemote(listOf(TextSplice(start + 2, 0, "\n")))
+        folds.inline.scanNow()
         assertNull(folds.inline.collapsed)
     }
 

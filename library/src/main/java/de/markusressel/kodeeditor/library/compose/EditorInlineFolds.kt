@@ -4,7 +4,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.text.TextRange
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.withContext
 
 /**
  * The parts of the text that are shown as a placeholder, sorted and without overlaps. Each one stays within its line.
@@ -40,6 +45,32 @@ internal class CollapsedRanges(val starts: IntArray, val ends: IntArray, val pla
     fun outsideOf(offset: Int): Int {
         val index = firstFrom(offset) - 1
         return if (index >= 0 && ends[index] > offset) starts[index] else offset
+    }
+
+    /**
+     * @param offset a position
+     * @param forward the direction the cursor moves in
+     * @return the edge of the range in that direction if the position is strictly within one, otherwise the position
+     */
+    fun skip(offset: Int, forward: Boolean): Int {
+        val index = firstFrom(offset) - 1
+        if (index < 0 || ends[index] <= offset) return offset
+        return if (forward) ends[index] else starts[index]
+    }
+
+    /**
+     * @param offset where a word was looked for, outside of the ranges
+     * @param word the word at that position
+     * @return the part of the word that is shown, without what is hidden in front of or behind the position
+     */
+    fun visiblePartOf(offset: Int, word: TextRange): TextRange {
+        var start = word.min
+        var end = word.max
+        val next = firstFrom(offset)
+        if (next < size && starts[next] < end) end = starts[next]
+        val previous = next - 1
+        if (previous >= 0 && ends[previous] <= offset && ends[previous] > start) start = ends[previous]
+        return if (start < end) TextRange(start, end) else TextRange(offset)
     }
 
     /** @return what is only in one of the two, as ranges of the text, sorted by their start */
@@ -176,16 +207,31 @@ internal class RowFolds(
 }
 
 /**
- * What the provider found and which of it is collapsed. Nothing is remembered about a single fold: everything the
- * provider found is collapsed, except for what the cursor is at. So it opens when the cursor gets there, and closes when
- * the cursor leaves.
+ * What the provider found and which of it is collapsed.
+ *
+ * Everything is collapsed, with a few exceptions. A fold opens when the user taps it, when the selection ends within it,
+ * and when a change happens at its edge. It stays open while the cursor is at it, so the cursor can sit next to a fold
+ * without opening it, but can also leave an open one through its edges. What the user just typed stays open until the
+ * cursor leaves the line, the text would jump around while typing otherwise.
+ *
+ * The provider runs on another thread, until its result is there the folds move with the text.
  */
 internal class EditorInlineFolds(
     private val state: KodeEditorState,
     private val provider: KodeEditorFoldProvider,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private var found = emptyList<InlineFold>()
-    private var foundVersion = -1
+    private var scannedVersion = -1
+
+    /** the folds that are open because of the user, they go when the cursor is not at them anymore */
+    private var opened = emptyList<TextRange>()
+
+    /** the folds that stay open until the cursor leaves their line */
+    private val heldOpen = ArrayList<TextRange>()
+
+    /** whether the text changed since the state was looked at the last time */
+    private var edited = false
 
     /** only changes when something else is collapsed, so moving the cursor does not draw the text again */
     var collapsed: CollapsedRanges? by mutableStateOf(null, neverEqualPolicy())
@@ -193,19 +239,45 @@ internal class EditorInlineFolds(
 
     /**
      * Told when other parts of the text are collapsed, with the ranges before and after that.
-     * [sameText] tells whether the text stayed the same
+     * [animate] tells whether this is something to show as a movement
      */
-    var onChanged: ((before: CollapsedRanges?, after: CollapsedRanges?, sameText: Boolean) -> Unit)? = null
+    var onChanged: ((before: CollapsedRanges?, after: CollapsedRanges?, animate: Boolean) -> Unit)? = null
 
     init {
-        scan()
-        collapsed = collapsedNow()
+        found = foldsOf(state.rawText)
+        scannedVersion = state.rawVersion
+        collapsed = rangesOf(found.filter { !isOpen(it, state.selection) })
     }
 
-    private fun scan() {
-        val text = state.rawText
+    /** runs the provider whenever the text changed, until it is cancelled */
+    suspend fun keepUpdated() {
+        snapshotFlow { state.version }.collectLatest { version ->
+            if (version == scannedVersion) return@collectLatest
+            val text = state.rawText
+            val result = withContext(dispatcher) { foldsOf(text) }
+            // the text may have changed while the provider was running, and the next run is on its way then
+            if (state.rawVersion == version) onScanned(result)
+        }
+    }
+
+    /** runs the provider right here */
+    fun scanNow() = onScanned(foldsOf(state.rawText))
+
+    private fun onScanned(result: List<InlineFold>) {
+        val before = found
+        found = result
+        scannedVersion = state.rawVersion
+        val line = state.lineOf(state.selection.end)
+        result.forEach { fold ->
+            val isNew = before.none { it.start < fold.end && it.end > fold.start }
+            if (isNew && state.lineOf(fold.start) == line) heldOpen += TextRange(fold.start, fold.end)
+        }
+        update(animate = false)
+    }
+
+    private fun foldsOf(text: String): List<InlineFold> {
         var end = 0
-        found = provider.inlineFolds(text)
+        return provider.inlineFolds(text)
             .filter { fold ->
                 fold.start >= 0 && fold.end <= text.length && fold.start < fold.end &&
                     '\n' !in fold.placeholder && !splitsCharacter(text, fold.start) && !splitsCharacter(text, fold.end) &&
@@ -213,17 +285,10 @@ internal class EditorInlineFolds(
             }
             .sortedWith(compareBy<InlineFold> { it.start }.thenByDescending { it.end })
             .filter { fold -> (fold.start >= end).also { if (it) end = fold.end } }
-        foundVersion = state.rawVersion
     }
 
     private fun splitsCharacter(text: String, position: Int) =
         position in 1 until text.length && text[position - 1].isHighSurrogate() && text[position].isLowSurrogate()
-
-    private fun collapsedNow(): CollapsedRanges? {
-        val selection = state.selection
-        val composition = state.composition
-        return rangesOf(found.filter { !isOpen(it, selection, composition) })
-    }
 
     private fun rangesOf(folds: List<InlineFold>) = if (folds.isEmpty()) null else CollapsedRanges(
         starts = IntArray(folds.size) { folds[it].start },
@@ -231,16 +296,31 @@ internal class EditorInlineFolds(
         placeholders = Array(folds.size) { folds[it].placeholder },
     )
 
-    private fun isOpen(fold: InlineFold, selection: TextRange, composition: TextRange?): Boolean {
-        if (composition != null && composition.min < fold.end && composition.max > fold.start) return true
-        if (selection.collapsed) return selection.end in fold.start..fold.end
-        // a selection may cover a whole fold, only a handle needs to be shown within it
-        return selection.min in fold.start + 1 until fold.end || selection.max in fold.start + 1 until fold.end
+    private fun InlineFold.overlaps(range: TextRange) = range.min <= end && range.max >= start
+
+    /** A keyboard marks the word at the cursor on its own, which opens nothing until it actually changes the word */
+    private fun isOpen(fold: InlineFold, selection: TextRange): Boolean {
+        val first = selection.min
+        val last = selection.max
+        // a handle has to be shown, while a selection can cover a whole fold
+        if (first in fold.start + 1 until fold.end || last in fold.start + 1 until fold.end) return true
+        if (heldOpen.any { fold.overlaps(it) }) return true
+        val atFold = first in fold.start..fold.end || last in fold.start..fold.end
+        return atFold && opened.any { fold.overlaps(it) }
     }
 
     /** the text changed, the provider looks at it again when the whole change is done */
     fun onSplice(splice: TextSplice) {
+        edited = true
+        val spliceEnd = splice.start + splice.removedLength
+        // the selection is still the one from before, a change there comes from the user
+        val selection = state.selection
+        if (selection.min <= spliceEnd && selection.max >= splice.start) {
+            found.forEach { if (it.overlaps(TextRange(splice.start, spliceEnd))) heldOpen += TextRange(it.start, it.end) }
+        }
         found = found.mapNotNull { it.movedBy(splice) }
+        opened = opened.map { it.mappedBy(splice) }
+        heldOpen.replaceAll { it.mappedBy(splice) }
         val current = collapsed ?: return
         val moved = ArrayList<InlineFold>(current.size)
         for (index in 0 until current.size) {
@@ -249,6 +329,8 @@ internal class EditorInlineFolds(
         }
         collapsed = rangesOf(moved)
     }
+
+    private fun TextRange.mappedBy(splice: TextSplice) = TextRange(mapPosition(min, splice), mapPosition(max, splice))
 
     private fun InlineFold.movedBy(splice: TextSplice): InlineFold? {
         val spliceEnd = splice.start + splice.removedLength
@@ -265,12 +347,27 @@ internal class EditorInlineFolds(
 
     /** the selection, the composition or the text changed */
     fun onStateChanged() {
-        val sameText = foundVersion == state.rawVersion
-        if (!sameText) scan()
+        update(animate = !edited)
+    }
+
+    /** @param range the fold the user wants to see, which stays open while the cursor is at it */
+    fun open(range: TextRange) {
+        opened = opened + range
+        update(animate = true)
+    }
+
+    private fun update(animate: Boolean) {
+        edited = false
+        val length = state.rawText.length
+        val line = state.lineOf(state.selection.end)
+        heldOpen.removeAll { it.min > length || state.lineOf(it.min) != line }
+        val selection = state.selection
+        val open = found.filter { isOpen(it, selection) }
+        opened = open.map { TextRange(it.start, it.end) }
         val before = collapsed
-        val after = collapsedNow()
+        val after = rangesOf(found.filter { it !in open })
         if (before === after || (before != null && after != null && before.contentEquals(after))) return
         collapsed = after
-        onChanged?.invoke(before, after, sameText)
+        onChanged?.invoke(before, after, animate)
     }
 }

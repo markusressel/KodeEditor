@@ -14,9 +14,11 @@ fun interface KodeEditorFoldProvider {
     fun foldRegions(text: String): List<FoldRegion>
 
     /**
+     * Runs on another thread, unlike [foldRegions].
+     *
      * @param text the whole text
-     * @return parts of lines that are shown as something shorter, unless the cursor is at them. In any order, and of
-     * those that overlap, the first and longest one is used
+     * @return parts of lines that are shown as something shorter. In any order, and of those that overlap, the first and
+     * longest one is used
      */
     fun inlineFolds(text: String): List<InlineFold> = emptyList()
 }
@@ -30,8 +32,8 @@ fun interface KodeEditorFoldProvider {
 data class FoldRegion(val startLine: Int, val endLine: Int)
 
 /**
- * A part of a line that is shown as a [placeholder]. The text itself stays what it is. Tapping the placeholder or moving
- * the cursor to it shows the text, and it goes back when the cursor leaves.
+ * A part of a line that is shown as a [placeholder]. The text itself stays what it is. Tapping the placeholder shows the
+ * text, and it goes back when the cursor leaves. The arrow keys move over it.
  *
  * @param start where the part starts in the text
  * @param end where the part ends in the text, which has to be in the same line
