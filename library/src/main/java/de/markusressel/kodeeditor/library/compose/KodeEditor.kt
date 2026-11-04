@@ -405,9 +405,14 @@ fun KodeEditor(
     val targetGutterWidth by remember(state, gutterColumns, foldColumn) {
         derivedStateOf { columns.sumOf { it.width(state.lineCount) } }
     }
+    // a whole new text is not a change of the text that is there
+    val textReplacements = state.textReplacements
+    val seenTextReplacements = remember(state) { intArrayOf(textReplacements) }
+    val gutterSnaps = !animations.gutterWidth || seenTextReplacements[0] != textReplacements
+    SideEffect { seenTextReplacements[0] = textReplacements }
     val gutterWidth by animateIntAsState(
         targetValue = targetGutterWidth,
-        animationSpec = if (animations.gutterWidth) tween(GUTTER_ANIMATION_MS) else snap(),
+        animationSpec = if (gutterSnaps) snap() else tween(GUTTER_ANIMATION_MS),
         label = "gutterWidth",
     )
 

@@ -6,6 +6,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import java.util.BitSet
 import kotlin.math.abs
+import kotlin.math.ceil
 
 /**
  * What the editor shows on one height of a line. Without line wrapping each line is one row. With it, each row is a
@@ -102,9 +103,21 @@ internal class WrappedRows(
         }
     }
 
-    /** the text changed, the line index of the state is up to date already */
-    fun onSplice(splice: TextSplice) {
+    /**
+     * The text changed, the line index of the state is up to date already.
+     *
+     * @param splice the change
+     * @param settledWidth the width after the change if it is not meant to be seen as a movement, which saves going
+     * through the lines for the old width first. Null keeps the width until the next [update]
+     */
+    fun onSplice(splice: TextSplice, settledWidth: Float? = null) {
         if (version == -1) return
+        if (settledWidth != null && settledWidth != width) {
+            width = settledWidth
+            rowsBeforeResize = null
+            rebuild()
+            return
+        }
         val inserted = splice.inserted.count { it == '\n' }
         val newCount = state.lineCount
         val removed = breaks.size - newCount + inserted
@@ -248,6 +261,12 @@ internal class RowBreaker(private val measurer: TextMeasurer, private val textSt
     private var checkedText: String? = null
     private val checkedLines = BitSet()
     private val cellLines = BitSet()
+    private val emojiLines = BitSet()
+
+    /** how many cells an emoji takes, only asked for once there is one, because this loads its font */
+    private val emojiCells by lazy {
+        ceil(advanceOf("\uD83D\uDE00") / cellWidth - CELL_TOLERANCE).toInt().coerceAtLeast(1)
+    }
 
     /** a measured line can break differently at any width */
     private var measuredLines = false
@@ -273,8 +292,11 @@ internal class RowBreaker(private val measurer: TextMeasurer, private val textSt
         val cells = cellsOf(width)
         // no character is wider than two cells
         if (length * 2 <= cells) return null
-        if (!fillsCells(text, start, end)) return measuredBreaks(text, start, end, width)
-        return cellBreaks(text, start, end, cells)
+        return when {
+            fillsCells(text, start, end) -> cellBreaks(text, start, end, cells)
+            emojiLines.get(start) -> emojiBreaks(text, start, end, cells, emojiCells)
+            else -> measuredBreaks(text, start, end, width)
+        }
     }
 
     /** A change of the width goes through all lines again, what their characters are stays the same for it */
@@ -283,17 +305,24 @@ internal class RowBreaker(private val measurer: TextMeasurer, private val textSt
             checkedText = text
             checkedLines.clear()
             cellLines.clear()
+            emojiLines.clear()
         }
         if (checkedLines.get(start)) return cellLines.get(start)
         var fills = true
+        var countable = true
         for (index in start until end) {
-            if (!text[index].fillsOneCell()) {
+            val character = text[index]
+            if (!character.fillsOneCell()) {
                 fills = false
-                break
+                if (!character.isPartOfEmoji()) {
+                    countable = false
+                    break
+                }
             }
         }
         checkedLines.set(start)
         cellLines.set(start, fills)
+        emojiLines.set(start, !fills && countable)
         return fills
     }
 
@@ -312,11 +341,76 @@ internal class RowBreaker(private val measurer: TextMeasurer, private val textSt
 
     private companion object {
         const val REFERENCE_LENGTH = 64
+        const val CELL_TOLERANCE = 0.01f
     }
 }
 
 /** the letters of most languages in the west and common punctuation, not tabs, wide or combining characters */
 private fun Char.fillsOneCell() = this in ' '..'˿' || this in '‐'..'‧'
+
+private const val ZERO_WIDTH_JOINER = '\u200D'
+private const val VARIATION_SELECTOR_EMOJI = '\uFE0F'
+private const val COMBINING_KEYCAP = '\u20E3'
+
+/** takes no room of its own, it changes what is in front of it */
+private fun Char.joinsEmoji() =
+    this == ZERO_WIDTH_JOINER || this == VARIATION_SELECTOR_EMOJI || this == COMBINING_KEYCAP
+
+/** emojis, and symbols that can be shown as one. Characters outside of the basic plane are wide too, if they are not */
+private fun Char.isPartOfEmoji() = isSurrogate() || joinsEmoji() || this in '\u2190'..'\u2BFF'
+
+/**
+ * Like [cellBreaks], for a line that also has emojis. Each row is drawn on its own, so a break only has to make the row
+ * fit. Emojis that are shown as a single one are counted one by one, those rows just end a bit earlier.
+ *
+ * @param cells the number of characters that fit into a row
+ * @param emojiCells the number of cells an emoji takes
+ * @return the positions where the line breaks relative to [start], null if the line fits into one row
+ */
+internal fun emojiBreaks(text: String, start: Int, end: Int, cells: Int, emojiCells: Int): IntArray? {
+    var result = IntArray(4)
+    var size = 0
+    var rowStart = start
+    var used = 0
+    // behind the last space or hyphen of the row
+    var afterSeparator = -1
+    var index = start
+    while (index < end) {
+        val character = text[index]
+        val width = when {
+            character.fillsOneCell() -> 1
+            character.isLowSurrogate() || character.joinsEmoji() -> 0
+            else -> emojiCells
+        }
+        if (width > 0 && used + width > cells && index > rowStart) {
+            val next = if (afterSeparator > rowStart) afterSeparator else keepEmojiTogether(text, rowStart, index)
+            if (size == result.size) result = result.copyOf(size * 2)
+            result[size++] = next - start
+            rowStart = next
+            index = next
+            used = 0
+            afterSeparator = -1
+            continue
+        }
+        used += width
+        index++
+        if (character == ' ' || character == '-') afterSeparator = index
+    }
+    return if (size == 0) null else result.copyOf(size)
+}
+
+/** @return where a row can end in front of [position], an emoji made from several stays in one piece if it fits */
+private fun keepEmojiTogether(text: String, rowStart: Int, position: Int): Int {
+    var index = position
+    while (index > rowStart && text[index - 1] == ZERO_WIDTH_JOINER) {
+        index--
+        // what the joiner connects to
+        if (index > rowStart && text[index - 1] == VARIATION_SELECTOR_EMOJI) index--
+        if (index > rowStart && text[index - 1].isLowSurrogate()) index--
+        if (index > rowStart) index--
+    }
+    return if (index > rowStart) index else position
+}
 
 /**
  * Breaks a line of characters that all have the same width after a space or a hyphen, and within a word that does not

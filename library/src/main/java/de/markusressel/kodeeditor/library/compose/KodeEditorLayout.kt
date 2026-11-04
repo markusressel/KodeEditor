@@ -343,7 +343,9 @@ internal class EditorLineLayout(
     private var foldedGeneration = -1
 
     /** tells the rows about changes of the text */
-    val rowObserver: ((TextSplice) -> Unit)? = wrappedRows?.let { it::onSplice }
+    val rowObserver: ((TextSplice) -> Unit)? = wrappedRows?.let { rows ->
+        { splice -> rows.onSplice(splice, settledWidth = if (state.replacingText) wrapWidth() else null) }
+    }
 
     /** lines with few wide characters can be wider than the one with the most characters */
     private var widestDrawnLine by mutableFloatStateOf(0f)
