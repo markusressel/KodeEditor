@@ -15,6 +15,14 @@ Line numbers stay the same.
 - Tap the left edge to set a bookmark
 - Tap an arrow to fold a section
 
+## Shorter lines
+Tap a box to see what it hides, move the cursor away to hide it again.
+Read the [KodeHighlighter docs](https://github.com/markusressel/KodeHighlighter/blob/master/README.md#usage) or look at ![a tiny image](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==) in the middle of a sentence.
+Plain addresses get shorter too: https://github.com/markusressel/KodeEditor/pull/140/files?diff=split
+<!-- a note for whoever edits this file next, nobody who reads it needs this -->
+Characters: 1 &rarr; 2 &amp; 3 &mdash; tap one.
+Code stays as it is: `[not a link](https://example.com/a/long/path)`
+
 > Fine print: this editor notices things.
 
 TODO: write the next great app 

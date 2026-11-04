@@ -443,6 +443,7 @@ fun KodeEditor(
     val breakMeasurer = rememberTextMeasurer(cacheSize = 0)
     val layout = remember(
         state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping, animations.reflow, animations.folding, folds,
+        foldPlaceholderColor,
     ) {
         EditorLineLayout(
             state = state,
@@ -455,6 +456,7 @@ fun KodeEditor(
             animateReflow = animations.reflow,
             folds = folds,
             animateFolds = animations.folding,
+            foldPlaceholderStyle = SpanStyle(color = foldPlaceholderColor),
         )
     }
     DisposableEffect(state, layout) {
@@ -573,7 +575,8 @@ fun KodeEditor(
                 if (!enabled) return
                 focusAndShowKeyboard()
                 val target = offsetAt(position)
-                val word = if (type == PointerType.Mouse) TextRange(target) else layout.getWordBoundary(target)
+                val word = layout.foldedRangeAt(geometry.toText(position, offset))
+                    ?: if (type == PointerType.Mouse) TextRange(target) else layout.getWordBoundary(target)
                 if (type != PointerType.Mouse) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 state.setSelection(word)
                 // nothing to select here, so the menu offers what can be done at the cursor
@@ -910,7 +913,12 @@ fun KodeEditor(
                     selection = { state.selection.takeIf { focused } },
                     window = drawWindow,
                 )
-                VisibleLines(layout = layout, window = drawWindow, decorations = decorations)
+                VisibleLines(
+                    layout = layout,
+                    window = drawWindow,
+                    decorations = decorations,
+                    foldBoxColor = foldedBackground,
+                )
                 if (focused && enabled && !readOnly && selection.collapsed) {
                     EditorCursor(
                         state = state,

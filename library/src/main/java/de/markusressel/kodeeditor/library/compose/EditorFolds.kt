@@ -124,6 +124,9 @@ internal class EditorFolds(
 
     private class Fold(var header: Int, var hiddenStart: Int, var hiddenEnd: Int)
 
+    /** what is folded within lines */
+    val inline = EditorInlineFolds(state, provider)
+
     // typing within a line does not change this, so what only shows the regions is not drawn again for it
     private val regions = derivedStateOf(structuralEqualityPolicy()) {
         state.version
@@ -249,6 +252,7 @@ internal class EditorFolds(
 
     /** the text changed, the positions of the folds still are those in front of the change */
     val spliceObserver: (TextSplice) -> Unit = { splice ->
+        inline.onSplice(splice)
         val start = splice.start
         val end = splice.start + splice.removedLength
         val removed = folds.removeAll { fold ->
@@ -265,6 +269,7 @@ internal class EditorFolds(
     }
 
     override fun onStateChanged() {
+        inline.onStateChanged()
         if (folds.isEmpty()) return
         val selection = state.selection
         if (!selection.collapsed) return

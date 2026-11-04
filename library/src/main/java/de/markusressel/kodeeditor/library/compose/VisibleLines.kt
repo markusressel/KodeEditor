@@ -9,8 +9,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.toRect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -25,6 +27,9 @@ import kotlinx.coroutines.flow.collectLatest
 
 /** enough single line layouts for the lines of a whole window at the lowest zoom, so unchanged lines are reused */
 internal const val LINE_LAYOUT_CACHE_SIZE = 2048
+
+/** the corner radius of the box behind a placeholder, as a part of the line height */
+private const val FOLD_BOX_RADIUS = 0.2f
 
 /**
  * Places the content at the rectangle given by [rect] and takes no space in the parent, so it works at any size of
@@ -72,6 +77,7 @@ internal fun VisibleLines(
     layout: EditorLineLayout,
     window: State<IntRect>,
     decorations: List<KodeEditorLineDecoration> = emptyList(),
+    foldBoxColor: Color = Color.Transparent,
 ) {
     LaunchedEffect(layout) {
         snapshotFlow { layout.currentWrapWidth to layout.foldAnimations }.collectLatest {
@@ -91,14 +97,24 @@ internal fun VisibleLines(
                 val top = -area.top.toFloat()
                 // alpha of drawText does not reach the colors of the highlighting, a layer does
                 val fading = FadingDraws()
+                val boxRadius = CornerRadius(layout.lineHeight * FOLD_BOX_RADIUS)
+
+                fun drawRowContent(line: EditorLineLayout.DrawnLine) {
+                    line.boxes.forEach { box ->
+                        drawRoundRect(foldBoxColor, box.topLeft, box.size, boxRadius)
+                    }
+                    drawText(textLayoutResult = line.layout, topLeft = line.position)
+                }
+
                 translate(left, top) {
                     layout.linesWithin(area).forEach { line ->
                         val parts = layout.movingParts(line)
                         if (parts == null) {
-                            drawText(textLayoutResult = line.layout, topLeft = line.position)
+                            drawRowContent(line)
                         } else {
-                            val drawParts = {
-                                parts.forEach { part ->
+                            val rowAlpha = layout.rowAlpha(line.row)
+                            parts.forEach { part ->
+                                val drawPart = {
                                     translate(part.distance.x, part.distance.y) {
                                         clipRect(
                                             left = line.position.x + part.left,
@@ -106,13 +122,13 @@ internal fun VisibleLines(
                                             right = line.position.x + part.right,
                                             bottom = line.position.y + line.layout.size.height,
                                         ) {
-                                            drawText(textLayoutResult = line.layout, topLeft = line.position)
+                                            drawRowContent(line)
                                         }
                                     }
                                 }
+                                val alpha = rowAlpha * part.alpha
+                                if (alpha >= 1f) drawPart() else fading.add(alpha) { translate(left, top) { drawPart() } }
                             }
-                            val alpha = layout.rowAlpha(line.row)
-                            if (alpha >= 1f) drawParts() else fading.add(alpha) { translate(left, top) { drawParts() } }
                         }
                     }
                     layout.shownLeavingRows.forEach { row ->
