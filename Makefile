@@ -25,7 +25,7 @@ run: install open
 runRelease: installRelease openRelease
 
 open:
-	adb shell am start -n "de.markusressel.kodeeditor.debug/de.markusressel.kodeeditor.demo.ComposeMainActivity" -a android.intent.action.MAIN -c android.intent.category.LAUNCHER
+	adb shell am start -n "de.markusressel.kodeeditor.local/de.markusressel.kodeeditor.demo.ComposeMainActivity" -a android.intent.action.MAIN -c android.intent.category.LAUNCHER
 
 openRelease:
-	adb shell am start -n "de.markusressel.kodeeditor/de.markusressel.kodeeditor.demo.ComposeMainActivity" -a android.intent.action.MAIN -c android.intent.category.LAUNCHER
+	adb shell am start -n "de.markusressel.kodeeditor.local/de.markusressel.kodeeditor.demo.ComposeMainActivity" -a android.intent.action.MAIN -c android.intent.category.LAUNCHER

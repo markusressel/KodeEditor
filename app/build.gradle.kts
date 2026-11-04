@@ -9,6 +9,8 @@ android {
 
     defaultConfig {
         applicationId = "de.markusressel.kodeeditor"
+        // Builds from CI are signed with another key than local ones, so they can not replace each other.
+        if (providers.environmentVariable("GITHUB_ACTIONS").orNull == null) applicationIdSuffix = ".local"
         versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toInt() ?: 1
         versionName = "7.0.0"
     }
