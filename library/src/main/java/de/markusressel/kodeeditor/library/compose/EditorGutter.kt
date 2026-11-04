@@ -55,7 +55,7 @@ interface KodeEditorGutterColumn {
 
     /**
      * Draws what this column shows for one line, with the top left corner of the cell at the origin.
-     * The cell is on the first row of the line if the editor wraps it.
+     * The cell is on the first row of the line if the editor wraps it, [GutterCell.fullHeight] reaches its last row.
      *
      * @param cell the line and the size of the cell
      */
@@ -75,12 +75,14 @@ interface KodeEditorGutterColumn {
  * @param width the width of the cell
  * @param height the height of the cell
  * @param baseline where the baseline of the text of the line is, for drawing text next to it
+ * @param fullHeight the height of all rows of the line, from the top of the cell. Drawing this far is fine
  */
 class GutterCell(
     val line: Int,
     val width: Float,
     val height: Float,
     val baseline: Float,
+    val fullHeight: Float = height,
 )
 
 private val LINE_NUMBER_PADDING = 4.dp
@@ -205,18 +207,19 @@ internal fun gutterColumnAt(columns: List<KodeEditorGutterColumn>, lineCount: In
     }
 }
 
-/** A line that the bar shows, with the top and the baseline of its first row */
-internal data class GutterLine(val line: Int, val top: Float, val baseline: Float)
+/** A line that the bar shows, with the top and the baseline of its first row and the bottom of its last row */
+internal data class GutterLine(val line: Int, val top: Float, val baseline: Float, val bottom: Float)
 
-/** @return the lines whose first row is within the [top] and [bottom] of the document */
+/**
+ * @return the lines with a row within the [top] and [bottom] of the document. That includes a wrapped line that starts
+ * above the window, because a column can draw over all of its rows
+ */
 internal fun gutterLinesWithin(layout: KodeEditorLayout, top: Float, bottom: Float): List<GutterLine> {
     val first = layout.getLineForVerticalPosition(top)
     val last = layout.getLineForVerticalPosition(bottom)
     return (first..last).mapNotNull { line ->
         if (layout.isLineHidden(line)) return@mapNotNull null
-        val lineTop = layout.getLineTop(line)
-        // a wrapped line that starts above the window has nothing to show in it
-        if (lineTop + layout.lineHeight < top) null else GutterLine(line, lineTop, layout.getLineBaseline(line))
+        GutterLine(line, layout.getLineTop(line), layout.getLineBaseline(line), layout.getLineBottom(line))
     }
 }
 
@@ -304,6 +307,7 @@ internal fun EditorGutter(
                             line: Int,
                             top: Float,
                             baseline: Float,
+                            bottom: Float,
                             removed: Boolean,
                             alpha: Float = fades.alpha(line),
                         ) {
@@ -317,6 +321,7 @@ internal fun EditorGutter(
                                         width = width,
                                         height = layout.lineHeight / stretch,
                                         baseline = (baseline - top) / stretch,
+                                        fullHeight = (bottom - top).coerceAtLeast(layout.lineHeight) / stretch,
                                     )
                                     val cellStart = start
                                     val draw = {
@@ -341,17 +346,28 @@ internal fun EditorGutter(
                             }
                         }
 
-                        lines.value.forEach { (line, top, baseline) ->
+                        lines.value.forEach { (line, top, baseline, bottom) ->
                             // the bar moves with the text when lines wrap differently
                             val distance = layout.shownLineDistance(line)
                             val alpha = fades.alpha(line) * layout.lineAlpha(line)
-                            drawLine(line, top + distance, baseline + distance, removed = false, alpha = alpha)
+                            drawLine(
+                                line,
+                                top + distance,
+                                baseline + distance,
+                                bottom + layout.shownLineBottomDistance(line),
+                                removed = false,
+                                alpha = alpha,
+                            )
                         }
 
                         // the bar shows the lines that a fold just hid until they are gone
-                        layout.shownLeavingRows.forEach { row ->
+                        val leavingRows = layout.shownLeavingRows
+                        val leavingRowCounts = leavingRows.groupingBy { it.line }.eachCount()
+                        leavingRows.forEach { row ->
                             if (row.firstOfLine) {
-                                drawLine(row.line, row.top, row.baseline, removed = false, alpha = row.alpha)
+                                val rowCount = leavingRowCounts.getValue(row.line)
+                                val bottom = row.top + rowCount * layout.lineHeight
+                                drawLine(row.line, row.top, row.baseline, bottom, removed = false, alpha = row.alpha)
                             }
                         }
 
@@ -361,7 +377,7 @@ internal fun EditorGutter(
                         val baselineInRow = layout.getLineBaseline(lastLine) - layout.getLineTop(lastLine)
                         fades.removedLines.forEach { line ->
                             val top = end + (line - lastLine - 1) * layout.lineHeight
-                            drawLine(line, top, top + baselineInRow, removed = true)
+                            drawLine(line, top, top + baselineInRow, top + layout.lineHeight, removed = true)
                         }
 
                         with(fading) { drawAll() }

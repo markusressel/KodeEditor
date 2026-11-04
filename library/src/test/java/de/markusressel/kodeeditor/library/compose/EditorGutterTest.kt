@@ -5,8 +5,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
@@ -20,6 +24,7 @@ import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -27,6 +32,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(AndroidJUnit4::class)
 @Config(application = Application::class, sdk = [36], qualifiers = "w411dp-h891dp")
@@ -286,7 +292,7 @@ class EditorGutterTest {
     }
 
     @Test
-    fun `the lines of the bar are those with a first row in the window`() {
+    fun `the lines of the bar are those with a row in the window`() {
         val state = KodeEditorState("one\ntwo\nthree")
         show(state, TestColumn(10))
         val layout = layout!!
@@ -294,10 +300,78 @@ class EditorGutterTest {
 
         assertEquals(
             listOf(
-                GutterLine(1, height, layout.getLineBaseline(1)),
-                GutterLine(2, 2 * height, layout.getLineBaseline(2)),
+                GutterLine(1, height, layout.getLineBaseline(1), 2 * height),
+                GutterLine(2, 2 * height, layout.getLineBaseline(2), 3 * height),
             ),
             gutterLinesWithin(layout, height * 1.5f, height * 2.5f),
         )
+    }
+
+    /** remembers the last cell of each line, and draws a strip over all of its rows */
+    private class StripColumn : KodeEditorGutterColumn {
+        val cells = HashMap<Int, GutterCell>()
+        override fun width(lineCount: Int) = 40
+        override fun DrawScope.drawCell(cell: GutterCell) {
+            cells[cell.line] = cell
+            if (cell.line == 1) drawRect(Color.Red, size = Size(cell.width, cell.fullHeight))
+        }
+    }
+
+    private fun showWrapped(state: KodeEditorState, column: KodeEditorGutterColumn) {
+        composeRule.setContent {
+            KodeEditor(
+                modifier = Modifier.size(400.dp).testTag("editor"),
+                state = remember { state },
+                languageRuleBook = noRules,
+                colorScheme = noColors,
+                onTextLayout = { layout = it },
+                gutterColumns = listOf(column),
+                lineWrapping = true,
+                animations = KodeEditorAnimations.None,
+            )
+        }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun `a column can draw over all rows of a wrapped line`() {
+        val column = StripColumn()
+        showWrapped(KodeEditorState("short\n" + "wrapped words ".repeat(20) + "\nend"), column)
+        val image = composeRule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        val layout = layout!!
+        val rowHeight = layout.lineHeight
+        val rows = layout.getLineBottom(1) - layout.getLineTop(1)
+        assertTrue("the line has to wrap for this test", rows > rowHeight)
+
+        val short = column.cells.getValue(0)
+        assertEquals(rowHeight, short.height, 0.01f)
+        assertEquals(short.height, short.fullHeight, 0.01f)
+
+        val wrapped = column.cells.getValue(1)
+        assertEquals("the cell itself stays on the first row", rowHeight, wrapped.height, 0.01f)
+        assertEquals(rows, wrapped.fullHeight, 0.01f)
+
+        assertEquals(Color.Red, image[5, (layout.getLineBottom(1) - rowHeight / 2).toInt()])
+        assertNotEquals(Color.Red, image[5, (layout.getLineBottom(1) + rowHeight / 2).toInt()])
+    }
+
+    @Test
+    fun `a wrapped line that starts above the window is still in the bar`() {
+        val state = KodeEditorState("wrapped words ".repeat(400) + "\nend")
+        showWrapped(state, TestColumn(10))
+        val layout = layout!!
+        val rowHeight = layout.lineHeight
+        assertTrue("the line has to wrap for this test", layout.getLineBottom(0) > 10 * rowHeight)
+
+        val lines = gutterLinesWithin(layout, 5 * rowHeight, 6 * rowHeight)
+
+        assertEquals(listOf(0), lines.map { it.line })
+        assertEquals(layout.getLineBottom(0), lines.single().bottom, 0.01f)
+    }
+
+    @Test
+    fun `a cell without a full height is as high as its first row`() {
+        assertEquals(12f, GutterCell(line = 0, width = 5f, height = 12f, baseline = 9f).fullHeight, 0f)
     }
 }
