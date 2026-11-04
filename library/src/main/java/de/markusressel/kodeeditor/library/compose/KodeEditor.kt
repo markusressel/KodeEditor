@@ -133,6 +133,7 @@ private const val FOLD_PLACEHOLDER_ALPHA = 0.6f
  * @param foldProvider finds what can be folded, which adds a column with arrows to the end of the bar, null folds
  * nothing
  * @param lineDecorations what the editor shows on whole lines, from bottom to top
+ * @param keyBindings what the keys of a hardware keyboard do, a key without a binding is left to the rest of the app
  */
 @Composable
 fun KodeEditor(
@@ -156,6 +157,7 @@ fun KodeEditor(
     animations: KodeEditorAnimations = KodeEditorAnimations(),
     foldProvider: KodeEditorFoldProvider? = null,
     lineDecorations: List<KodeEditorLineDecoration> = emptyList(),
+    keyBindings: List<KodeEditorKeyBinding> = KodeEditorDefaults.keyBindings,
 ) {
     val state = remember { KodeEditorState(text.text, text.selection) }
     val controlled = remember(state) { ControlledValue(state) }
@@ -185,6 +187,7 @@ fun KodeEditor(
         animations = animations,
         foldProvider = foldProvider,
         lineDecorations = lineDecorations,
+        keyBindings = keyBindings,
     )
 }
 
@@ -268,6 +271,7 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param foldProvider finds what can be folded, which adds a column with arrows to the end of the bar, null folds
  * nothing
  * @param lineDecorations what the editor shows on whole lines, from bottom to top
+ * @param keyBindings what the keys of a hardware keyboard do, a key without a binding is left to the rest of the app
  */
 @Composable
 fun KodeEditor(
@@ -290,6 +294,7 @@ fun KodeEditor(
     animations: KodeEditorAnimations = KodeEditorAnimations(),
     foldProvider: KodeEditorFoldProvider? = null,
     lineDecorations: List<KodeEditorLineDecoration> = emptyList(),
+    keyBindings: List<KodeEditorKeyBinding> = KodeEditorDefaults.keyBindings,
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableFloatStateOf(1f.coerceIn(minZoom, maxZoom)) }
@@ -704,7 +709,7 @@ fun KodeEditor(
         if (!enabled || event.type != KeyEventType.KeyDown || !event.isFromTextKeyboard()) return false
         val current = state.selection
         val editable = !readOnly
-        return when (val command = event.toKeyboardCommand()) {
+        return when (val command = event.toKeyboardCommand(keyBindings)) {
             null -> editable && event.insertTypedCharacter(state)
 
             is KeyboardCommand.Move -> {
@@ -838,7 +843,7 @@ fun KodeEditor(
             .pointerInput(gestures) { detectEditorGestures(gestures) }
             // the keyboard app gets the keys first, and it would turn this one into a line break or drop it
             .onInterceptKeyBeforeSoftKeyboard { event ->
-                val intercept = event.toKeyboardCommand() == KeyboardCommand.StartNewLine &&
+                val intercept = event.toKeyboardCommand(keyBindings) == KeyboardCommand.StartNewLine &&
                     enabled && !readOnly && event.isFromTextKeyboard()
                 if (intercept) onKeyEvent(event)
                 intercept

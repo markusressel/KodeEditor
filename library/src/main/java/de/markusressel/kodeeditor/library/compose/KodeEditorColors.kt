@@ -79,6 +79,12 @@ interface KodeEditorColors {
 object KodeEditorDefaults {
 
     /**
+     * What the keys of a hardware keyboard do by default. Show it to the user, or change it for the `keyBindings` of a
+     * [KodeEditor]. The first binding that fits a key press counts.
+     */
+    val keyBindings: List<KodeEditorKeyBinding> get() = DEFAULT_KEY_BINDINGS
+
+    /**
      * Creates a [KodeEditorColors] that represents the default input text, background and content
      * (including label, placeholder, leading and trailing icons) colors used in a [KodeEditor].
      */

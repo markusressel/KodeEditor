@@ -45,49 +45,14 @@ internal fun keyboardCommandFor(
     alt: Boolean,
     meta: Boolean,
     shift: Boolean = false,
+    bindings: List<KodeEditorKeyBinding> = KodeEditorDefaults.keyBindings,
 ): KeyboardCommand? {
     if (meta) return null
-    // shift + tab stays with the focus system: it is the way out of the editor for a keyboard
-    if (key == Key.Tab) return if (ctrl || alt || shift) null else KeyboardCommand.InsertTab
-    val jump = ctrl || alt
-    val move = when (key) {
-        Key.DirectionLeft -> if (jump) CursorMove.WordLeft else CursorMove.CharacterLeft
-        Key.DirectionRight -> if (jump) CursorMove.WordRight else CursorMove.CharacterRight
-        Key.DirectionUp -> if (jump) CursorMove.ParagraphUp else CursorMove.LineUp
-        Key.DirectionDown -> if (jump) CursorMove.ParagraphDown else CursorMove.LineDown
-        Key.PageUp -> if (jump) null else CursorMove.PageUp
-        Key.PageDown -> if (jump) null else CursorMove.PageDown
-        Key.MoveHome -> if (ctrl) CursorMove.TextStart else CursorMove.LineStart
-        Key.MoveEnd -> if (ctrl) CursorMove.TextEnd else CursorMove.LineEnd
-        else -> null
-    }
-    if (move != null) return KeyboardCommand.Move(move)
-    if (!ctrl && !alt) {
-        when (key) {
-            Key.Enter, Key.NumPadEnter -> return if (shift) KeyboardCommand.StartNewLine else KeyboardCommand.InsertLine
-            Key.Backspace -> return KeyboardCommand.Backspace
-            Key.Delete -> return KeyboardCommand.Delete
-        }
-    }
-    if (!ctrl || alt) return null
-    return when (key) {
-        Key.Backspace -> KeyboardCommand.BackspaceWord
-        Key.Delete -> KeyboardCommand.DeleteWord
-        Key.A -> KeyboardCommand.SelectAll
-        Key.C -> KeyboardCommand.Copy
-        Key.X -> KeyboardCommand.Cut
-        Key.V -> KeyboardCommand.Paste
-        Key.Z -> if (shift) KeyboardCommand.Redo else KeyboardCommand.Undo
-        Key.Y -> KeyboardCommand.Redo
-        Key.Plus, Key.Equals, Key.NumPadAdd -> KeyboardCommand.ZoomIn
-        Key.Minus, Key.NumPadSubtract -> KeyboardCommand.ZoomOut
-        Key.Zero, Key.NumPad0 -> KeyboardCommand.ZoomReset
-        else -> null
-    }
+    return bindings.firstOrNull { it.matches(key, ctrl, alt, shift) }?.action?.command
 }
 
-internal fun KeyEvent.toKeyboardCommand(): KeyboardCommand? =
-    keyboardCommandFor(key, isCtrlPressed, isAltPressed, isMetaPressed, isShiftPressed)
+internal fun KeyEvent.toKeyboardCommand(bindings: List<KodeEditorKeyBinding>): KeyboardCommand? =
+    keyboardCommandFor(key, isCtrlPressed, isAltPressed, isMetaPressed, isShiftPressed, bindings)
 
 /**
  * A keyboard to write with, unlike the D-pad of a TV remote or a gamepad, which should keep moving the focus

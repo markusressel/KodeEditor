@@ -85,6 +85,7 @@ Have a look at the demo app (`app` module) for a complete sample.
 | `animations` | what [the editor animates](#animations) | everything |
 | `foldProvider` | what [can be folded](#folding) | nothing |
 | `lineDecorations` | what [the editor shows on whole lines](#line-decorations) | nothing |
+| `keyBindings` | what [the keys of a hardware keyboard](#keyboard) do | `KodeEditorDefaults.keyBindings` |
 | `overlay` | [content on top of the text](#overlay) | nothing |
 | `onTextLayout` | called with the `KodeEditorLayout` when the text changed | nothing |
 
@@ -276,6 +277,20 @@ The editor works with hardware keyboards:
 | Ctrl + 0 | reset the zoom |
 
 The D-pad of a TV remote or a gamepad still moves the focus between the elements of the screen.
+
+`KodeEditorDefaults.keyBindings` holds these as a list, to show them to the user or to change them with `keyBindings`.
+The first binding that fits a key press counts, and a key without a binding is left to the rest of the app:
+
+```kotlin
+KodeEditor(
+    state = state,
+    languageRuleBook = ruleBook,
+    colorScheme = colorScheme,
+    keyBindings = listOf(
+        KodeEditorKeyBinding(Key.D, KodeEditorKeyAction.DeleteWord, ctrl = true),
+    ) + KodeEditorDefaults.keyBindings.filter { it.action != KodeEditorKeyAction.ExpandOrZoomIn },
+)
+```
 
 # View based editor
 

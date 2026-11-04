@@ -283,4 +283,27 @@ class KodeEditorKeyboardTest {
         keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Delete) } }
         assertEquals("ab [x]() cd", value.text)
     }
+
+    @Test
+    fun aKeyCanBeBoundToSomethingElseAndAnUnboundKeyDoesNothing() {
+        value = TextFieldValue("one two", TextRange(7))
+        composeRule.setContent {
+            KodeEditor(
+                modifier = Modifier.fillMaxSize().testTag("editor"),
+                text = value,
+                languageRuleBook = noRules,
+                colorScheme = noColors,
+                onValueChange = { value = it },
+                keyBindings = listOf(KodeEditorKeyBinding(Key.D, KodeEditorKeyAction.BackspaceWord, ctrl = true)),
+            )
+        }
+        composeRule.onNode(textField).performClick()
+        composeRule.waitForIdle()
+        value = value.copy(selection = TextRange(7))
+        composeRule.waitForIdle()
+        keys { pressKey(Key.Backspace) }
+        assertEquals("one two", value.text)
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.D) } }
+        assertEquals("one ", value.text)
+    }
 }
