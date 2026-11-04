@@ -76,6 +76,55 @@ class EditorInlineFoldsTest {
     }
 
     @Test
+    fun typingNextToAFoldThatStaysTheSameKeepsItClosed() {
+        val entity = "1 &rarr; 2"
+        val (state, folds) = foldsOf(entity)
+        val end = entity.indexOf(';') + 1
+        state.setSelection(TextRange(end))
+        state.replaceSelection("x")
+        folds.inline.scanNow()
+        assertArrayEquals(intArrayOf(entity.indexOf('&')), folds.inline.collapsed!!.starts)
+    }
+
+    @Test
+    fun backspaceBehindAFoldTakesItsLastCharacterAndKeepsItClosed() {
+        val (state, folds) = foldsOf(text)
+        state.setSelection(TextRange(end))
+        state.localEdit(end - 1, end, "")
+        assertArrayEquals(intArrayOf(end - 1), folds.inline.collapsed!!.ends)
+        folds.inline.scanNow()
+        assertEquals(text.removeRange(end - 1, end), state.rawText)
+        assertArrayEquals(intArrayOf(start), folds.inline.collapsed!!.starts)
+        assertArrayEquals(intArrayOf(end - 1), folds.inline.collapsed!!.ends)
+    }
+
+    @Test
+    fun theKeysOpenAndCloseAFoldAtTheCursor() {
+        val (state, folds) = foldsOf(text)
+        state.setSelection(TextRange(start))
+        assertEquals(true, folds.expandAtCursor())
+        assertNull(folds.inline.collapsed)
+        // nothing left to open, so this would zoom
+        assertEquals(false, folds.inline.openAtCursor())
+        state.setSelection(TextRange(start + 3))
+        assertEquals(true, folds.collapseAtCursor())
+        assertEquals(TextRange(start), state.selection)
+        assertArrayEquals(intArrayOf(start), folds.inline.collapsed!!.starts)
+    }
+
+    @Test
+    fun theKeysFoldTheLineWithoutAnythingInIt() {
+        val (state, folds) = foldsOf("# a\nb\nc", 0)
+        assertEquals(true, folds.collapseAtCursor())
+        assertEquals(true, folds.isFolded(0))
+        assertEquals(true, folds.expandAtCursor())
+        assertEquals(false, folds.isFolded(0))
+        state.setSelection(TextRange(state.rawText.length))
+        assertEquals(false, folds.collapseAtCursor())
+        assertEquals(false, folds.expandAtCursor())
+    }
+
+    @Test
     fun whatWasJustTypedStaysOpenUntilTheCursorLeavesTheLine() {
         val typed = "see [x](0123456789abcdef"
         val (state, folds) = foldsOf("$typed\nnext")

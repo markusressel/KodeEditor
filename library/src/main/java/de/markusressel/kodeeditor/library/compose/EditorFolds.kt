@@ -235,6 +235,20 @@ internal class EditorFolds(
         return true
     }
 
+    /** @return true if something at the cursor was folded, which is shown now */
+    fun expandAtCursor(): Boolean {
+        if (inline.openAtCursor()) return true
+        val line = state.lineOf(state.selection.end)
+        return isFolded(line) && toggle(line)
+    }
+
+    /** @return true if something at the cursor could be folded, and is now */
+    fun collapseAtCursor(): Boolean {
+        if (inline.closeAtCursor()) return true
+        val line = state.lineOf(state.selection.end)
+        return canFold(line) && !isFolded(line) && toggle(line)
+    }
+
     private operator fun HiddenLines.contains(line: Int) = rangeOf(line) >= 0
 
     /**

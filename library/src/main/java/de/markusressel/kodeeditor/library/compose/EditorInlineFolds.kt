@@ -209,10 +209,11 @@ internal class RowFolds(
 /**
  * What the provider found and which of it is collapsed.
  *
- * Everything is collapsed, with a few exceptions. A fold opens when the user taps it, when the selection ends within it,
- * and when a change happens at its edge. It stays open while the cursor is at it, so the cursor can sit next to a fold
- * without opening it, but can also leave an open one through its edges. What the user just typed stays open until the
- * cursor leaves the line, the text would jump around while typing otherwise.
+ * Everything is collapsed, with a few exceptions. A fold opens when the user taps it or asks for it with the keys, and when
+ * the selection ends within it. It stays open while the cursor is at it, so the cursor can sit next to a fold without
+ * opening it, but can also leave an open one through its edges. This follows IntelliJ, also in that changes do not open a
+ * fold that stays the same: backspace behind one takes its last character and it stays closed. Only a fold that the
+ * provider finds with another range is open, here until the cursor leaves the line, so typing does not make text jump.
  *
  * The provider runs on another thread, until its result is there the folds move with the text.
  */
@@ -269,7 +270,7 @@ internal class EditorInlineFolds(
         scannedVersion = state.rawVersion
         val line = state.lineOf(state.selection.end)
         result.forEach { fold ->
-            val isNew = before.none { it.start < fold.end && it.end > fold.start }
+            val isNew = before.none { it.start == fold.start && it.end == fold.end }
             if (isNew && state.lineOf(fold.start) == line) heldOpen += TextRange(fold.start, fold.end)
         }
         update(animate = false)
@@ -312,12 +313,6 @@ internal class EditorInlineFolds(
     /** the text changed, the provider looks at it again when the whole change is done */
     fun onSplice(splice: TextSplice) {
         edited = true
-        val spliceEnd = splice.start + splice.removedLength
-        // the selection is still the one from before, a change there comes from the user
-        val selection = state.selection
-        if (selection.min <= spliceEnd && selection.max >= splice.start) {
-            found.forEach { if (it.overlaps(TextRange(splice.start, spliceEnd))) heldOpen += TextRange(it.start, it.end) }
-        }
         found = found.mapNotNull { it.movedBy(splice) }
         opened = opened.map { it.mappedBy(splice) }
         heldOpen.replaceAll { it.mappedBy(splice) }
@@ -341,6 +336,12 @@ internal class EditorInlineFolds(
                 copy(start = start + distance, end = end + distance)
             }
 
+            // a change completely within stays within, unless it splits the line
+            splice.start >= start && spliceEnd <= end && '\n' !in splice.inserted -> {
+                val newEnd = end + splice.inserted.length - splice.removedLength
+                if (newEnd > start) copy(end = newEnd) else null
+            }
+
             else -> null
         }
     }
@@ -354,6 +355,29 @@ internal class EditorInlineFolds(
     fun open(range: TextRange) {
         opened = opened + range
         update(animate = true)
+    }
+
+    /** @return true if there was a closed fold at the cursor, which is open now */
+    fun openAtCursor(): Boolean {
+        val cursor = state.selection.end
+        val fold = found.firstOrNull { cursor in it.start..it.end } ?: return false
+        val range = TextRange(fold.start, fold.end)
+        if (opened.contains(range) || heldOpen.any { fold.overlaps(it) }) return false
+        if (cursor in fold.start + 1 until fold.end) return false
+        open(range)
+        return true
+    }
+
+    /** @return true if there was an open fold at the cursor, which is closed now with the cursor next to it */
+    fun closeAtCursor(): Boolean {
+        val cursor = state.selection.end
+        val selection = state.selection
+        val fold = found.firstOrNull { cursor in it.start..it.end && isOpen(it, selection) } ?: return false
+        opened = opened.filterNot { fold.overlaps(it) }
+        heldOpen.removeAll { fold.overlaps(it) }
+        if (cursor in fold.start + 1 until fold.end) state.setSelection(TextRange(fold.start))
+        update(animate = true)
+        return true
     }
 
     private fun update(animate: Boolean) {

@@ -203,9 +203,11 @@ val addresses = object : KodeEditorFoldProvider {
 }
 ```
 
-Tapping the box shows the text, and it goes back when the cursor leaves. The arrow keys move over a box, and typing next
-to it opens it. What was just typed stays open until the cursor leaves the line, so the text does not jump around. The
-colors are `inlineFoldBackgroundColor` and `inlineFoldTextColor` of `KodeEditorColors`.
+Tapping the box or Ctrl + Plus shows the text, and it goes back when the cursor leaves or with Ctrl + Minus. The arrow keys
+move over a box. A fold that the provider finds with another range, like while typing a link or next to one, stays open
+until the cursor leaves the line, so the text does not jump around. Other changes leave a box closed, so backspace behind
+one removes its last hidden character, like in IntelliJ. The colors are `inlineFoldBackgroundColor` and
+`inlineFoldTextColor` of `KodeEditorColors`.
 
 ## Line decorations
 
@@ -270,7 +272,8 @@ The editor works with hardware keyboards:
 | Ctrl + Z, Ctrl + Y or Ctrl + Shift + Z | undo, redo |
 | Shift + Tab | move the focus out of the editor |
 | Shift + a key to move the cursor | extend the selection |
-| Ctrl + Plus, Minus, 0 | zoom in, zoom out, reset the zoom |
+| Ctrl + Plus, Minus | show or fold what is at the cursor, otherwise zoom in or out |
+| Ctrl + 0 | reset the zoom |
 
 The D-pad of a TV remote or a gamepad still moves the focus between the elements of the screen.
 

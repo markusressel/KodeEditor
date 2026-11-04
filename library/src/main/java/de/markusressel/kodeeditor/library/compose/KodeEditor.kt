@@ -789,12 +789,13 @@ fun KodeEditor(
             }
 
             KeyboardCommand.ZoomIn -> {
-                zoomAroundCursor((zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(maxZoom))
+                // the keys of IntelliJ, where there is nothing to fold they zoom
+                if (folds?.expandAtCursor() != true) zoomAroundCursor((zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(maxZoom))
                 true
             }
 
             KeyboardCommand.ZoomOut -> {
-                zoomAroundCursor((zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(minZoom))
+                if (folds?.collapseAtCursor() != true) zoomAroundCursor((zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(minZoom))
                 true
             }
 
