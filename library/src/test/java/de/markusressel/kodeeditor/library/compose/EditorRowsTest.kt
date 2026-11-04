@@ -167,4 +167,34 @@ class EditorRowsTest {
         state.localEdit(0, state.rawText.length, "x")
         assertEquals(0f, rows.takePositionAfterResize(3f))
     }
+
+    @Test
+    fun `an emoji takes more than one cell`() {
+        // "aaaa" fits, the emoji does not fit behind it
+        assertArrayEquals(intArrayOf(5), emojiBreaks("aaaa \uD83D\uDE00 bb", 0, 10, cells = 6, emojiCells = 3))
+    }
+
+    @Test
+    fun `a line with an emoji that fits does not break`() {
+        assertEquals(null, emojiBreaks("a \uD83D\uDE00", 0, 4, cells = 10, emojiCells = 3))
+    }
+
+    @Test
+    fun `an emoji is not split`() {
+        val text = "aaaaa\uD83D\uDE00"
+        assertArrayEquals(intArrayOf(5), emojiBreaks(text, 0, text.length, cells = 6, emojiCells = 3))
+    }
+
+    @Test
+    fun `an emoji made from several stays in one piece`() {
+        val family = "\uD83D\uDC68\u200D\uD83D\uDC69"
+        val text = "aaa$family"
+        assertArrayEquals(intArrayOf(3), emojiBreaks(text, 0, text.length, cells = 8, emojiCells = 3))
+    }
+
+    @Test
+    fun `an emoji wider than the row takes a row of its own and the line ends`() {
+        val text = "\uD83D\uDE00\uD83D\uDE00"
+        assertArrayEquals(intArrayOf(2), emojiBreaks(text, 0, text.length, cells = 2, emojiCells = 3))
+    }
 }
