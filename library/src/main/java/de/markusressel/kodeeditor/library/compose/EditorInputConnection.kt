@@ -34,6 +34,9 @@ private const val MAX_TEXT_FOR_KEYBOARD = 16 * 1024
 internal interface KeyboardActions {
     fun onKeyEvent(event: KeyEvent): Boolean
     fun onContextMenuAction(id: Int): Boolean
+
+    /** @return true if a delete in that direction would take hidden text, which is shown now and the delete is off */
+    fun openFoldInsteadOfDelete(backward: Boolean): Boolean = false
 }
 
 /**
@@ -129,8 +132,23 @@ internal class EditorInputConnection(
         return minOf(selection.min, composition.min) to maxOf(selection.max, composition.max)
     }
 
-    private fun delete(beforeLength: Int, afterLength: Int) = state.batch {
+    private fun delete(beforeLength: Int, afterLength: Int) {
         val (first, last) = rangeKeptOnDelete()
+        val cursor = state.selection.end
+        val backward = beforeLength > 0 && first == cursor
+        val forward = afterLength > 0 && last == cursor
+        if ((backward && openFold(backward = true)) || (forward && openFold(backward = false))) return
+        state.batch { removeAround(first, last, beforeLength, afterLength) }
+    }
+
+    /** the keyboard expects the text to have changed, so it has to look at it again when it did not */
+    private fun openFold(backward: Boolean): Boolean {
+        val opened = actions.openFoldInsteadOfDelete(backward)
+        if (opened) state.inputLink?.restart()
+        return opened
+    }
+
+    private fun removeAround(first: Int, last: Int, beforeLength: Int, afterLength: Int) {
         val afterEnd = (last.toLong() + afterLength.coerceAtLeast(0)).coerceAtMost(text.length.toLong()).toInt()
         if (afterEnd > last) removeKeepingRanges(last, afterEnd)
         val beforeStart = (first.toLong() - beforeLength.coerceAtLeast(0)).coerceAtLeast(0L).toInt()
@@ -152,7 +170,16 @@ internal class EditorInputConnection(
         return true
     }
 
+    /** a keyboard that marked the word at the cursor deletes by making that word shorter */
+    private fun isDeleteAtEndOfComposing(replacement: String): Boolean {
+        val composition = state.composition ?: return false
+        val selection = state.selection
+        return selection.collapsed && selection.end == composition.max && replacement.length < composition.length &&
+            text.startsWith(replacement, composition.min)
+    }
+
     private fun replaceComposing(replacement: String, newCursorPosition: Int, keepComposing: Boolean) {
+        if (isDeleteAtEndOfComposing(replacement) && openFold(backward = true)) return
         val range = state.composition ?: state.selection
         val start = range.min
         val end = range.max

@@ -56,6 +56,19 @@ interface KodeEditorColors {
     @Composable
     fun foldPlaceholderColor(): State<Color> = rememberUpdatedState(Color.Unspecified)
 
+    /**
+     * Represents the color of the box behind a folded part of a line. Unspecified uses a part of the selection color.
+     */
+    @Composable
+    fun inlineFoldBackgroundColor(): State<Color> = rememberUpdatedState(Color.Unspecified)
+
+    /**
+     * Represents the color of the text in the box behind a folded part of a line. Unspecified uses the line number
+     * color.
+     */
+    @Composable
+    fun inlineFoldTextColor(): State<Color> = rememberUpdatedState(Color.Unspecified)
+
 }
 
 
@@ -64,6 +77,12 @@ interface KodeEditorColors {
  */
 @Immutable
 object KodeEditorDefaults {
+
+    /**
+     * What the keys of a hardware keyboard do by default. Show it to the user, or change it for the `keyBindings` of a
+     * [KodeEditor]. The first binding that fits a key press counts.
+     */
+    val keyBindings: List<KodeEditorKeyBinding> get() = DEFAULT_KEY_BINDINGS
 
     /**
      * Creates a [KodeEditorColors] that represents the default input text, background and content
@@ -77,6 +96,8 @@ object KodeEditorDefaults {
         lineNumberBackgroundColor: Color = MaterialTheme.colorScheme.surface,
         foldedLineBackgroundColor: Color = Color.Unspecified,
         foldPlaceholderColor: Color = Color.Unspecified,
+        inlineFoldBackgroundColor: Color = Color.Unspecified,
+        inlineFoldTextColor: Color = Color.Unspecified,
     ): KodeEditorColors =
         DefaultKodeEditorColors(
             textFieldColors = textFieldColors,
@@ -85,6 +106,8 @@ object KodeEditorDefaults {
             lineNumberBackgroundColor = lineNumberBackgroundColor,
             foldedLineBackgroundColor = foldedLineBackgroundColor,
             foldPlaceholderColor = foldPlaceholderColor,
+            inlineFoldBackgroundColor = inlineFoldBackgroundColor,
+            inlineFoldTextColor = inlineFoldTextColor,
         )
 }
 
@@ -96,6 +119,8 @@ private data class DefaultKodeEditorColors(
     private val lineNumberBackgroundColor: Color,
     private val foldedLineBackgroundColor: Color,
     private val foldPlaceholderColor: Color,
+    private val inlineFoldBackgroundColor: Color,
+    private val inlineFoldTextColor: Color,
 ) : KodeEditorColors {
 
     @Composable
@@ -126,6 +151,16 @@ private data class DefaultKodeEditorColors(
     @Composable
     override fun foldPlaceholderColor(): State<Color> {
         return rememberUpdatedState(foldPlaceholderColor)
+    }
+
+    @Composable
+    override fun inlineFoldBackgroundColor(): State<Color> {
+        return rememberUpdatedState(inlineFoldBackgroundColor)
+    }
+
+    @Composable
+    override fun inlineFoldTextColor(): State<Color> {
+        return rememberUpdatedState(inlineFoldTextColor)
     }
 
 }

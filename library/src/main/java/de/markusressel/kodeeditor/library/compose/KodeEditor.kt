@@ -90,6 +90,9 @@ private val HANDLE_EDGE_SPEED = 12.dp
 private val TEXT_START_PADDING = 4.dp
 private val FOLD_COLUMN_WIDTH = 24.dp
 private const val FOLDED_LINE_SELECTION_ALPHA = 0.5f
+
+/** how much of the selection color is in the box behind a folded part of a line */
+private const val INLINE_FOLD_SELECTION_ALPHA = 0.7f
 private const val FOLD_PLACEHOLDER_ALPHA = 0.6f
 
 /**
@@ -130,6 +133,7 @@ private const val FOLD_PLACEHOLDER_ALPHA = 0.6f
  * @param foldProvider finds what can be folded, which adds a column with arrows to the end of the bar, null folds
  * nothing
  * @param lineDecorations what the editor shows on whole lines, from bottom to top
+ * @param keyBindings what the keys of a hardware keyboard do, a key without a binding is left to the rest of the app
  */
 @Composable
 fun KodeEditor(
@@ -153,6 +157,7 @@ fun KodeEditor(
     animations: KodeEditorAnimations = KodeEditorAnimations(),
     foldProvider: KodeEditorFoldProvider? = null,
     lineDecorations: List<KodeEditorLineDecoration> = emptyList(),
+    keyBindings: List<KodeEditorKeyBinding> = KodeEditorDefaults.keyBindings,
 ) {
     val state = remember { KodeEditorState(text.text, text.selection) }
     val controlled = remember(state) { ControlledValue(state) }
@@ -182,6 +187,7 @@ fun KodeEditor(
         animations = animations,
         foldProvider = foldProvider,
         lineDecorations = lineDecorations,
+        keyBindings = keyBindings,
     )
 }
 
@@ -265,6 +271,7 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param foldProvider finds what can be folded, which adds a column with arrows to the end of the bar, null folds
  * nothing
  * @param lineDecorations what the editor shows on whole lines, from bottom to top
+ * @param keyBindings what the keys of a hardware keyboard do, a key without a binding is left to the rest of the app
  */
 @Composable
 fun KodeEditor(
@@ -287,6 +294,7 @@ fun KodeEditor(
     animations: KodeEditorAnimations = KodeEditorAnimations(),
     foldProvider: KodeEditorFoldProvider? = null,
     lineDecorations: List<KodeEditorLineDecoration> = emptyList(),
+    keyBindings: List<KodeEditorKeyBinding> = KodeEditorDefaults.keyBindings,
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoom by remember { mutableFloatStateOf(1f.coerceIn(minZoom, maxZoom)) }
@@ -332,6 +340,7 @@ fun KodeEditor(
             state.removeListener(folds)
         }
     }
+    LaunchedEffect(folds) { folds?.inline?.keepUpdated() }
 
     DisposableEffect(state, view) {
         val link = ViewInputLink(view, state)
@@ -361,12 +370,16 @@ fun KodeEditor(
         )
     }
 
+    val currentFolds by rememberUpdatedState(folds)
     val keyboardActions = remember(view, menuActions, state) {
         object : KeyboardActions {
             private val keySender = BaseInputConnection(view, false)
 
             // on the queue of the window, like a key of a hardware keyboard, which ends up in the key handler below
             override fun onKeyEvent(event: AndroidKeyEvent) = keySender.sendKeyEvent(event)
+
+            override fun openFoldInsteadOfDelete(backward: Boolean) =
+                currentFolds?.inline?.openInsteadOfDelete(backward) == true
 
             override fun onContextMenuAction(id: Int): Boolean {
                 when (id) {
@@ -401,6 +414,9 @@ fun KodeEditor(
         folds?.let { FoldedLineDecoration(it, foldedBackground, foldPlaceholderColor) }
     }
     val decorations = if (foldDecoration == null) lineDecorations else listOf(foldDecoration) + lineDecorations
+    val inlineFoldBackground = colors.inlineFoldBackgroundColor().value
+        .takeOrElse { selectionColor.copy(alpha = selectionColor.alpha * INLINE_FOLD_SELECTION_ALPHA) }
+    val inlineFoldText = colors.inlineFoldTextColor().value.takeOrElse { foldColor }
     val currentDecorations by rememberUpdatedState(decorations)
     val targetGutterWidth by remember(state, gutterColumns, foldColumn) {
         derivedStateOf { columns.sumOf { it.width(state.lineCount) } }
@@ -443,6 +459,7 @@ fun KodeEditor(
     val breakMeasurer = rememberTextMeasurer(cacheSize = 0)
     val layout = remember(
         state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping, animations.reflow, animations.folding, folds,
+        inlineFoldText,
     ) {
         EditorLineLayout(
             state = state,
@@ -455,6 +472,7 @@ fun KodeEditor(
             animateReflow = animations.reflow,
             folds = folds,
             animateFolds = animations.folding,
+            foldPlaceholderStyle = SpanStyle(color = inlineFoldText),
         )
     }
     DisposableEffect(state, layout) {
@@ -557,9 +575,12 @@ fun KodeEditor(
             override fun onTap(position: Offset) {
                 // this touch only stops the fling
                 if (!enabled || stoppedFling || tapGutter(position)) return
-                if (layout.tapTrailingText(geometry.toText(position, offset), currentDecorations)) return
+                val point = geometry.toText(position, offset)
+                if (layout.tapTrailingText(point, currentDecorations)) return
                 focusAndShowKeyboard()
-                state.setSelection(TextRange(offsetAt(position)))
+                val fold = layout.foldedRangeAt(point)
+                state.setSelection(TextRange(offsetAt(position).let { if (fold == null) it else it.coerceIn(fold.min, fold.max) }))
+                fold?.let(layout::openFold)
             }
 
             override fun onDoubleTap(position: Offset) {
@@ -573,7 +594,8 @@ fun KodeEditor(
                 if (!enabled) return
                 focusAndShowKeyboard()
                 val target = offsetAt(position)
-                val word = if (type == PointerType.Mouse) TextRange(target) else layout.getWordBoundary(target)
+                val word = layout.foldedRangeAt(geometry.toText(position, offset))
+                    ?: if (type == PointerType.Mouse) TextRange(target) else layout.getWordBoundary(target)
                 if (type != PointerType.Mouse) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 state.setSelection(word)
                 // nothing to select here, so the menu offers what can be done at the cursor
@@ -687,7 +709,7 @@ fun KodeEditor(
         if (!enabled || event.type != KeyEventType.KeyDown || !event.isFromTextKeyboard()) return false
         val current = state.selection
         val editable = !readOnly
-        return when (val command = event.toKeyboardCommand()) {
+        return when (val command = event.toKeyboardCommand(keyBindings)) {
             null -> editable && event.insertTypedCharacter(state)
 
             is KeyboardCommand.Move -> {
@@ -726,22 +748,30 @@ fun KodeEditor(
             }
 
             KeyboardCommand.Backspace -> {
-                if (editable) deleteTo(state, previousCharacter(state.rawText, current.min))
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = true) != true) {
+                    deleteTo(state, previousCharacter(state.rawText, current.min))
+                }
                 editable
             }
 
             KeyboardCommand.Delete -> {
-                if (editable) deleteTo(state, nextCharacter(state.rawText, current.max))
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = false) != true) {
+                    deleteTo(state, nextCharacter(state.rawText, current.max))
+                }
                 editable
             }
 
             KeyboardCommand.BackspaceWord -> {
-                if (editable) deleteTo(state, previousWord(state.rawText, current.min))
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = true) != true) {
+                    deleteTo(state, previousWord(state.rawText, current.min))
+                }
                 editable
             }
 
             KeyboardCommand.DeleteWord -> {
-                if (editable) deleteTo(state, nextWord(state.rawText, current.max))
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = false) != true) {
+                    deleteTo(state, nextWord(state.rawText, current.max))
+                }
                 editable
             }
 
@@ -776,12 +806,13 @@ fun KodeEditor(
             }
 
             KeyboardCommand.ZoomIn -> {
-                zoomAroundCursor((zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(maxZoom))
+                // the keys of IntelliJ, where there is nothing to fold they zoom
+                if (folds?.expandAtCursor() != true) zoomAroundCursor((zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(maxZoom))
                 true
             }
 
             KeyboardCommand.ZoomOut -> {
-                zoomAroundCursor((zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(minZoom))
+                if (folds?.collapseAtCursor() != true) zoomAroundCursor((zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(minZoom))
                 true
             }
 
@@ -812,7 +843,7 @@ fun KodeEditor(
             .pointerInput(gestures) { detectEditorGestures(gestures) }
             // the keyboard app gets the keys first, and it would turn this one into a line break or drop it
             .onInterceptKeyBeforeSoftKeyboard { event ->
-                val intercept = event.toKeyboardCommand() == KeyboardCommand.StartNewLine &&
+                val intercept = event.toKeyboardCommand(keyBindings) == KeyboardCommand.StartNewLine &&
                     enabled && !readOnly && event.isFromTextKeyboard()
                 if (intercept) onKeyEvent(event)
                 intercept
@@ -910,7 +941,12 @@ fun KodeEditor(
                     selection = { state.selection.takeIf { focused } },
                     window = drawWindow,
                 )
-                VisibleLines(layout = layout, window = drawWindow, decorations = decorations)
+                VisibleLines(
+                    layout = layout,
+                    window = drawWindow,
+                    decorations = decorations,
+                    foldBoxColor = inlineFoldBackground,
+                )
                 if (focused && enabled && !readOnly && selection.collapsed) {
                     EditorCursor(
                         state = state,

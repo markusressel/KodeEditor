@@ -9,6 +9,10 @@ android {
 
     defaultConfig {
         applicationId = "de.markusressel.kodeeditor"
+        // Builds from CI are signed with another key than local ones, so they can not replace each other.
+        val localBuild = providers.environmentVariable("GITHUB_ACTIONS").orNull == null
+        if (localBuild) applicationIdSuffix = ".local"
+        resValue("string", "app_name", if (localBuild) "KodeEditor DEV" else "KodeEditor")
         versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toInt() ?: 1
         versionName = "7.0.0"
     }

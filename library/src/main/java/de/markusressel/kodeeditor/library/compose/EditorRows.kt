@@ -53,6 +53,8 @@ internal class UnwrappedRows(private val state: KodeEditorState) : EditorRows {
  * @param onReflow called with the rows before a change of the width that made lines break differently
  * @param sameBreaks whether two widths are known to break all lines at the same positions, which saves going through them
  * @param hiddenLines the lines that folds hide. These rows still have them, positions from outside don't count them
+ * @param collapsed what is shown as a placeholder, a row never breaks within it
+ * @param shownBreaker finds where text that is not a part of the document breaks, by default the [breaker] does
  * @param breaker finds the positions where a line of the text breaks at a width, null if the line fits
  */
 internal class WrappedRows(
@@ -60,6 +62,8 @@ internal class WrappedRows(
     private val onReflow: (firstRows: IntArray, breaks: Array<IntArray?>) -> Unit = { _, _ -> },
     private val sameBreaks: (first: Float, second: Float) -> Boolean = { _, _ -> false },
     private val hiddenLines: () -> HiddenLines? = { null },
+    private val collapsed: () -> CollapsedRanges? = { null },
+    private val shownBreaker: ((text: String, width: Float) -> IntArray?)? = null,
     private val breaker: (text: String, start: Int, end: Int, width: Float) -> IntArray?,
 ) : EditorRows {
     private var width = 0f
@@ -150,7 +154,31 @@ internal class WrappedRows(
         version = state.rawVersion
     }
 
-    private fun breaksOf(line: Int) = breaker(state.rawText, state.lineStart(line), state.lineEnd(line), width)
+    private fun breaksOf(line: Int): IntArray? {
+        val text = state.rawText
+        val start = state.lineStart(line)
+        val end = state.lineEnd(line)
+        val folds = collapsed()?.inRow(start, end) ?: return breaker(text, start, end, width)
+        val shown = folds.unbreakableText(text, end)
+        val found = if (shownBreaker != null) shownBreaker.invoke(shown, width) else breaker(shown, 0, shown.length, width)
+        return found?.let { folds.breaksInText(it, end) }
+    }
+
+    /** @param lines the lines where other parts of the text are collapsed now */
+    fun onCollapsedChanged(lines: Collection<Int>) {
+        if (version == -1) return
+        // whoever kept the breaks from before still needs them
+        val next = breaks.copyOf()
+        var rowsChanged = false
+        lines.forEach { line ->
+            val after = breaksOf(line)
+            if ((next[line]?.size ?: 0) != (after?.size ?: 0)) rowsChanged = true
+            next[line] = after
+        }
+        breaks = next
+        generation++
+        if (rowsChanged) countRows()
+    }
 
     private fun countRows() {
         val lines = breaks.size
@@ -324,6 +352,16 @@ internal class RowBreaker(private val measurer: TextMeasurer, private val textSt
         cellLines.set(start, fills)
         emojiLines.set(start, !fills && countable)
         return fills
+    }
+
+    /** @return the positions where a whole [text] breaks, which is not a part of the document */
+    fun breaksOfShown(text: String, width: Float): IntArray? {
+        if (text.isEmpty() || width <= 0f) return null
+        if (!monospaced) return measuredBreaks(text, 0, text.length, width)
+        val cells = cellsOf(width)
+        if (text.length * 2 <= cells) return null
+        if (!text.all { it.fillsOneCell() }) return measuredBreaks(text, 0, text.length, width)
+        return cellBreaks(text, 0, text.length, cells)
     }
 
     private fun measuredBreaks(text: String, start: Int, end: Int, width: Float): IntArray? {

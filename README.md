@@ -7,7 +7,7 @@ A fast code editor for Jetpack Compose, with syntax highlighting, line wrapping 
 * Stays responsive with large documents, because only the visible lines are measured and drawn
 * Pinch to zoom and fling
 * Line wrapping
-* Folding, with sections of Markdown built in and your own rules for other languages
+* Folding of whole sections and parts of lines, with Markdown built in and your own rules for other languages
 * A bar next to the text with line numbers and your own columns, like warnings or bookmarks
 * Syntax highlighting for many languages with [KodeHighlighter](https://github.com/markusressel/KodeHighlighter), or your own rules
 * Hardware keyboard support, selection handles and a text menu
@@ -85,6 +85,7 @@ Have a look at the demo app (`app` module) for a complete sample.
 | `animations` | what [the editor animates](#animations) | everything |
 | `foldProvider` | what [can be folded](#folding) | nothing |
 | `lineDecorations` | what [the editor shows on whole lines](#line-decorations) | nothing |
+| `keyBindings` | what [the keys of a hardware keyboard](#keyboard) do | `KodeEditorDefaults.keyBindings` |
 | `overlay` | [content on top of the text](#overlay) | nothing |
 | `onTextLayout` | called with the `KodeEditorLayout` when the text changed | nothing |
 
@@ -188,6 +189,27 @@ A folded line gets a background and a placeholder, their colors are `foldedLineB
 `foldPlaceholderColor` of `KodeEditorColors`. Line numbers stay the same, the arrow keys skip folded text, and a cursor
 that ends up in it or a change across its edge unfolds it. The folds are not saved with the text.
 
+### Within a line
+
+A provider can also show parts of a line as something shorter, in a box. The text itself stays what it is, so copying a
+selection returns all of it. `MarkdownFoldProvider` does this for targets of links and images, long addresses, comments
+and character references.
+
+```kotlin
+val addresses = object : KodeEditorFoldProvider {
+    override fun foldRegions(text: String) = emptyList<FoldRegion>()
+
+    // runs on another thread
+    override fun inlineFolds(text: String) = listOf(InlineFold(start = 10, end = 60, placeholder = "example.com/…"))
+}
+```
+
+Tapping the box or Ctrl + Plus shows the text, and it goes back when the cursor leaves or with Ctrl + Minus. The arrow keys
+move over a box. A fold that the provider finds with another range, like while typing a link or next to one, stays open
+until the cursor leaves the line, so the text does not jump around. Other changes leave a box closed. Backspace behind a
+box or Delete in front of one only opens it, the next press removes text you can see. The colors are
+`inlineFoldBackgroundColor` and `inlineFoldTextColor` of `KodeEditorColors`.
+
 ## Line decorations
 
 `lineDecorations` shows something on whole lines: a background behind the selection and the text, text behind the end of
@@ -251,9 +273,24 @@ The editor works with hardware keyboards:
 | Ctrl + Z, Ctrl + Y or Ctrl + Shift + Z | undo, redo |
 | Shift + Tab | move the focus out of the editor |
 | Shift + a key to move the cursor | extend the selection |
-| Ctrl + Plus, Minus, 0 | zoom in, zoom out, reset the zoom |
+| Ctrl + Plus, Minus | show or fold what is at the cursor, otherwise zoom in or out |
+| Ctrl + 0 | reset the zoom |
 
 The D-pad of a TV remote or a gamepad still moves the focus between the elements of the screen.
+
+`KodeEditorDefaults.keyBindings` holds these as a list, to show them to the user or to change them with `keyBindings`.
+The first binding that fits a key press counts, and a key without a binding is left to the rest of the app:
+
+```kotlin
+KodeEditor(
+    state = state,
+    languageRuleBook = ruleBook,
+    colorScheme = colorScheme,
+    keyBindings = listOf(
+        KodeEditorKeyBinding(Key.D, KodeEditorKeyAction.DeleteWord, ctrl = true),
+    ) + KodeEditorDefaults.keyBindings.filter { it.action != KodeEditorKeyAction.ExpandOrZoomIn },
+)
+```
 
 # View based editor
 
