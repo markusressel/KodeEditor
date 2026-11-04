@@ -243,4 +243,44 @@ class KodeEditorKeyboardTest {
         keys { pressKey(Key.Delete) }
         assertEquals("", value.text)
     }
+
+    private fun showWithFolds(text: String, cursor: Int) {
+        value = TextFieldValue(text, TextRange(cursor))
+        composeRule.setContent {
+            KodeEditor(
+                modifier = Modifier.fillMaxSize().testTag("editor"),
+                text = value,
+                languageRuleBook = noRules,
+                colorScheme = noColors,
+                onValueChange = { value = it },
+                foldProvider = MarkdownFoldProvider,
+            )
+        }
+        composeRule.onNode(textField).performClick()
+        composeRule.waitForIdle()
+        value = value.copy(selection = TextRange(cursor))
+        composeRule.waitForIdle()
+    }
+
+    private val linkText = "ab [x](0123456789abcdef) cd"
+
+    @Test
+    fun backspaceOpensAClosedFoldBeforeItRemovesText() {
+        val end = linkText.indexOf(')')
+        showWithFolds(linkText, end)
+        keys { pressKey(Key.Backspace) }
+        assertEquals(linkText, value.text)
+        keys { pressKey(Key.Backspace) }
+        assertEquals(linkText.removeRange(end - 1, end), value.text)
+    }
+
+    @Test
+    fun ctrlDeleteOpensAClosedFoldBeforeItRemovesText() {
+        val start = linkText.indexOf('0')
+        showWithFolds(linkText, start)
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Delete) } }
+        assertEquals(linkText, value.text)
+        keys { withKeyDown(Key.CtrlLeft) { pressKey(Key.Delete) } }
+        assertEquals("ab [x]() cd", value.text)
+    }
 }

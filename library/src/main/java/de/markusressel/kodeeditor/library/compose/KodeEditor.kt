@@ -365,12 +365,16 @@ fun KodeEditor(
         )
     }
 
+    val currentFolds by rememberUpdatedState(folds)
     val keyboardActions = remember(view, menuActions, state) {
         object : KeyboardActions {
             private val keySender = BaseInputConnection(view, false)
 
             // on the queue of the window, like a key of a hardware keyboard, which ends up in the key handler below
             override fun onKeyEvent(event: AndroidKeyEvent) = keySender.sendKeyEvent(event)
+
+            override fun openFoldInsteadOfDelete(backward: Boolean) =
+                currentFolds?.inline?.openInsteadOfDelete(backward) == true
 
             override fun onContextMenuAction(id: Int): Boolean {
                 when (id) {
@@ -739,22 +743,30 @@ fun KodeEditor(
             }
 
             KeyboardCommand.Backspace -> {
-                if (editable) deleteTo(state, previousCharacter(state.rawText, current.min))
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = true) != true) {
+                    deleteTo(state, previousCharacter(state.rawText, current.min))
+                }
                 editable
             }
 
             KeyboardCommand.Delete -> {
-                if (editable) deleteTo(state, nextCharacter(state.rawText, current.max))
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = false) != true) {
+                    deleteTo(state, nextCharacter(state.rawText, current.max))
+                }
                 editable
             }
 
             KeyboardCommand.BackspaceWord -> {
-                if (editable) deleteTo(state, previousWord(state.rawText, current.min))
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = true) != true) {
+                    deleteTo(state, previousWord(state.rawText, current.min))
+                }
                 editable
             }
 
             KeyboardCommand.DeleteWord -> {
-                if (editable) deleteTo(state, nextWord(state.rawText, current.max))
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = false) != true) {
+                    deleteTo(state, nextWord(state.rawText, current.max))
+                }
                 editable
             }
 

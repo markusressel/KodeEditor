@@ -41,6 +41,18 @@ internal class CollapsedRanges(val starts: IntArray, val ends: IntArray, val pla
         return RowFolds(this, start, first, last)
     }
 
+    /** @return the range that ends at [offset], -1 if there is none */
+    fun endingAt(offset: Int): Int {
+        val index = firstFrom(offset) - 1
+        return if (index >= 0 && ends[index] == offset) index else -1
+    }
+
+    /** @return the range that starts at [offset], -1 if there is none */
+    fun startingAt(offset: Int): Int {
+        val index = firstFrom(offset)
+        return if (index < size && starts[index] == offset) index else -1
+    }
+
     /** @return the start of the range that has [offset] strictly within it, otherwise the [offset] */
     fun outsideOf(offset: Int): Int {
         val index = firstFrom(offset) - 1
@@ -212,8 +224,9 @@ internal class RowFolds(
  * Everything is collapsed, with a few exceptions. A fold opens when the user taps it or asks for it with the keys, and when
  * the selection ends within it. It stays open while the cursor is at it, so the cursor can sit next to a fold without
  * opening it, but can also leave an open one through its edges. This follows IntelliJ, also in that changes do not open a
- * fold that stays the same: backspace behind one takes its last character and it stays closed. Only a fold that the
- * provider finds with another range is open, here until the cursor leaves the line, so typing does not make text jump.
+ * fold that stays the same. Only a fold that the provider finds with another range is open, here until the cursor leaves
+ * the line, so typing does not make text jump. Unlike in IntelliJ, deleting at the edge of a closed fold only opens it, so
+ * no text goes away unseen.
  *
  * The provider runs on another thread, until its result is there the folds move with the text.
  */
@@ -365,6 +378,20 @@ internal class EditorInlineFolds(
         if (opened.contains(range) || heldOpen.any { fold.overlaps(it) }) return false
         if (cursor in fold.start + 1 until fold.end) return false
         open(range)
+        return true
+    }
+
+    /**
+     * @param backward the direction the delete goes in from the cursor
+     * @return true if the delete would take text out of a closed fold, which is open now and the delete should not happen
+     */
+    fun openInsteadOfDelete(backward: Boolean): Boolean {
+        val selection = state.selection
+        val ranges = collapsed
+        if (!selection.collapsed || ranges == null) return false
+        val index = if (backward) ranges.endingAt(selection.end) else ranges.startingAt(selection.end)
+        if (index < 0) return false
+        open(TextRange(ranges.starts[index], ranges.ends[index]))
         return true
     }
 

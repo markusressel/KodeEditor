@@ -87,7 +87,41 @@ class EditorInlineFoldsTest {
     }
 
     @Test
-    fun backspaceBehindAFoldTakesItsLastCharacterAndKeepsItClosed() {
+    fun deletingAtTheEdgeOfAFoldOnlyOpensIt() {
+        val (state, folds) = foldsOf(text)
+        state.setSelection(TextRange(end))
+        assertEquals(true, folds.inline.openInsteadOfDelete(backward = true))
+        assertEquals(text, state.rawText)
+        assertEquals(TextRange(end), state.selection)
+        assertNull(folds.inline.collapsed)
+        // it is open now, so the next delete takes what can be seen
+        assertEquals(false, folds.inline.openInsteadOfDelete(backward = true))
+
+        state.setSelection(TextRange(0))
+        assertArrayEquals(intArrayOf(start), folds.inline.collapsed!!.starts)
+        state.setSelection(TextRange(start))
+        assertEquals(true, folds.inline.openInsteadOfDelete(backward = false))
+        assertNull(folds.inline.collapsed)
+    }
+
+    @Test
+    fun deletingElsewhereOpensNothing() {
+        val (state, folds) = foldsOf(text)
+        // behind the fold, but a delete in this direction goes away from it
+        state.setSelection(TextRange(end))
+        assertEquals(false, folds.inline.openInsteadOfDelete(backward = false))
+        state.setSelection(TextRange(start))
+        assertEquals(false, folds.inline.openInsteadOfDelete(backward = true))
+        state.setSelection(TextRange(0))
+        assertEquals(false, folds.inline.openInsteadOfDelete(backward = true))
+        // a selection is removed as it is, it can be seen
+        state.setSelection(TextRange(start - 1, end))
+        assertEquals(false, folds.inline.openInsteadOfDelete(backward = true))
+        assertArrayEquals(intArrayOf(start), folds.inline.collapsed!!.starts)
+    }
+
+    @Test
+    fun anEditBehindAFoldTakesItsLastCharacterAndKeepsItClosed() {
         val (state, folds) = foldsOf(text)
         state.setSelection(TextRange(end))
         state.localEdit(end - 1, end, "")

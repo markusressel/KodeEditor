@@ -205,9 +205,9 @@ val addresses = object : KodeEditorFoldProvider {
 
 Tapping the box or Ctrl + Plus shows the text, and it goes back when the cursor leaves or with Ctrl + Minus. The arrow keys
 move over a box. A fold that the provider finds with another range, like while typing a link or next to one, stays open
-until the cursor leaves the line, so the text does not jump around. Other changes leave a box closed, so backspace behind
-one removes its last hidden character, like in IntelliJ. The colors are `inlineFoldBackgroundColor` and
-`inlineFoldTextColor` of `KodeEditorColors`.
+until the cursor leaves the line, so the text does not jump around. Other changes leave a box closed. Backspace behind a
+box or Delete in front of one only opens it, the next press removes text you can see. The colors are
+`inlineFoldBackgroundColor` and `inlineFoldTextColor` of `KodeEditorColors`.
 
 ## Line decorations
 
