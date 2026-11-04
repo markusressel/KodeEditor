@@ -10,6 +10,10 @@ android {
     // Compose UI tests run on the JVM with Robolectric
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            // Robolectric reaches the raw file descriptors through this package of the JDK
+            it.jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED")
+        }
     }
 }
 
