@@ -158,6 +158,43 @@ KodeEditor(
 )
 ```
 
+## Scrolling from the app
+
+`KodeEditorViewState` moves the view without touching the cursor, the selection or the focus, so it also works in a
+read-only editor and does not open the keyboard. `scrollToPosition` stays put if the position is visible already.
+`scrollToRange` centers the middle of a range, and stays put if that is near the center. `isPositionVisible` and
+`visibleRange` tell what is on the screen.
+
+An app can follow the cursor of another user, and pause while the user moves the view, like navigation in a map:
+
+```kotlin
+val viewState = rememberKodeEditorViewState()
+var paused by remember { mutableStateOf(false) }
+
+LaunchedEffect(remoteCursor, paused) {
+    if (!paused) viewState.scrollToPosition(remoteCursor)
+}
+LaunchedEffect(paused, viewState.isUserMovingView) {
+    if (paused && !viewState.isUserMovingView) {
+        delay(5000)
+        paused = false
+    }
+}
+
+KodeEditor(
+    // ...
+    viewState = viewState,
+    onUserMovedView = { paused = true },
+    // or changes of the text in front of the local cursor scroll to that cursor
+    keepCursorVisible = paused,
+)
+```
+
+`onUserMovedView` is called once per gesture, and `isUserMovingView` lasts until the gesture and its fling have ended.
+Both ignore what moves the view on its own. To open a text at a position, call
+`scrollToPosition(position, animate = false)` after the text is in the editor. The editor then shows nothing until it
+is at that position, instead of the top of the text first.
+
 ## Animations
 
 The bar next to the text animates to a new width, the numbers of new and removed lines fade, and with line wrapping

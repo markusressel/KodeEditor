@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.TextRange
+import kotlin.math.abs
 
 /**
  * Decides whether the editor scrolls to the cursor. A user who panned or zoomed away keeps that view when
@@ -37,6 +38,28 @@ internal object CursorVisibility {
      * from the top. The upper third leaves room for the lines that are typed next.
      */
     const val TARGET_FRACTION = 1f / 3f
+
+    /**
+     * How far from the vertical center the middle of a range can be without moving the view, as a fraction of the
+     * visible height
+     */
+    const val CENTER_TOLERANCE = 0.1f
+
+    /**
+     * The offset that has the middle of a range in the vertical center of the [viewport], or [offset] if it is near.
+     *
+     * @param offset the current scroll offset
+     * @param top the top of the range in text coordinates
+     * @param bottom the bottom of the range in text coordinates
+     * @param viewport the size of the visible area in text coordinates
+     * @param maxOffset the largest allowed offset
+     */
+    fun centeredOffsetFor(offset: Offset, top: Float, bottom: Float, viewport: Size, maxOffset: Offset): Offset {
+        if (viewport.height <= 0f) return offset
+        val wanted = (top + bottom - viewport.height) / 2
+        if (abs(wanted - offset.y) <= viewport.height * CENTER_TOLERANCE) return offset
+        return offset.copy(y = wanted.coerceIn(0f, maxOffset.y.coerceAtLeast(0f)))
+    }
 
     /**
      * The offset that shows [cursor] in the [viewport], or [offset] when it is visible already.

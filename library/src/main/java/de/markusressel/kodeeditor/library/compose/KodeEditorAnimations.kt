@@ -12,6 +12,7 @@ import androidx.compose.runtime.Immutable
  * wrap differently, which only applies with line wrapping
  * @param folding whether what is below a fold moves to its new place, and the lines of the fold fade with their columns
  * and decorations, when it folds or unfolds
+ * @param scrolling whether the view can move to where [KodeEditorViewState] scrolls to, instead of jumping there
  */
 @Immutable
 data class KodeEditorAnimations(
@@ -19,9 +20,16 @@ data class KodeEditorAnimations(
     val lineNumbers: Boolean = true,
     val reflow: Boolean = true,
     val folding: Boolean = true,
+    val scrolling: Boolean = true,
 ) {
     companion object {
         /** Everything jumps to its new place at once */
-        val None = KodeEditorAnimations(gutterWidth = false, lineNumbers = false, reflow = false, folding = false)
+        val None = KodeEditorAnimations(
+            gutterWidth = false,
+            lineNumbers = false,
+            reflow = false,
+            folding = false,
+            scrolling = false,
+        )
     }
 }
