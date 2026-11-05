@@ -96,6 +96,7 @@ private const val FOLDED_LINE_SELECTION_ALPHA = 0.5f
 /** how much of the selection color is in the box behind a folded part of a line */
 private const val INLINE_FOLD_SELECTION_ALPHA = 0.7f
 private const val FOLD_PLACEHOLDER_ALPHA = 0.6f
+private const val SCROLLBAR_ALPHA = 0.4f
 
 /**
  * A code editor for a [TextFieldValue] that the application keeps.
@@ -138,8 +139,9 @@ private const val FOLD_PLACEHOLDER_ALPHA = 0.6f
  * @param keyBindings what the keys of a hardware keyboard do, a key without a binding is left to the rest of the app
  * @param viewState scrolls to a place in the text and tells what is visible
  * @param onUserMovedView called once per gesture when the user starts to pan or zoom, also for a zoom with the keyboard
- * and for a dragged selection handle that scrolls the view. Not for what moves the view on its own, like [viewState],
- * following the cursor or lines that wrap differently
+ * for a dragged selection handle that scrolls the view and for a dragged scrollbar. Not for what moves the view on
+ * its own, like [viewState], following the cursor or lines that wrap differently
+ * @param scrollbars whether scrollbars show up while the view moves, whose thumbs can be dragged to move it
  */
 @Composable
 fun KodeEditor(
@@ -166,6 +168,7 @@ fun KodeEditor(
     keyBindings: List<KodeEditorKeyBinding> = KodeEditorDefaults.keyBindings,
     viewState: KodeEditorViewState = rememberKodeEditorViewState(),
     onUserMovedView: () -> Unit = {},
+    scrollbars: Boolean = true,
 ) {
     val state = remember { KodeEditorState(text.text, text.selection) }
     val controlled = remember(state) { ControlledValue(state) }
@@ -198,6 +201,7 @@ fun KodeEditor(
         keyBindings = keyBindings,
         viewState = viewState,
         onUserMovedView = onUserMovedView,
+        scrollbars = scrollbars,
     )
 }
 
@@ -284,8 +288,9 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param keyBindings what the keys of a hardware keyboard do, a key without a binding is left to the rest of the app
  * @param viewState scrolls to a place in the text and tells what is visible
  * @param onUserMovedView called once per gesture when the user starts to pan or zoom, also for a zoom with the keyboard
- * and for a dragged selection handle that scrolls the view. Not for what moves the view on its own, like [viewState],
- * following the cursor or lines that wrap differently
+ * for a dragged selection handle that scrolls the view and for a dragged scrollbar. Not for what moves the view on
+ * its own, like [viewState], following the cursor or lines that wrap differently
+ * @param scrollbars whether scrollbars show up while the view moves, whose thumbs can be dragged to move it
  */
 @Composable
 fun KodeEditor(
@@ -311,6 +316,7 @@ fun KodeEditor(
     keyBindings: List<KodeEditorKeyBinding> = KodeEditorDefaults.keyBindings,
     viewState: KodeEditorViewState = rememberKodeEditorViewState(),
     onUserMovedView: () -> Unit = {},
+    scrollbars: Boolean = true,
 ) {
     val offsetState = remember { mutableStateOf(Offset.Zero) }
     var offset by offsetState
@@ -335,6 +341,8 @@ fun KodeEditor(
     var pressedWord by remember { mutableStateOf<TextRange?>(null) }
     var flinging by remember { mutableStateOf(false) }
     var stoppedFling by remember { mutableStateOf(false) }
+    // a dragged scrollbar takes the view from a fling
+    var flingStops by remember { mutableIntStateOf(0) }
     var editorCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val currentOnTextLayout by rememberUpdatedState(onTextLayout)
     val currentOnUserMovedView by rememberUpdatedState(onUserMovedView)
@@ -438,6 +446,8 @@ fun KodeEditor(
         .takeOrElse { selectionColor.copy(alpha = selectionColor.alpha * INLINE_FOLD_SELECTION_ALPHA) }
     val inlineFoldText = colors.inlineFoldTextColor().value.takeOrElse { foldColor }
     val currentDecorations by rememberUpdatedState(decorations)
+    val scrollbarColor = colors.scrollbarColor().value
+        .takeOrElse { foldColor.copy(alpha = foldColor.alpha * SCROLLBAR_ALPHA) }
     val targetGutterWidth by remember(state, gutterColumns, foldColumn) {
         derivedStateOf { columns.sumOf { it.width(state.lineCount) } }
     }
@@ -607,6 +617,7 @@ fun KodeEditor(
             viewState.interrupt()
             viewState.gestureMoving = false
             viewState.handleMoving = false
+            viewState.scrollbarMoving = false
         }
     }
     // before the size is known the view cannot be at its place, and a jump that waits for it must not show anything
@@ -1034,6 +1045,7 @@ fun KodeEditor(
                     currentOnUserMovedView()
                 }
             },
+            flingStops = flingStops,
         ) {
             Box(modifier = Modifier.matchParentSize().padding(start = TEXT_START_PADDING)) {
                 if (decorations.isNotEmpty()) {
@@ -1074,7 +1086,31 @@ fun KodeEditor(
         }
         }
 
-        Box(modifier = Modifier.zIndex(2f).matchParentSize()) {
+        if (scrollbars) {
+            Box(modifier = Modifier.zIndex(2f).matchParentSize().then(contentVisibility)) {
+                EditorScrollbars(
+                    color = scrollbarColor,
+                    geometry = { geometry },
+                    offset = { offset },
+                    maxOffset = { maxOffset },
+                    onDragStart = {
+                        flingStops++
+                        viewState.scrollbarMoving = true
+                        viewState.interrupt()
+                        cursorFollower.onUserMovedView()
+                        currentOnUserMovedView()
+                    },
+                    onDrag = {
+                        cursorFollower.onUserMovedView()
+                        offset = EditorGeometry.coerce(it, maxOffset)
+                    },
+                    onDragEnd = { viewState.scrollbarMoving = false },
+                )
+            }
+        }
+
+        // above the scrollbars, a handle at the edge must stay reachable
+        Box(modifier = Modifier.zIndex(3f).matchParentSize()) {
             handles.forEach { kind ->
                 key(kind) {
                     SelectionHandle(

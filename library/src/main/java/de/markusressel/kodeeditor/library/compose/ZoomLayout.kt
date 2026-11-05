@@ -64,6 +64,44 @@ fun ZoomLayout(
     onMovingChanged: (Boolean) -> Unit = {},
     content: @Composable BoxScope.() -> Unit,
 ) {
+    ZoomLayout(
+        modifier = modifier,
+        zoom = zoom,
+        minZoom = minZoom,
+        maxZoom = maxZoom,
+        offset = offset,
+        onOffsetChanged = onOffsetChanged,
+        onZoomChanged = onZoomChanged,
+        coerceOffset = coerceOffset,
+        onFlingChanged = onFlingChanged,
+        contentStart = contentStart,
+        onMovingChanged = onMovingChanged,
+        flingStops = 0,
+        content = content,
+    )
+}
+
+/**
+ * See the public [ZoomLayout].
+ *
+ * @param flingStops a fling stops each time this changes, for something else that takes the view
+ */
+@Composable
+internal fun ZoomLayout(
+    modifier: Modifier = Modifier,
+    zoom: Float,
+    minZoom: Float,
+    maxZoom: Float,
+    offset: Offset,
+    onOffsetChanged: (Offset) -> Unit,
+    onZoomChanged: (Float) -> Unit,
+    coerceOffset: (Offset) -> Offset,
+    onFlingChanged: (Boolean) -> Unit,
+    contentStart: (zoom: Float) -> Float,
+    onMovingChanged: (Boolean) -> Unit,
+    flingStops: Int,
+    content: @Composable BoxScope.() -> Unit,
+) {
     // The gesture detector outlives recompositions, so it must read the current values. Several events can arrive
     // before the next recomposition, so it also keeps its own result until then, or it would lose their movement.
     var currentZoom by remember { mutableFloatStateOf(zoom) }.apply { floatValue = zoom }
@@ -78,6 +116,9 @@ fun ZoomLayout(
     var flingJob by remember { mutableStateOf<Job?>(null) }
     // only the gesture detector and the fling use these, there is nothing to draw from them
     val movement = remember { GestureMovement { currentOnMovingChanged(it) } }
+    LaunchedEffect(flingStops) {
+        if (flingStops != 0) flingJob?.cancel()
+    }
 
     Box(
         modifier = Modifier

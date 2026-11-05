@@ -5,7 +5,7 @@ A fast code editor for Jetpack Compose, with syntax highlighting, line wrapping 
 
 # Features
 * Stays responsive with large documents, because only the visible lines are measured and drawn
-* Pinch to zoom and fling
+* Pinch to zoom and fling, with scrollbars to drag through long documents
 * Line wrapping
 * Folding of whole sections and parts of lines, with Markdown built in and your own rules for other languages
 * A bar next to the text with line numbers and your own columns, like warnings or bookmarks
@@ -80,6 +80,7 @@ Have a look at the demo app (`app` module) for a complete sample.
 | `lineWrapping` | whether long lines continue in the next row instead of scrolling sideways | `false` |
 | `minZoom`, `maxZoom` | limits of the zoom | `0.25f`, `10f` |
 | `keepCursorVisible` | whether the view follows the cursor while the user edits | `true` |
+| `scrollbars` | whether scrollbars show up while the view moves, their thumbs can be dragged | `true` |
 | `autoCorrect` | whether the keyboard may correct words on its own, it can still offer suggestions without this | `false` |
 | `gutterColumns` | what [the bar next to the text](#the-bar-next-to-the-text) shows | line numbers |
 | `animations` | what [the editor animates](#animations) | everything |
@@ -191,6 +192,7 @@ KodeEditor(
 ```
 
 `onUserMovedView` is called once per gesture, and `isUserMovingView` lasts until the gesture and its fling have ended.
+A dragged scrollbar counts as a gesture too.
 Both ignore what moves the view on its own. To open a text at a position, call
 `scrollToPosition(position, animate = false)` after the text is in the editor. The editor then shows nothing until it
 is at that position, instead of the top of the text first.
