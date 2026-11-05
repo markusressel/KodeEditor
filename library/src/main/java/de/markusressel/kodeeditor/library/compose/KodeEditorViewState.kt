@@ -65,6 +65,9 @@ class KodeEditorViewState {
     /** a dragged selection handle scrolls the view at the edge of the editor */
     internal var handleMoving by mutableStateOf(false)
 
+    /** the thumb of a scrollbar is dragged */
+    internal var scrollbarMoving by mutableStateOf(false)
+
     /** a jump is about to happen, so the editor shows nothing rather than the top of the text */
     internal var jumpPending by mutableStateOf(false)
         private set
@@ -76,10 +79,10 @@ class KodeEditorViewState {
 
     /**
      * Whether the user moves the view: from the first movement of a gesture until the gesture and its fling have ended,
-     * also while a finger holds the view still. A dragged selection handle counts while it scrolls the view. A zoom
-     * with the keyboard is a single step, it only calls `onUserMovedView`.
+     * also while a finger holds the view still. A dragged selection handle counts while it scrolls the view, a
+     * scrollbar while its thumb is held. A zoom with the keyboard is a single step, it only calls `onUserMovedView`.
      */
-    val isUserMovingView: Boolean get() = gestureMoving || handleMoving
+    val isUserMovingView: Boolean get() = gestureMoving || handleMoving || scrollbarMoving
 
     /**
      * The text from the start of the top visible row to the end of the bottom visible row, null before the first

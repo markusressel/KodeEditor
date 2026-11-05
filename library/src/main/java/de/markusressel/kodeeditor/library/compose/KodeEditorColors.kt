@@ -69,6 +69,12 @@ interface KodeEditorColors {
     @Composable
     fun inlineFoldTextColor(): State<Color> = rememberUpdatedState(Color.Unspecified)
 
+    /**
+     * Represents the color of the thumbs of the scrollbars. Unspecified uses a part of the line number color.
+     */
+    @Composable
+    fun scrollbarColor(): State<Color> = rememberUpdatedState(Color.Unspecified)
+
 }
 
 
@@ -98,6 +104,7 @@ object KodeEditorDefaults {
         foldPlaceholderColor: Color = Color.Unspecified,
         inlineFoldBackgroundColor: Color = Color.Unspecified,
         inlineFoldTextColor: Color = Color.Unspecified,
+        scrollbarColor: Color = Color.Unspecified,
     ): KodeEditorColors =
         DefaultKodeEditorColors(
             textFieldColors = textFieldColors,
@@ -108,6 +115,7 @@ object KodeEditorDefaults {
             foldPlaceholderColor = foldPlaceholderColor,
             inlineFoldBackgroundColor = inlineFoldBackgroundColor,
             inlineFoldTextColor = inlineFoldTextColor,
+            scrollbarColor = scrollbarColor,
         )
 }
 
@@ -121,6 +129,7 @@ private data class DefaultKodeEditorColors(
     private val foldPlaceholderColor: Color,
     private val inlineFoldBackgroundColor: Color,
     private val inlineFoldTextColor: Color,
+    private val scrollbarColor: Color,
 ) : KodeEditorColors {
 
     @Composable
@@ -161,6 +170,11 @@ private data class DefaultKodeEditorColors(
     @Composable
     override fun inlineFoldTextColor(): State<Color> {
         return rememberUpdatedState(inlineFoldTextColor)
+    }
+
+    @Composable
+    override fun scrollbarColor(): State<Color> {
+        return rememberUpdatedState(scrollbarColor)
     }
 
 }
