@@ -45,7 +45,7 @@ you need:
 
 ```kotlin
 dependencies {
-    implementation("com.github.markusressel:KodeEditor:7.0.0")
+    implementation("com.github.markusressel:KodeEditor:8.0.0")
     implementation("com.github.markusressel.KodeHighlighter:markdown:6.0.0")
 }
 ```
