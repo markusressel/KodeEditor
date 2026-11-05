@@ -45,6 +45,8 @@ import kotlinx.coroutines.launch
  * beyond it is lost, so moving back has an effect right away
  * @param onFlingChanged called when the content starts or stops moving on after the fingers left
  * @param contentStart where the content starts at a zoom factor, for a bar in front of it that does not zoom with it
+ * @param onMovingChanged called with true at the first movement of each gesture, and with false when the view has come
+ * to rest and no finger holds it anymore, which includes the fling after the gesture
  * @param content the content to pan and zoom
  */
 @Composable
@@ -59,6 +61,7 @@ fun ZoomLayout(
     coerceOffset: (Offset) -> Offset = { it },
     onFlingChanged: (Boolean) -> Unit = {},
     contentStart: (zoom: Float) -> Float = { 0f },
+    onMovingChanged: (Boolean) -> Unit = {},
     content: @Composable BoxScope.() -> Unit,
 ) {
     // The gesture detector outlives recompositions, so it must read the current values. Several events can arrive
@@ -70,8 +73,11 @@ fun ZoomLayout(
     val currentCoerceOffset by rememberUpdatedState(coerceOffset)
     val currentOnFlingChanged by rememberUpdatedState(onFlingChanged)
     val currentContentStart by rememberUpdatedState(contentStart)
+    val currentOnMovingChanged by rememberUpdatedState(onMovingChanged)
     val scope = rememberCoroutineScope()
     var flingJob by remember { mutableStateOf<Job?>(null) }
+    // only the gesture detector and the fling use these, there is nothing to draw from them
+    val movement = remember { GestureMovement { currentOnMovingChanged(it) } }
 
     Box(
         modifier = Modifier
@@ -79,7 +85,11 @@ fun ZoomLayout(
                 val decay = splineBasedDecay<Offset>(this)
                 val minimumSpeed = MIN_FLING_SPEED.toPx()
                 detectPanAndZoom(
-                    onStart = { flingJob?.cancel() },
+                    onStart = {
+                        movement.onFingerDown()
+                        flingJob?.cancel()
+                    },
+                    onFirstMove = { movement.onGestureMoved() },
                     onGesture = { centroid, pan, gestureZoom ->
                         val oldZoom = currentZoom
                         val oldOffset = currentOffset
@@ -102,6 +112,7 @@ fun ZoomLayout(
                     },
                     onEnd = { velocity ->
                         if (velocity.getDistance() < minimumSpeed) return@detectPanAndZoom
+                        movement.onFlingStarted()
                         flingJob = scope.launch {
                             currentOnFlingChanged(true)
                             try {
@@ -117,9 +128,11 @@ fun ZoomLayout(
                                 )
                             } finally {
                                 currentOnFlingChanged(false)
+                                movement.onFlingEnded()
                             }
                         }
                     },
+                    onFinish = { movement.onFingersGone() },
                 )
             }
             .graphicsLayer(
@@ -136,6 +149,50 @@ fun ZoomLayout(
 }
 
 private val MIN_FLING_SPEED = 100.dp
+
+/**
+ * Tells when the user starts and stops moving the view. A finger that stops a fling keeps holding the view, so that is
+ * still moving, until the finger leaves.
+ *
+ * @param onMovingChanged see [ZoomLayout]
+ */
+internal class GestureMovement(private val onMovingChanged: (Boolean) -> Unit) {
+    private var moving = false
+    private var fingerDown = false
+
+    /** the flings that have not ended yet, a new one can start before a stopped one has noticed */
+    private var flings = 0
+
+    fun onFingerDown() {
+        fingerDown = true
+    }
+
+    fun onGestureMoved() {
+        moving = true
+        onMovingChanged(true)
+    }
+
+    fun onFlingStarted() {
+        flings++
+    }
+
+    fun onFlingEnded() {
+        flings--
+        endIfAtRest()
+    }
+
+    fun onFingersGone() {
+        fingerDown = false
+        endIfAtRest()
+    }
+
+    private fun endIfAtRest() {
+        if (moving && !fingerDown && flings == 0) {
+            moving = false
+            onMovingChanged(false)
+        }
+    }
+}
 
 /**
  * Lets the content move on after the fingers left, slowing down like in a list. It ends at the end of the content,
@@ -167,56 +224,65 @@ private suspend fun fling(
  * Like `detectTransformGestures`, which does not tell when a gesture ends and how fast it was.
  *
  * @param onStart a finger went down
+ * @param onFirstMove the fingers moved past the touch slop, once per gesture
  * @param onGesture the fingers moved, with their center, how far they moved and the change of the zoom
  * @param onEnd the last finger left after a movement, with the speed it had in pixels per second. Not called when
  * someone else took the gesture over.
+ * @param onFinish the gesture is over for any reason, after [onEnd]
  */
 private suspend fun PointerInputScope.detectPanAndZoom(
     onStart: () -> Unit,
+    onFirstMove: () -> Unit,
     onGesture: (centroid: Offset, pan: Offset, zoom: Float) -> Unit,
     onEnd: (velocity: Offset) -> Unit,
+    onFinish: () -> Unit,
 ) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false)
         onStart()
-        var zoom = 1f
-        var pan = Offset.Zero
-        var pastTouchSlop = false
-        var path = Offset.Zero
-        var pointers = 1
-        var tracker = VelocityTracker()
-        var canceled: Boolean
-        do {
-            val event = awaitPointerEvent()
-            canceled = event.changes.any { it.isConsumed }
-            if (!canceled) {
-                val zoomChange = event.calculateZoom()
-                val panChange = event.calculatePan()
-                if (!pastTouchSlop) {
-                    zoom *= zoomChange
-                    pan += panChange
-                    val zoomMotion = abs(1 - zoom) * event.calculateCentroidSize(useCurrent = false)
-                    pastTouchSlop = zoomMotion > viewConfiguration.touchSlop ||
-                        pan.getDistance() > viewConfiguration.touchSlop
-                }
-                if (pastTouchSlop) {
-                    if (zoomChange != 1f || panChange != Offset.Zero) {
-                        onGesture(event.calculateCentroid(useCurrent = false), panChange, zoomChange)
+        try {
+            var zoom = 1f
+            var pan = Offset.Zero
+            var pastTouchSlop = false
+            var path = Offset.Zero
+            var pointers = 1
+            var tracker = VelocityTracker()
+            var canceled: Boolean
+            do {
+                val event = awaitPointerEvent()
+                canceled = event.changes.any { it.isConsumed }
+                if (!canceled) {
+                    val zoomChange = event.calculateZoom()
+                    val panChange = event.calculatePan()
+                    if (!pastTouchSlop) {
+                        zoom *= zoomChange
+                        pan += panChange
+                        val zoomMotion = abs(1 - zoom) * event.calculateCentroidSize(useCurrent = false)
+                        pastTouchSlop = zoomMotion > viewConfiguration.touchSlop ||
+                            pan.getDistance() > viewConfiguration.touchSlop
+                        if (pastTouchSlop) onFirstMove()
                     }
-                    event.changes.forEach { if (it.positionChanged()) it.consume() }
+                    if (pastTouchSlop) {
+                        if (zoomChange != 1f || panChange != Offset.Zero) {
+                            onGesture(event.calculateCentroid(useCurrent = false), panChange, zoomChange)
+                        }
+                        event.changes.forEach { if (it.positionChanged()) it.consume() }
+                    }
+                    // only the movement of a pan counts for the speed, not that of a pinch or of a finger that left
+                    val pressed = event.changes.count { it.pressed }
+                    if (pressed > 0 && pressed != pointers || zoomChange != 1f) tracker = VelocityTracker()
+                    pointers = pressed
+                    path += panChange
+                    if (pressed > 0) tracker.addPosition(event.changes.first().uptimeMillis, path)
                 }
-                // only the movement of a pan counts for the speed, not that of a pinch or of a finger that left
-                val pressed = event.changes.count { it.pressed }
-                if (pressed > 0 && pressed != pointers || zoomChange != 1f) tracker = VelocityTracker()
-                pointers = pressed
-                path += panChange
-                if (pressed > 0) tracker.addPosition(event.changes.first().uptimeMillis, path)
+            } while (!canceled && event.changes.any { it.pressed })
+            if (!canceled && pastTouchSlop) {
+                val maximum = viewConfiguration.maximumFlingVelocity
+                val velocity = tracker.calculateVelocity(Velocity(maximum, maximum))
+                onEnd(Offset(velocity.x, velocity.y))
             }
-        } while (!canceled && event.changes.any { it.pressed })
-        if (!canceled && pastTouchSlop) {
-            val maximum = viewConfiguration.maximumFlingVelocity
-            val velocity = tracker.calculateVelocity(Velocity(maximum, maximum))
-            onEnd(Offset(velocity.x, velocity.y))
+        } finally {
+            onFinish()
         }
     }
 }

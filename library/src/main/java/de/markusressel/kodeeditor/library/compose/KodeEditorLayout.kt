@@ -474,6 +474,12 @@ internal class EditorLineLayout(
 
     fun rowTop(row: Int) = row * lineHeight
 
+    /** @return the position in the text where the [row] starts */
+    fun startOfRow(row: Int) = rows.start(row)
+
+    /** @return the position in the text where the [row] ends */
+    fun endOfRow(row: Int) = rows.end(row)
+
     /** where the row of [offset] starts */
     fun rowStart(offset: Int) = rows.start(rows.rowOf(offset))
 
