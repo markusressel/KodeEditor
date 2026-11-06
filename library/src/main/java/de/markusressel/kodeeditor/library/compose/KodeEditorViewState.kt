@@ -43,6 +43,9 @@ internal interface EditorViewport {
     /** @return the offset that has the middle of the range in the center, the current one if it is near already */
     fun offsetCentering(start: Int, end: Int): Offset
 
+    /** @return the offset that has the place [fraction] of the way down the [line] at the top */
+    fun offsetAtTop(line: Int, fraction: Float): Offset
+
     fun isVisible(position: Int): Boolean
 }
 
@@ -120,6 +123,23 @@ class KodeEditorViewState {
      */
     suspend fun scrollToRange(start: Int, end: Int, animate: Boolean = true): Boolean =
         scroll(animate) { it.offsetCentering(start, end) }
+
+    /**
+     * Puts a line exactly at the top of the editor, also when it is visible already or only a little away, so calling
+     * this for every frame of another scrolling view follows it smoothly, for example a preview of the text. The zoom
+     * and the horizontal position stay. Near the end of the text, the view only gets as far as it can. This waits and
+     * ends like [scrollToPosition], and like all scrolls of this class it does not call `onUserMovedView`.
+     *
+     * @param line the line of the text, 0 for the first one. A line behind the end means the last one, a line in a fold
+     * the place of the fold
+     * @param fraction how far down the line the top of the editor is, from 0 for the top of its first row to 1 for the
+     * bottom of its last row, which matters for a line that wraps into several rows
+     * @param animate whether the view moves there, instead of jumping. [KodeEditorAnimations.scrolling] can turn this
+     * off
+     * @return true if the view got there, false if something ended the scroll, at once while [isUserMovingView]
+     */
+    suspend fun scrollToLine(line: Int, fraction: Float = 0f, animate: Boolean = false): Boolean =
+        scroll(animate) { it.offsetAtTop(line, fraction) }
 
     /**
      * Reading this in a composition or a draw updates it when the view moves.

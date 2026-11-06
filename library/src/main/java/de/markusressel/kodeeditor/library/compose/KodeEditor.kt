@@ -604,6 +604,14 @@ fun KodeEditor(
                 maxOffset = maxOffset,
             )
 
+            override fun offsetAtTop(line: Int, fraction: Float): Offset {
+                val shown = line.coerceIn(0, (layout.lineCount - 1).coerceAtLeast(0))
+                val top = layout.getLineTop(shown)
+                val bottom = layout.getLineBottom(shown)
+                val y = top + (bottom - top) * fraction.coerceIn(0f, 1f)
+                return EditorGeometry.coerce(offset.copy(y = y), maxOffset)
+            }
+
             override fun isVisible(position: Int): Boolean {
                 val visible = visibleSize
                 val rect = rectOf(position)

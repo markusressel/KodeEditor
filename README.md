@@ -164,8 +164,9 @@ KodeEditor(
 
 `KodeEditorViewState` moves the view without touching the cursor, the selection or the focus, so it also works in a
 read-only editor and does not open the keyboard. `scrollToPosition` stays put if the position is visible already.
-`scrollToRange` centers the middle of a range, and stays put if that is near the center. `isPositionVisible` and
-`visibleRange` tell what is on the screen.
+`scrollToRange` centers the middle of a range, and stays put if that is near the center. `scrollToLine` puts a line,
+or a place within it, exactly at the top, also for tiny steps. `isPositionVisible` and `visibleRange` tell what is on
+the screen.
 
 An app can follow the cursor of another user, and pause while the user moves the view, like navigation in a map:
 
@@ -197,6 +198,19 @@ A dragged scrollbar counts as a gesture too.
 Both ignore what moves the view on its own. To open a text at a position, call
 `scrollToPosition(position, animate = false)` after the text is in the editor. The editor then shows nothing until it
 is at that position, instead of the top of the text first.
+
+To keep the editor next to another scrolling view, like a preview of the text, pass the line at the top of that view
+on every change. `scrollToLine` jumps by default, so this follows smoothly:
+
+```kotlin
+LaunchedEffect(viewState) {
+    snapshotFlow { previewTopLine to previewFractionInLine }
+        .collect { (line, fraction) -> viewState.scrollToLine(line, fraction) }
+}
+```
+
+To sync the other way, only react to the editor while `isUserMovingView` is true, or after `onUserMovedView`. Scrolls
+of `KodeEditorViewState` never set either, so following the preview does not scroll the preview back.
 
 ## Animations
 

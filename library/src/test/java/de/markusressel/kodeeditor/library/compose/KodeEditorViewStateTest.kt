@@ -191,6 +191,91 @@ class KodeEditorViewStateTest {
         assertTrue(viewState.isPositionVisible(state.rawText.length))
     }
 
+    private fun topOfView(): Float = viewState.viewport!!.offset.y
+
+    @Test
+    fun `a line goes exactly to the top`() {
+        val state = KodeEditorState(longText)
+        state.setSelection(TextRange(3))
+        show(state, readOnly = true)
+        val layout = layout!!
+
+        val result = scroll { scrollToLine(500, fraction = 0.25f) }
+        composeRule.waitForIdle()
+
+        assertEquals(true, result())
+        assertEquals(layout.getLineTop(500) + layout.lineHeight / 4, topOfView(), 0.01f)
+        assertEquals(state.lineStart(500), viewState.visibleRange?.start)
+        assertEquals(TextRange(3), state.selection)
+        assertEquals("nothing moved the view by hand", 0, movedView)
+    }
+
+    @Test
+    fun `a small step moves the view too`() {
+        show(KodeEditorState(longText))
+        val layout = layout!!
+        scroll { scrollToLine(500) }
+        composeRule.waitForIdle()
+
+        // far less than a tenth of the view, which scrollToRange would ignore
+        scroll { scrollToLine(500, fraction = 0.1f) }
+        composeRule.waitForIdle()
+
+        assertEquals(layout.getLineTop(500) + layout.lineHeight / 10, topOfView(), 0.01f)
+    }
+
+    @Test
+    fun `a visible line still goes to the top`() {
+        show(KodeEditorState(longText))
+        val layout = layout!!
+
+        scroll { scrollToLine(3) }
+        composeRule.waitForIdle()
+
+        assertEquals(layout.getLineTop(3), topOfView(), 0.01f)
+    }
+
+    @Test
+    fun `the fraction is of all rows of a wrapped line`() {
+        val text = "first\n" + "word ".repeat(400) + "\n" + longText
+        show(KodeEditorState(text), lineWrapping = true)
+        val layout = layout!!
+        val top = layout.getLineTop(1)
+        val bottom = layout.getLineBottom(1)
+        assertTrue("the line wraps", bottom - top > 2 * layout.lineHeight)
+
+        scroll { scrollToLine(1, fraction = 0.5f) }
+        composeRule.waitForIdle()
+
+        assertEquals((top + bottom) / 2, topOfView(), 0.01f)
+    }
+
+    @Test
+    fun `a line behind the end gets as far as the view can`() {
+        val state = KodeEditorState(longText)
+        show(state)
+
+        val result = scroll { scrollToLine(Int.MAX_VALUE) }
+        composeRule.waitForIdle()
+
+        assertEquals(true, result())
+        assertTrue(viewState.isPositionVisible(state.rawText.length))
+    }
+
+    @Test
+    fun `an animated scroll to a line ends at the top`() {
+        show(KodeEditorState(longText))
+        val layout = layout!!
+
+        val result = scroll { scrollToLine(40, animate = true) }
+        composeRule.mainClock.advanceTimeBy(5000)
+        composeRule.waitForIdle()
+
+        assertEquals(true, result())
+        assertEquals(layout.getLineTop(40), topOfView(), 0.5f)
+        assertEquals(0, movedView)
+    }
+
     @Test
     fun `a newer scroll ends the running one`() {
         val state = KodeEditorState(longText)
