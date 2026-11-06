@@ -571,6 +571,7 @@ fun KodeEditor(
             val lastY = offset.y + height - VISIBLE_RANGE_EDGE
             TextRange(layout.startOfRow(layout.rowAt(offset.y)), layout.endOfRow(layout.rowAt(lastY)))
         }
+        val currentMaxOffset = { maxOffset }
         object : EditorViewport {
             override val scope get() = viewScope
             override val offset: Offset get() = offsetState.value
@@ -603,6 +604,25 @@ fun KodeEditor(
                 viewport = visibleSize,
                 maxOffset = maxOffset,
             )
+
+            override val maxOffset: Offset get() = currentMaxOffset()
+            override val zoom: Float get() = settledGeometry.zoom
+
+            override fun offsetPutting(line: Int, fraction: Float, y: Float): Offset {
+                val shown = line.coerceIn(0, (layout.lineCount - 1).coerceAtLeast(0))
+                val top = layout.getLineTop(shown)
+                val bottom = layout.getLineBottom(shown)
+                val place = top + (bottom - top) * fraction.coerceIn(0f, 1f)
+                return EditorGeometry.coerce(offset.copy(y = place - y), maxOffset)
+            }
+
+            override fun lineAt(y: Float): LinePosition {
+                val line = layout.getLineForVerticalPosition(y)
+                val top = layout.getLineTop(line)
+                val height = layout.getLineBottom(line) - top
+                val fraction = if (height > 0f) ((y - top) / height).coerceIn(0f, 1f) else 0f
+                return LinePosition(line, fraction)
+            }
 
             override fun isVisible(position: Int): Boolean {
                 val visible = visibleSize

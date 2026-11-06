@@ -6,6 +6,7 @@ import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateTo
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -42,6 +43,18 @@ internal interface EditorViewport {
 
     /** @return the offset that has the middle of the range in the center, the current one if it is near already */
     fun offsetCentering(start: Int, end: Int): Offset
+
+    /** the largest offset, in text coordinates like [offset] */
+    val maxOffset: Offset
+
+    /** how much larger the text is on the screen than in text coordinates */
+    val zoom: Float
+
+    /** @return the offset that has the place [fraction] of the way down the [line] at the height [y] of the view */
+    fun offsetPutting(line: Int, fraction: Float, y: Float): Offset
+
+    /** @return the line and the place in it at the height [y] of the text */
+    fun lineAt(y: Float): LinePosition
 
     fun isVisible(position: Int): Boolean
 }
@@ -120,6 +133,61 @@ class KodeEditorViewState {
      */
     suspend fun scrollToRange(start: Int, end: Int, animate: Boolean = true): Boolean =
         scroll(animate) { it.offsetCentering(start, end) }
+
+    /**
+     * Puts a place in a line exactly at a height of the editor, the top by default, also when it is visible already or
+     * only a little away. Calling this for every frame of another scrolling view follows it smoothly, for example a
+     * preview of the text. The zoom and the horizontal position stay. Near the start and the end of the text, the view
+     * only gets as far as it can. This waits and ends like [scrollToPosition], and like all scrolls of this class it
+     * does not call `onUserMovedView`.
+     *
+     * The place that is at a height of the view is [lineAt] that height, so `scrollToLine` with what [lineAt] returns
+     * for the same `viewportFraction` does not move the view.
+     *
+     * @param line the line of the text, 0 for the first one. A line behind the end means the last one, a line in a fold
+     * the place of the fold
+     * @param fraction the place in the line, from 0 for the top of its first row to 1 for the bottom of its last row,
+     * which matters for a line that wraps into several rows
+     * @param viewportFraction the height of the editor to put that place at, from 0 for its top edge to 1 for its
+     * bottom edge
+     * @param animate whether the view moves there, instead of jumping. [KodeEditorAnimations.scrolling] can turn this
+     * off
+     * @return true if the view got there, false if something ended the scroll, at once while [isUserMovingView]
+     */
+    suspend fun scrollToLine(
+        line: Int,
+        fraction: Float = 0f,
+        viewportFraction: Float = 0f,
+        animate: Boolean = false,
+    ): Boolean = scroll(animate) {
+        it.offsetPutting(line, fraction, it.visibleSize.height * viewportFraction.coerceIn(0f, 1f))
+    }
+
+    /**
+     * The place in the text at a height of the editor, exact within a line, unlike [visibleRange], which has whole
+     * rows. Reading this in a composition or a draw updates it when the view moves.
+     *
+     * @param viewportFraction the height of the editor, from 0 for its top edge to 1 for its bottom edge
+     * @return the line and the place in it there, null before the first layout. Below the end of the text, it is the
+     * bottom of the last line
+     */
+    fun lineAt(viewportFraction: Float): LinePosition? {
+        val current = viewport ?: return null
+        return current.lineAt(current.offset.y + current.visibleSize.height * viewportFraction.coerceIn(0f, 1f))
+    }
+
+    /**
+     * How far the view is scrolled down, in pixels on the screen, null before the first layout. Divided by
+     * [maxVerticalScrollOffset], it is the progress through the text. Reading this in a composition or a draw updates
+     * it when the view moves or zooms.
+     */
+    val verticalScrollOffset: Float? get() = viewport?.let { it.offset.y * it.zoom }
+
+    /**
+     * The largest [verticalScrollOffset] at the current zoom, in pixels on the screen, 0 if the whole text fits, null
+     * before the first layout.
+     */
+    val maxVerticalScrollOffset: Float? get() = viewport?.let { it.maxOffset.y.coerceAtLeast(0f) * it.zoom }
 
     /**
      * Reading this in a composition or a draw updates it when the view moves.
@@ -211,6 +279,15 @@ class KodeEditorViewState {
         const val LONGEST_ANIMATION_SCREENS = 3f
     }
 }
+
+/**
+ * A place in the text, exact within a line.
+ *
+ * @param line the line, 0 for the first one
+ * @param fraction the place in the line, from 0 for the top of its first row to 1 for the bottom of its last row
+ */
+@Immutable
+data class LinePosition(val line: Int, val fraction: Float)
 
 /**
  * @return a new [KodeEditorViewState], to pass to a [KodeEditor]

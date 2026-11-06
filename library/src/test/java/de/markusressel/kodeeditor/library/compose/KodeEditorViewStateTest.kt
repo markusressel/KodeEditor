@@ -71,6 +71,7 @@ class KodeEditorViewStateTest {
         readOnly: Boolean = false,
         lineWrapping: Boolean = false,
         columns: List<KodeEditorGutterColumn> = emptyList(),
+        foldProvider: KodeEditorFoldProvider? = null,
     ) {
         composeRule.setContent {
             scope = rememberCoroutineScope()
@@ -82,6 +83,7 @@ class KodeEditorViewStateTest {
                 readOnly = readOnly,
                 onTextLayout = { layout = it },
                 gutterColumns = columns,
+                foldProvider = foldProvider,
                 animations = animations,
                 lineWrapping = lineWrapping,
                 viewState = viewState,
@@ -189,6 +191,241 @@ class KodeEditorViewStateTest {
 
         assertEquals(true, result())
         assertTrue(viewState.isPositionVisible(state.rawText.length))
+    }
+
+    private fun topOfView(): Float = viewState.viewport!!.offset.y
+
+    @Test
+    fun `a line goes exactly to the top`() {
+        val state = KodeEditorState(longText)
+        state.setSelection(TextRange(3))
+        show(state, readOnly = true)
+        val layout = layout!!
+
+        val result = scroll { scrollToLine(500, fraction = 0.25f) }
+        composeRule.waitForIdle()
+
+        assertEquals(true, result())
+        assertEquals(layout.getLineTop(500) + layout.lineHeight / 4, topOfView(), 0.01f)
+        assertEquals(state.lineStart(500), viewState.visibleRange?.start)
+        assertEquals(TextRange(3), state.selection)
+        assertEquals("nothing moved the view by hand", 0, movedView)
+    }
+
+    @Test
+    fun `a small step moves the view too`() {
+        show(KodeEditorState(longText))
+        val layout = layout!!
+        scroll { scrollToLine(500) }
+        composeRule.waitForIdle()
+
+        // far less than a tenth of the view, which scrollToRange would ignore
+        scroll { scrollToLine(500, fraction = 0.1f) }
+        composeRule.waitForIdle()
+
+        assertEquals(layout.getLineTop(500) + layout.lineHeight / 10, topOfView(), 0.01f)
+    }
+
+    @Test
+    fun `a visible line still goes to the top`() {
+        show(KodeEditorState(longText))
+        val layout = layout!!
+
+        scroll { scrollToLine(3) }
+        composeRule.waitForIdle()
+
+        assertEquals(layout.getLineTop(3), topOfView(), 0.01f)
+    }
+
+    @Test
+    fun `the fraction is of all rows of a wrapped line`() {
+        val text = "first\n" + "word ".repeat(400) + "\n" + longText
+        show(KodeEditorState(text), lineWrapping = true)
+        val layout = layout!!
+        val top = layout.getLineTop(1)
+        val bottom = layout.getLineBottom(1)
+        assertTrue("the line wraps", bottom - top > 2 * layout.lineHeight)
+
+        scroll { scrollToLine(1, fraction = 0.5f) }
+        composeRule.waitForIdle()
+
+        assertEquals((top + bottom) / 2, topOfView(), 0.01f)
+    }
+
+    @Test
+    fun `a line behind the end gets as far as the view can`() {
+        val state = KodeEditorState(longText)
+        show(state)
+
+        val result = scroll { scrollToLine(Int.MAX_VALUE) }
+        composeRule.waitForIdle()
+
+        assertEquals(true, result())
+        assertTrue(viewState.isPositionVisible(state.rawText.length))
+    }
+
+    @Test
+    fun `an animated scroll to a line ends at the top`() {
+        show(KodeEditorState(longText))
+        val layout = layout!!
+
+        val result = scroll { scrollToLine(40, animate = true) }
+        composeRule.mainClock.advanceTimeBy(5000)
+        composeRule.waitForIdle()
+
+        assertEquals(true, result())
+        assertEquals(layout.getLineTop(40), topOfView(), 0.5f)
+        assertEquals(0, movedView)
+    }
+
+    private fun jumpToLine(line: Int, fraction: Float = 0f, viewportFraction: Float = 0f): Boolean? {
+        val result = scroll { scrollToLine(line, fraction, viewportFraction) }
+        composeRule.waitForIdle()
+        return result()
+    }
+
+    /** reads each height of the view back, and puts it there again */
+    private fun assertRoundTrips() {
+        val before = topOfView()
+        listOf(0f, 0.3f, 0.5f, 0.75f, 1f).forEach { f ->
+            val place = viewState.lineAt(f)!!
+            assertFalse("$place is shown", layout!!.isLineHidden(place.line))
+            assertEquals(true, jumpToLine(place.line, place.fraction, viewportFraction = f))
+            assertEquals("at $f, $place", before, topOfView(), 0.01f)
+        }
+    }
+
+    @Test
+    fun `a place in a line goes to a height of the view`() {
+        show(KodeEditorState(longText))
+        val layout = layout!!
+        val height = viewState.viewport!!.visibleSize.height
+
+        assertEquals(true, jumpToLine(500, fraction = 0.5f, viewportFraction = 0.5f))
+
+        val place = layout.getLineTop(500) + layout.lineHeight / 2
+        assertEquals(place - height / 2, topOfView(), 0.01f)
+        val read = viewState.lineAt(0.5f)!!
+        assertEquals(500, read.line)
+        assertEquals(0.5f, read.fraction, 0.001f)
+        assertEquals(0, movedView)
+    }
+
+    @Test
+    fun `the place at a height of the view is exact within a line`() {
+        show(KodeEditorState(longText))
+        val layout = layout!!
+        jumpToLine(500, fraction = 0.3f)
+
+        val top = viewState.lineAt(0f)!!
+        assertEquals(500, top.line)
+        assertEquals(0.3f, top.fraction, 0.001f)
+        val height = viewState.viewport!!.visibleSize.height
+        val bottomY = layout.getLineTop(500) + 0.3f * layout.lineHeight + height
+        val bottom = viewState.lineAt(1f)!!
+        assertEquals(layout.getLineForVerticalPosition(bottomY), bottom.line)
+        assertEquals(bottomY, layout.getLineTop(bottom.line) + bottom.fraction * layout.lineHeight, 0.01f)
+    }
+
+    @Test
+    fun `nothing is read back before the first layout`() {
+        assertNull(viewState.lineAt(0f))
+        assertNull(viewState.verticalScrollOffset)
+        assertNull(viewState.maxVerticalScrollOffset)
+    }
+
+    @Test
+    fun `a place read back does not move the view`() {
+        show(KodeEditorState(longText))
+        jumpToLine(321, fraction = 0.37f, viewportFraction = 0.2f)
+
+        assertRoundTrips()
+    }
+
+    @Test
+    fun `a place read back in wrapped lines does not move the view`() {
+        val text = (0 until 200).joinToString("\n") { "line $it " + "word ".repeat(it % 7 * 30) }
+        show(KodeEditorState(text), lineWrapping = true)
+        val layout = layout!!
+        assertTrue("lines wrap", layout.getLineBottom(6) - layout.getLineTop(6) > 2 * layout.lineHeight)
+        jumpToLine(76, fraction = 0.4f, viewportFraction = 0.5f)
+
+        val place = viewState.lineAt(0.5f)!!
+        assertEquals(76, place.line)
+        assertEquals(0.4f, place.fraction, 0.001f)
+        assertRoundTrips()
+    }
+
+    @Test
+    fun `a place read back next to a fold does not move the view`() {
+        val text = "# a\n" + (0 until 40).joinToString("\n") { "a $it" } + "\n# b\n" + longText
+        show(KodeEditorState(text), foldProvider = MarkdownFoldProvider)
+        val layout = layout!!
+        // the arrow of the first heading, at the end of the bar
+        val y = layout.getLineTop(0) + layout.lineHeight / 2
+        composeRule.onNodeWithTag("editor").performTouchInput { down(Offset(10f, y)); up() }
+        composeRule.mainClock.advanceTimeBy(1000)
+        composeRule.waitForIdle()
+        assertTrue("folded", layout.isLineHidden(20))
+
+        // a hidden line is at the place of its fold
+        jumpToLine(20)
+        assertEquals(layout.getLineTop(20), topOfView(), 0.01f)
+        assertRoundTrips()
+
+        jumpToLine(41, fraction = 0.5f, viewportFraction = 0.5f)
+        assertRoundTrips()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun `a place read back after a zoom does not move the view`() {
+        show(KodeEditorState(longText))
+        val before = viewState.maxVerticalScrollOffset!!
+        composeRule.onNodeWithTag("editor").performTouchInput { click(center) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("editor").performKeyInput {
+            keyDown(Key.CtrlLeft)
+            pressKey(Key.Equals)
+            keyUp(Key.CtrlLeft)
+        }
+        composeRule.mainClock.advanceTimeBy(1000)
+        composeRule.waitForIdle()
+        val zoom = viewState.viewport!!.zoom
+        assertTrue("zoomed in", zoom > 1f)
+        assertTrue("more to scroll on the screen", viewState.maxVerticalScrollOffset!! > before)
+
+        jumpToLine(600, fraction = 0.6f, viewportFraction = 0.4f)
+        val read = viewState.lineAt(0.4f)!!
+        assertEquals(600, read.line)
+        assertEquals(0.6f, read.fraction, 0.001f)
+        assertEquals(topOfView() * zoom, viewState.verticalScrollOffset!!, 0.01f)
+        assertRoundTrips()
+    }
+
+    @Test
+    fun `at the start the view only gets as far as it can`() {
+        show(KodeEditorState(longText))
+        jumpToLine(400)
+
+        assertEquals(true, jumpToLine(2, viewportFraction = 1f))
+
+        assertEquals(0f, topOfView(), 0.01f)
+        assertEquals(0f, viewState.verticalScrollOffset!!, 0.01f)
+        assertRoundTrips()
+    }
+
+    @Test
+    fun `at the end the view only gets as far as it can`() {
+        val state = KodeEditorState(longText)
+        show(state)
+
+        assertEquals(true, jumpToLine(995))
+
+        assertEquals(viewState.maxVerticalScrollOffset!!, viewState.verticalScrollOffset!!, 0.01f)
+        assertTrue(viewState.isPositionVisible(state.rawText.length))
+        assertEquals(999, viewState.lineAt(1f)!!.line)
+        assertRoundTrips()
     }
 
     @Test
