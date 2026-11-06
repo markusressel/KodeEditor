@@ -81,6 +81,7 @@ Have a look at the demo app (`app` module) for a complete sample.
 | `minZoom`, `maxZoom` | limits of the zoom | `0.25f`, `10f` |
 | `keepCursorVisible` | whether the view follows the cursor while the user edits | `true` |
 | `scrollbars` | whether scrollbars show up while the view moves, their thumbs can be dragged | `true` |
+| `scrollbarStyle` | `KodeEditorScrollbarStyle`: the thickness, margin, touch size and shortest thumb of the bars, how long they stay after the view stopped and how long they fade | `KodeEditorScrollbarStyle()` |
 | `autoCorrect` | whether the keyboard may correct words on its own, it can still offer suggestions without this | `false` |
 | `gutterColumns` | what [the bar next to the text](#the-bar-next-to-the-text) shows | line numbers |
 | `animations` | what [the editor animates](#animations) | everything |

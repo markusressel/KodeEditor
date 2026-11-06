@@ -142,6 +142,7 @@ private const val SCROLLBAR_ALPHA = 0.4f
  * for a dragged selection handle that scrolls the view and for a dragged scrollbar. Not for what moves the view on
  * its own, like [viewState], following the cursor or lines that wrap differently
  * @param scrollbars whether scrollbars show up while the view moves, whose thumbs can be dragged to move it
+ * @param scrollbarStyle the size of the scrollbars and when they show and hide
  */
 @Composable
 fun KodeEditor(
@@ -169,6 +170,7 @@ fun KodeEditor(
     viewState: KodeEditorViewState = rememberKodeEditorViewState(),
     onUserMovedView: () -> Unit = {},
     scrollbars: Boolean = true,
+    scrollbarStyle: KodeEditorScrollbarStyle = KodeEditorScrollbarStyle(),
 ) {
     val state = remember { KodeEditorState(text.text, text.selection) }
     val controlled = remember(state) { ControlledValue(state) }
@@ -202,6 +204,7 @@ fun KodeEditor(
         viewState = viewState,
         onUserMovedView = onUserMovedView,
         scrollbars = scrollbars,
+        scrollbarStyle = scrollbarStyle,
     )
 }
 
@@ -291,6 +294,7 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * for a dragged selection handle that scrolls the view and for a dragged scrollbar. Not for what moves the view on
  * its own, like [viewState], following the cursor or lines that wrap differently
  * @param scrollbars whether scrollbars show up while the view moves, whose thumbs can be dragged to move it
+ * @param scrollbarStyle the size of the scrollbars and when they show and hide
  */
 @Composable
 fun KodeEditor(
@@ -317,6 +321,7 @@ fun KodeEditor(
     viewState: KodeEditorViewState = rememberKodeEditorViewState(),
     onUserMovedView: () -> Unit = {},
     scrollbars: Boolean = true,
+    scrollbarStyle: KodeEditorScrollbarStyle = KodeEditorScrollbarStyle(),
 ) {
     val offsetState = remember { mutableStateOf(Offset.Zero) }
     var offset by offsetState
@@ -1090,9 +1095,11 @@ fun KodeEditor(
             Box(modifier = Modifier.zIndex(2f).matchParentSize().then(contentVisibility)) {
                 EditorScrollbars(
                     color = scrollbarColor,
+                    style = scrollbarStyle,
                     geometry = { geometry },
                     offset = { offset },
                     maxOffset = { maxOffset },
+                    held = { viewState.isUserMovingView },
                     onDragStart = {
                         flingStops++
                         viewState.scrollbarMoving = true
