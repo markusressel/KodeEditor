@@ -30,18 +30,10 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 
 internal const val VERTICAL_SCROLLBAR_TAG = "kodeeditor-vertical-scrollbar"
 internal const val HORIZONTAL_SCROLLBAR_TAG = "kodeeditor-horizontal-scrollbar"
-
-private val SCROLLBAR_THICKNESS = 4.dp
-private val SCROLLBAR_MARGIN = 2.dp
-
-/** the size of the touch area across the bar, the bar itself is too thin to hit */
-private val SCROLLBAR_TOUCH_SIZE = 24.dp
-private val SCROLLBAR_MIN_THUMB = 32.dp
-internal const val SCROLLBAR_HIDE_DELAY_MS = 1000L
-private const val SCROLLBAR_FADE_MS = 150
 
 /**
  * Where the thumb of a scrollbar is on its track, along its axis. The track is in pixels on screen, the offsets are in
@@ -71,22 +63,32 @@ internal object ScrollbarMath {
 
 private enum class ScrollbarAxis(val tag: String) {
     Vertical(VERTICAL_SCROLLBAR_TAG),
-    Horizontal(HORIZONTAL_SCROLLBAR_TAG),
+    Horizontal(HORIZONTAL_SCROLLBAR_TAG);
+
+    /** @return [current] with this axis at the place of a thumb moved by [along] from where it was at [start] */
+    fun offsetFor(current: Offset, start: Offset, along: Float, thumb: ThumbPlacement, max: Offset): Offset =
+        when (this) {
+            Vertical -> current.copy(y = ScrollbarMath.offsetFor(start.y, along, thumb.track, thumb.length, max.y))
+            Horizontal -> current.copy(x = ScrollbarMath.offsetFor(start.x, along, thumb.track, thumb.length, max.x))
+        }
 }
 
 /** a thumb on screen: where its track starts, how long the track is, and the place and length of the thumb on it */
 private class ThumbPlacement(val trackStart: Float, val track: Float, val start: Float, val length: Float)
 
 /**
- * The scrollbars of the editor. They show up while the view moves and fade out after it stopped. While they are shown,
- * their thumbs can be dragged.
+ * The scrollbars of the editor. They fade in while the view moves, and fade out a moment after it stopped and the
+ * user let go of it.
+ * Until they are gone, their thumbs can be dragged.
  *
  * They are not scaled with the text, so this must be outside the zoom layout, at the size of the editor.
  *
  * @param color the color of the thumbs
+ * @param style the size and the timing of the bars
  * @param geometry where the text is in the editor
  * @param offset the scroll offset in text coordinates
  * @param maxOffset the largest scroll offset
+ * @param held whether the user still holds the view after moving it, even when the fingers rest
  * @param onDragStart a thumb is about to be dragged
  * @param onDrag called with the new offset while a thumb is dragged
  * @param onDragEnd the thumb was released
@@ -94,34 +96,38 @@ private class ThumbPlacement(val trackStart: Float, val track: Float, val start:
 @Composable
 internal fun BoxScope.EditorScrollbars(
     color: Color,
+    style: KodeEditorScrollbarStyle,
     geometry: () -> EditorGeometry,
     offset: () -> Offset,
     maxOffset: () -> Offset,
+    held: () -> Boolean,
     onDragStart: () -> Unit,
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
 ) {
+    val currentStyle by rememberUpdatedState(style)
     val currentGeometry by rememberUpdatedState(geometry)
     val currentOffset by rememberUpdatedState(offset)
     val currentMaxOffset by rememberUpdatedState(maxOffset)
+    val currentHeld by rememberUpdatedState(held)
     var moved by remember { mutableStateOf(false) }
     var dragging by remember { mutableStateOf(false) }
-    // a released thumb stays for a moment too, even when it did not move at the end
-    var releases by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
-        snapshotFlow { Triple(currentOffset(), currentGeometry().zoom, releases) }
+        // a released thumb stays for a moment too, even when it did not move at the end
+        snapshotFlow { Triple(currentOffset(), currentGeometry().zoom, dragging) }
             .drop(1)
             .collectLatest {
                 moved = true
-                delay(SCROLLBAR_HIDE_DELAY_MS)
+                snapshotFlow { currentHeld() }.first { !it }
+                delay(currentStyle.hideDelayMillis)
                 moved = false
             }
     }
     val shown = moved || dragging
     val alpha by animateFloatAsState(
         targetValue = if (shown) 1f else 0f,
-        animationSpec = tween(SCROLLBAR_FADE_MS),
+        animationSpec = tween(if (shown) style.fadeInMillis else style.fadeOutMillis),
         label = "scrollbarAlpha",
     )
 
@@ -133,42 +139,28 @@ internal fun BoxScope.EditorScrollbars(
             .graphicsLayer { this.alpha = alpha },
     ) {
         ScrollbarAxis.entries.forEach { axis ->
-            key(axis) {
-                ScrollbarThumb(
-                    axis = axis,
-                    color = color,
-                    shown = { shown },
-                    placement = { size ->
-                        placement(axis, size, currentGeometry(), currentOffset(), currentMaxOffset())
-                    },
-                    container = { container },
-                    onDragStart = {
-                        dragging = true
-                        onDragStart()
-                    },
-                    onDrag = { startOffset, along, thumb ->
-                        val max = currentMaxOffset()
-                        val current = currentOffset()
-                        onDrag(
-                            when (axis) {
-                                ScrollbarAxis.Vertical -> current.copy(
-                                    y = ScrollbarMath.offsetFor(startOffset.y, along, thumb.track, thumb.length, max.y),
-                                )
-
-                                ScrollbarAxis.Horizontal -> current.copy(
-                                    x = ScrollbarMath.offsetFor(startOffset.x, along, thumb.track, thumb.length, max.x),
-                                )
-                            },
-                        )
-                    },
-                    onDragEnd = {
-                        dragging = false
-                        releases++
-                        onDragEnd()
-                    },
-                    offset = { currentOffset() },
-                )
-            }
+            ScrollbarThumb(
+                axis = axis,
+                color = color,
+                style = style,
+                // the thumbs stay in place while they fade out
+                shown = { shown || alpha > 0f },
+                placement = { size ->
+                    placement(axis, style, size, currentGeometry(), currentOffset(), currentMaxOffset())
+                },
+                container = { container },
+                offset = { currentOffset() },
+                maxOffset = { currentMaxOffset() },
+                onDragStart = {
+                    dragging = true
+                    onDragStart()
+                },
+                onDrag = onDrag,
+                onDragEnd = {
+                    dragging = false
+                    onDragEnd()
+                },
+            )
         }
     }
 }
@@ -176,14 +168,15 @@ internal fun BoxScope.EditorScrollbars(
 /** both bars leave the corner at the bottom right to each other when both are there */
 private fun Density.placement(
     axis: ScrollbarAxis,
+    style: KodeEditorScrollbarStyle,
     size: IntSize,
     geometry: EditorGeometry,
     offset: Offset,
     maxOffset: Offset,
 ): ThumbPlacement? {
-    val margin = SCROLLBAR_MARGIN.toPx()
-    val corner = SCROLLBAR_THICKNESS.toPx() + 2 * margin
-    val minThumb = SCROLLBAR_MIN_THUMB.toPx()
+    val margin = style.margin.toPx()
+    val corner = style.thickness.toPx() + 2 * margin
+    val minThumb = style.minThumbLength.toPx()
     val visible = geometry.visibleSize
     return when (axis) {
         ScrollbarAxis.Vertical -> {
@@ -212,29 +205,33 @@ private fun Density.placement(
 private fun ScrollbarThumb(
     axis: ScrollbarAxis,
     color: Color,
+    style: KodeEditorScrollbarStyle,
     shown: () -> Boolean,
     placement: Density.(IntSize) -> ThumbPlacement?,
     container: () -> LayoutCoordinates?,
-    onDragStart: () -> Unit,
-    onDrag: (startOffset: Offset, along: Float, thumb: ThumbPlacement) -> Unit,
-    onDragEnd: () -> Unit,
     offset: () -> Offset,
+    maxOffset: () -> Offset,
+    onDragStart: () -> Unit,
+    onDrag: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
 ) {
     var own by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    val currentPlacement by rememberUpdatedState(placement)
     val currentOnDragStart by rememberUpdatedState(onDragStart)
     val currentOnDrag by rememberUpdatedState(onDrag)
     val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     val currentOffset by rememberUpdatedState(offset)
-    var lastSize by remember { mutableStateOf(IntSize.Zero) }
+    val currentMaxOffset by rememberUpdatedState(maxOffset)
+    // where the layout put the thumb last, a drag starts from there
+    var placed by remember { mutableStateOf<ThumbPlacement?>(null) }
 
     Box(
         modifier = Modifier
             .layout { measurable, constraints ->
                 val size = IntSize(constraints.maxWidth, constraints.maxHeight)
-                lastSize = size
                 val thumb = placement(size).takeIf { shown() }
-                val touch = SCROLLBAR_TOUCH_SIZE.roundToPx()
+                placed = thumb
+                // the touch area holds at least the bar and its margin
+                val touch = maxOf(style.touchSize, style.thickness + style.margin).roundToPx()
                 val length = thumb?.length?.roundToInt()?.coerceAtLeast(1) ?: 1
                 val placeable = when (axis) {
                     ScrollbarAxis.Vertical -> measurable.measure(Constraints.fixed(touch, length))
@@ -255,7 +252,7 @@ private fun ScrollbarThumb(
             .pointerInput(axis) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    val thumb = currentPlacement(this, lastSize) ?: return@awaitEachGesture
+                    val thumb = placed ?: return@awaitEachGesture
                     down.consume()
                     val start = containerPosition(own, container(), down) ?: return@awaitEachGesture
                     // the thumb keeps its track for the whole drag
@@ -272,7 +269,9 @@ private fun ScrollbarThumb(
                                 ScrollbarAxis.Vertical -> position.y - start.y
                                 ScrollbarAxis.Horizontal -> position.x - start.x
                             }
-                            currentOnDrag(startOffset, along, thumb)
+                            currentOnDrag(
+                                axis.offsetFor(currentOffset(), startOffset, along, thumb, currentMaxOffset()),
+                            )
                         }
                     } finally {
                         currentOnDragEnd()
@@ -280,8 +279,8 @@ private fun ScrollbarThumb(
                 }
             }
             .drawBehind {
-                val margin = SCROLLBAR_MARGIN.toPx()
-                val thickness = SCROLLBAR_THICKNESS.toPx()
+                val margin = style.margin.toPx()
+                val thickness = style.thickness.toPx()
                 val radius = CornerRadius(thickness / 2)
                 when (axis) {
                     ScrollbarAxis.Vertical -> drawRoundRect(
@@ -319,9 +318,11 @@ private fun EditorScrollbarsPreview() {
     Box(modifier = Modifier.size(200.dp)) {
         EditorScrollbars(
             color = Color.Gray,
+            style = KodeEditorScrollbarStyle(),
             geometry = { EditorGeometry(IntSize(200, 200), 0, 0f, 1f) },
             offset = { offset },
             maxOffset = { Offset(400f, 1000f) },
+            held = { false },
             onDragStart = {},
             onDrag = { offset = it },
             onDragEnd = {},
