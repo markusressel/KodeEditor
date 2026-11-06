@@ -314,7 +314,8 @@ private suspend fun PointerInputScope.detectPanAndZoom(
                     if (pressed > 0 && pressed != pointers || zoomChange != 1f) tracker = VelocityTracker()
                     pointers = pressed
                     path += panChange
-                    if (pressed > 0) tracker.addPosition(event.changes.first().uptimeMillis, path)
+                    // the lift counts too, so a finger that rested before it left does not fling
+                    tracker.addPosition(event.changes.first().uptimeMillis, path)
                 }
             } while (!canceled && event.changes.any { it.pressed })
             if (!canceled && pastTouchSlop) {

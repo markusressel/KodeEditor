@@ -78,6 +78,7 @@ class EditorScrollbarsTest {
         override fun getStyles(type: LanguageRule) = emptySet<StyleFactory<SpanStyle>>()
     }
 
+    private val defaults = KodeEditorScrollbarStyle()
     private val viewState = KodeEditorViewState()
     private var movedView = 0
 
@@ -87,6 +88,7 @@ class EditorScrollbarsTest {
         state: KodeEditorState,
         lineWrapping: Boolean = false,
         scrollbars: Boolean = true,
+        scrollbarStyle: KodeEditorScrollbarStyle = defaults,
     ) {
         composeRule.setContent {
             KodeEditor(
@@ -100,6 +102,7 @@ class EditorScrollbarsTest {
                 viewState = viewState,
                 onUserMovedView = { movedView++ },
                 scrollbars = scrollbars,
+                scrollbarStyle = scrollbarStyle,
             )
         }
         composeRule.waitForIdle()
@@ -111,11 +114,20 @@ class EditorScrollbarsTest {
         return composeRule.onNodeWithTag(tag).getUnclippedBoundsInRoot().left.value >= 0f
     }
 
+    /** one frame at a time, with the layout of each frame, which a paused clock otherwise leaves for later */
+    private fun advanceFrames(millis: Long) {
+        val end = composeRule.mainClock.currentTime + millis
+        while (composeRule.mainClock.currentTime < end) {
+            composeRule.mainClock.advanceTimeByFrame()
+            composeRule.waitForIdle()
+        }
+    }
+
     /** pans the text, and stops before the bars fade out again */
     private fun pan(swipe: TouchInjectionScope.() -> Unit) {
         composeRule.mainClock.autoAdvance = false
         composeRule.onNodeWithTag("editor").performTouchInput(swipe)
-        composeRule.mainClock.advanceTimeBy(300)
+        composeRule.mainClock.advanceTimeBy(100)
     }
 
     @Test
@@ -132,8 +144,62 @@ class EditorScrollbarsTest {
         show(KodeEditorState(longText))
         pan { swipeUp() }
 
-        composeRule.mainClock.advanceTimeBy(SCROLLBAR_HIDE_DELAY_MS + 5000)
+        composeRule.mainClock.advanceTimeBy(defaults.hideDelayMillis + 5000)
 
+        assertFalse(isShown(VERTICAL_SCROLLBAR_TAG))
+    }
+
+    @Test
+    fun `the bars stay as long as the style says`() {
+        val style = KodeEditorScrollbarStyle(hideDelayMillis = 5000L, fadeOutMillis = 0)
+        show(KodeEditorState(longText), scrollbarStyle = style)
+        pan { swipeUp() }
+        // a held thumb stops the fling, so the bars wait from its release
+        composeRule.onNodeWithTag(VERTICAL_SCROLLBAR_TAG).performTouchInput { down(center) }
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag(VERTICAL_SCROLLBAR_TAG).performTouchInput { up() }
+
+        advanceFrames(4000)
+        assertTrue("longer than the default", isShown(VERTICAL_SCROLLBAR_TAG))
+
+        advanceFrames(1100)
+        assertFalse(isShown(VERTICAL_SCROLLBAR_TAG))
+    }
+
+    @Test
+    fun `the bars stay in place while they fade out`() {
+        show(KodeEditorState(longText))
+        pan { swipeUp() }
+        // a held thumb stops the fling, so the bars fade from its release
+        composeRule.onNodeWithTag(VERTICAL_SCROLLBAR_TAG).performTouchInput { down(center) }
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag(VERTICAL_SCROLLBAR_TAG).performTouchInput { up() }
+
+        advanceFrames(defaults.hideDelayMillis + defaults.fadeOutMillis / 2)
+        assertTrue("still fading", isShown(VERTICAL_SCROLLBAR_TAG))
+
+        advanceFrames(defaults.fadeOutMillis.toLong())
+        assertFalse(isShown(VERTICAL_SCROLLBAR_TAG))
+    }
+
+    @Test
+    fun `the bars stay while a finger rests on the text after a pan`() {
+        show(KodeEditorState(longText))
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag("editor").performTouchInput {
+            down(center)
+            repeat(10) { moveBy(Offset(0f, -50f)) }
+        }
+
+        advanceFrames(defaults.hideDelayMillis + defaults.fadeOutMillis + 1000)
+        assertTrue("the finger still holds the view", isShown(VERTICAL_SCROLLBAR_TAG))
+
+        // the finger rested, so it does not fling
+        composeRule.onNodeWithTag("editor").performTouchInput {
+            advanceEventTime(1000)
+            up()
+        }
+        advanceFrames(defaults.hideDelayMillis + defaults.fadeOutMillis + 100)
         assertFalse(isShown(VERTICAL_SCROLLBAR_TAG))
     }
 
