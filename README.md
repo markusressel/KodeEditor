@@ -7,7 +7,7 @@ A fast code editor for Jetpack Compose, with syntax highlighting, line wrapping 
 * Stays responsive with large documents, because only the visible lines are measured and drawn
 * Pinch to zoom and fling, with scrollbars to drag through long documents
 * Line wrapping
-* Folding of whole sections and parts of lines, with Markdown built in and your own rules for other languages
+* Folding of whole sections and parts of lines, built in for all languages of KodeHighlighter and your own rules for others
 * A bar next to the text with line numbers and your own columns, like warnings or bookmarks
 * Syntax highlighting for many languages with [KodeHighlighter](https://github.com/markusressel/KodeHighlighter), or your own rules
 * Hardware keyboard support, selection handles and a text menu
@@ -46,7 +46,7 @@ you need:
 ```kotlin
 dependencies {
     implementation("com.github.markusressel:KodeEditor:8.1.0")
-    implementation("com.github.markusressel.KodeHighlighter:markdown:6.0.0")
+    implementation("com.github.markusressel.KodeHighlighter:markdown:6.1.0")
 }
 ```
 
@@ -85,7 +85,7 @@ Have a look at the demo app (`app` module) for a complete sample.
 | `autoCorrect` | whether the keyboard may correct words on its own, it can still offer suggestions without this | `false` |
 | `gutterColumns` | what [the bar next to the text](#the-bar-next-to-the-text) shows | line numbers |
 | `animations` | what [the editor animates](#animations) | everything |
-| `foldProvider` | what [can be folded](#folding) | nothing |
+| `foldProvider` | what [can be folded](#folding) | the provider of the language of `languageRuleBook` |
 | `lineDecorations` | what [the editor shows on whole lines](#line-decorations) | nothing |
 | `keyBindings` | what [the keys of a hardware keyboard](#keyboard) do | `KodeEditorDefaults.keyBindings` |
 | `overlay` | [content on top of the text](#overlay) | nothing |
@@ -236,16 +236,33 @@ Folding moves what is below a fold to its new place and fades the lines of the f
 ## Folding
 
 `foldProvider` decides what can be folded, and adds a column with arrows to the end of the bar. Tap an arrow or the `⋯`
-behind a folded line. The editor handles everything else, so only finding the regions depends on the language:
+behind a folded line. The editor handles everything else, so only finding the regions depends on the language.
+
+By default, the editor folds the language of its `languageRuleBook`, so a `KotlinRuleBook` folds Kotlin without any
+setup. A rule book whose `language` has no provider, like most of your own, folds nothing. Pass a provider to choose
+one, or `null` to turn folding off:
 
 ```kotlin
 KodeEditor(
     // ...
-    foldProvider = MarkdownFoldProvider,
+    foldProvider = null,
 )
+```
 
-// any other language
-val braces = KodeEditorFoldProvider { text -> listOf(FoldRegion(startLine = 0, endLine = 3)) }
+Every language of KodeHighlighter has a built-in provider: `CFoldProvider`, `CppFoldProvider`, `CSharpFoldProvider`,
+`DartFoldProvider`, `DiffFoldProvider`, `GoFoldProvider`, `JavaFoldProvider`, `JsonFoldProvider`, `KotlinFoldProvider`,
+`MarkdownFoldProvider`, `OCamlFoldProvider`, `PropertiesFoldProvider`, `PythonFoldProvider`, `RustFoldProvider`,
+`SwiftFoldProvider`, `TomlFoldProvider`, `XmlFoldProvider` and `YamlFoldProvider`.
+`KodeEditorFoldProviders.forLanguage(KotlinLanguage)` and `forLanguageId("kotlin")` find one by its language. They fold blocks, brackets over
+several lines, comments, runs of imports, and what else belongs to the language, like the headings of Markdown, the
+elements of XML or the hunks of a diff. Each one reads the text once.
+
+For other languages, `BraceFoldProvider` folds languages with curly brackets and `IndentFoldProvider` languages with
+indented blocks, both with your settings for comments, strings and imports. Or write your own:
+
+```kotlin
+val scala = BraceFoldProvider(nestedBlockComments = true, importPrefixes = listOf("import "))
+val custom = KodeEditorFoldProvider { text -> listOf(FoldRegion(startLine = 0, endLine = 3)) }
 ```
 
 A folded line gets a background and a placeholder, their colors are `foldedLineBackgroundColor` and

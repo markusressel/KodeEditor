@@ -134,7 +134,7 @@ private const val SCROLLBAR_ALPHA = 0.4f
  * @param gutterColumns what the bar next to the text shows, from left to right. No columns remove the bar
  * @param animations what the editor animates
  * @param foldProvider finds what can be folded, which adds a column with arrows to the end of the bar, null folds
- * nothing
+ * nothing. The built-in provider of the language of the [languageRuleBook] by default, see [KodeEditorFoldProviders]
  * @param lineDecorations what the editor shows on whole lines, from bottom to top
  * @param keyBindings what the keys of a hardware keyboard do, a key without a binding is left to the rest of the app
  * @param viewState scrolls to a place in the text and tells what is visible
@@ -164,7 +164,7 @@ fun KodeEditor(
     lineWrapping: Boolean = false,
     gutterColumns: List<KodeEditorGutterColumn> = listOf(rememberLineNumberColumn(textStyle, colors, enabled)),
     animations: KodeEditorAnimations = KodeEditorAnimations(),
-    foldProvider: KodeEditorFoldProvider? = null,
+    foldProvider: KodeEditorFoldProvider? = KodeEditorFoldProviders.forLanguage(languageRuleBook.language),
     lineDecorations: List<KodeEditorLineDecoration> = emptyList(),
     keyBindings: List<KodeEditorKeyBinding> = KodeEditorDefaults.keyBindings,
     viewState: KodeEditorViewState = rememberKodeEditorViewState(),
@@ -286,7 +286,7 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param gutterColumns what the bar next to the text shows, from left to right. No columns remove the bar
  * @param animations what the editor animates
  * @param foldProvider finds what can be folded, which adds a column with arrows to the end of the bar, null folds
- * nothing
+ * nothing. The built-in provider of the language of the [languageRuleBook] by default, see [KodeEditorFoldProviders]
  * @param lineDecorations what the editor shows on whole lines, from bottom to top
  * @param keyBindings what the keys of a hardware keyboard do, a key without a binding is left to the rest of the app
  * @param viewState scrolls to a place in the text and tells what is visible
@@ -315,7 +315,7 @@ fun KodeEditor(
     lineWrapping: Boolean = false,
     gutterColumns: List<KodeEditorGutterColumn> = listOf(rememberLineNumberColumn(textStyle, colors, enabled)),
     animations: KodeEditorAnimations = KodeEditorAnimations(),
-    foldProvider: KodeEditorFoldProvider? = null,
+    foldProvider: KodeEditorFoldProvider? = KodeEditorFoldProviders.forLanguage(languageRuleBook.language),
     lineDecorations: List<KodeEditorLineDecoration> = emptyList(),
     keyBindings: List<KodeEditorKeyBinding> = KodeEditorDefaults.keyBindings,
     viewState: KodeEditorViewState = rememberKodeEditorViewState(),
