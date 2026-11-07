@@ -45,7 +45,7 @@ languages, R8 removes those your app does not use:
 
 ```kotlin
 dependencies {
-    implementation("com.github.markusressel:KodeEditor:9.0.0")
+    implementation("com.github.markusressel:KodeEditor:9.1.0")
 }
 ```
 
