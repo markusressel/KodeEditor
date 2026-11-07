@@ -79,7 +79,7 @@ dependencies {
     implementation(project(":library"))
 
     // Syntax Highlighting
-    implementation(libs.kodehighlighter.markdown)
+    implementation(libs.kodehighlighter)
 
     implementation(libs.kotlin.stdlib.jdk8)
 

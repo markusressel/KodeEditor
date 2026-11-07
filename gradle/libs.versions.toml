@@ -14,7 +14,7 @@ robolectric = "4.17"
 kotlin = "2.4.21"
 kotlinCoroutinesCore = "1.11.0"
 kotlinCoroutinesAndroid = "1.11.0"
-kodehighlighter = "6.1.0"
+kodehighlighter = "7.0.1"
 ksp = "2.3.13"
 
 
@@ -41,8 +41,7 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 ksp-gradle-plugin = { group = "com.google.devtools.ksp", name = "com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
 
-kodehighlighter-core = { group = "com.github.markusressel.KodeHighlighter", name = "core", version.ref = "kodehighlighter" }
-kodehighlighter-markdown = { group = "com.github.markusressel.KodeHighlighter", name = "markdown", version.ref = "kodehighlighter" }
+kodehighlighter = { group = "com.github.markusressel", name = "KodeHighlighter", version.ref = "kodehighlighter" }
 
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }

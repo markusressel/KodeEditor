@@ -28,7 +28,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
 
     // Syntax Highlighting
-    api(libs.kodehighlighter.core)
+    api(libs.kodehighlighter)
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)

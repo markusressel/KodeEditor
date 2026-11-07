@@ -1,6 +1,6 @@
 # AGENTS.md
 
-KodeEditor is an Android code editor library with syntax highlighting (via [KodeHighlighter](https://github.com/markusressel/KodeHighlighter)), line numbers and pinch to zoom. It is published through JitPack.
+KodeEditor is an Android code editor library with syntax highlighting (via [KodeHighlighter](https://github.com/markusressel/KodeHighlighter)), line numbers and pinch to zoom. It is published through JitPack as `com.github.markusressel:KodeEditor`, the module `library`. Its own publication must keep the coordinates `com.github.markusressel.KodeEditor:<module>` that JitPack uses too, otherwise apps get every class twice.
 
 ## Layout
 

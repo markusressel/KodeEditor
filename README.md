@@ -40,13 +40,12 @@ repositories {
 }
 ```
 
-Then add the editor, and the [KodeHighlighter](https://github.com/markusressel/KodeHighlighter) module of each language
-you need:
+Then add the editor. It brings [KodeHighlighter](https://github.com/markusressel/KodeHighlighter) with all its
+languages, R8 removes those your app does not use:
 
 ```kotlin
 dependencies {
     implementation("com.github.markusressel:KodeEditor:8.1.0")
-    implementation("com.github.markusressel.KodeHighlighter:markdown:6.1.0")
 }
 ```
 
@@ -93,9 +92,16 @@ Have a look at the demo app (`app` module) for a complete sample.
 
 ## Syntax highlighting
 
-`languageRuleBook` decides what is highlighted, and `colorScheme` how it looks. There is no detection of the language of
-a document, so pass the rule book that fits. The available languages and how to write your own are described in
+`languageRuleBook` decides what is highlighted, and `colorScheme` how it looks. Pass the rule book that fits the
+document, `KodeHighlighterLanguages.detectRuleBook(fileName, text)` finds it from the name or the content of a file. The
+available languages and how to write your own are described in
 [KodeHighlighter](https://github.com/markusressel/KodeHighlighter).
+
+`MarkdownRuleBook()` highlights YAML front matter and fenced code blocks in their language, like ```` ```kotlin ````.
+`MarkdownRuleBook { null }` keeps code blocks in one color. The Markdown color schemes only style Markdown, so the editor
+colors the other languages with `GitHubDarkTheme` or `GitHubLightTheme`, whichever fits the brightness of
+`textFieldBackgroundColor`. A color scheme that styles a rule itself keeps its style. Code blocks that did not change
+are not highlighted again while typing.
 
 ## Large documents and collaborative editing
 
