@@ -505,6 +505,41 @@ class BraceFoldProviderTest {
         )
     }
 
+    @Test
+    fun javaScript() {
+        assertEquals(
+            listOf(0 to 1, 4 to 7),
+            JavaScriptFoldProvider.regions(
+                "import a from \"a\";",
+                "import { b } from 'b';",
+                "const t = `x {",
+                "y`;",
+                "function f() {",
+                "    const s = '}';",
+                "    return \"{\";",
+                "}",
+            ),
+        )
+    }
+
+    @Test
+    fun css() {
+        assertEquals(
+            listOf(0 to 1, 3 to 5, 6 to 8),
+            CssFoldProvider.regions(
+                "@import url(\"a.css\");",
+                "@import \"b.css\";",
+                "/* a { */",
+                "a {",
+                "    content: \"}\";",
+                "}",
+                "@media (x) {",
+                "    b { c: d; }",
+                "}",
+            ),
+        )
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun unknownBracketsAreRejected() {
         BraceFoldProvider(foldedBrackets = "<>")

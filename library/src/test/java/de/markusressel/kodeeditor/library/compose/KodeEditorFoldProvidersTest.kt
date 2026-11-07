@@ -12,8 +12,8 @@ class KodeEditorFoldProvidersTest {
     @Test
     fun everyLanguageOfKodeHighlighterHasAProvider() {
         val ids = listOf(
-            "c", "cpp", "csharp", "dart", "diff", "go", "java", "json", "kotlin", "markdown", "ocaml", "properties",
-            "python", "rust", "swift", "toml", "xml", "yaml",
+            "c", "cpp", "csharp", "css", "dart", "diff", "go", "html", "java", "javascript", "json", "kotlin", "markdown",
+            "ocaml", "properties", "python", "rust", "swift", "toml", "xml", "yaml",
         )
         assertEquals(ids.toSet(), KodeEditorFoldProviders.byLanguageId.keys)
         KodeEditorFoldProviders.byLanguageId.values.forEach { assertEquals(emptyList<FoldRegion>(), it.foldRegions("")) }

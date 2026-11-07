@@ -712,3 +712,27 @@ object DartFoldProvider : KodeEditorFoldProvider by BraceFoldProvider(
     charLiterals = false,
     importPrefixes = listOf("import ", "export ", "part "),
 )
+
+/**
+ * Folds JavaScript: blocks, objects, arrays, multi-line parentheses, comments including JSDoc and runs of imports.
+ * Strings with `'` and `"`, and template strings in backticks are strings. Brackets in regex literals like `/\{/`
+ * count as code.
+ */
+object JavaScriptFoldProvider : KodeEditorFoldProvider by BraceFoldProvider(
+    strings = listOf(
+        BraceStringSyntax.Quoted("\""),
+        BraceStringSyntax.Quoted("'"),
+        BraceStringSyntax.Quoted("`", multiLine = true),
+    ),
+    charLiterals = false,
+    importPrefixes = listOf("import "),
+)
+
+/** Folds CSS: rules, at-rules like `@media`, multi-line parentheses, comments and runs of `@import`. */
+object CssFoldProvider : KodeEditorFoldProvider by BraceFoldProvider(
+    lineComments = emptyList(),
+    strings = listOf(BraceStringSyntax.Quoted("\""), BraceStringSyntax.Quoted("'")),
+    charLiterals = false,
+    foldedBrackets = "{}()",
+    importPrefixes = listOf("@import "),
+)

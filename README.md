@@ -256,9 +256,10 @@ KodeEditor(
 ```
 
 Every language of KodeHighlighter has a built-in provider: `CFoldProvider`, `CppFoldProvider`, `CSharpFoldProvider`,
-`DartFoldProvider`, `DiffFoldProvider`, `GoFoldProvider`, `JavaFoldProvider`, `JsonFoldProvider`, `KotlinFoldProvider`,
-`MarkdownFoldProvider`, `OCamlFoldProvider`, `PropertiesFoldProvider`, `PythonFoldProvider`, `RustFoldProvider`,
-`SwiftFoldProvider`, `TomlFoldProvider`, `XmlFoldProvider` and `YamlFoldProvider`.
+`CssFoldProvider`, `DartFoldProvider`, `DiffFoldProvider`, `GoFoldProvider`, `JavaFoldProvider`,
+`JavaScriptFoldProvider`, `JsonFoldProvider`, `KotlinFoldProvider`, `MarkdownFoldProvider`, `OCamlFoldProvider`,
+`PropertiesFoldProvider`, `PythonFoldProvider`, `RustFoldProvider`, `SwiftFoldProvider`, `TomlFoldProvider`,
+`XmlFoldProvider`, also for HTML, and `YamlFoldProvider`.
 `KodeEditorFoldProviders.forLanguage(KotlinLanguage)` and `forLanguageId("kotlin")` find one by its language. They fold blocks, brackets over
 several lines, comments, runs of imports, and what else belongs to the language, like the headings of Markdown, the
 elements of XML or the hunks of a diff. Each one reads the text once.
