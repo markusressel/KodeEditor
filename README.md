@@ -7,7 +7,7 @@ A fast code editor for Jetpack Compose, with syntax highlighting, line wrapping 
 * Stays responsive with large documents, because only the visible lines are measured and drawn
 * Pinch to zoom and fling, with scrollbars to drag through long documents
 * Line wrapping
-* Folding of whole sections and parts of lines, with Markdown built in and your own rules for other languages
+* Folding of whole sections and parts of lines, built in for all languages of KodeHighlighter and your own rules for others
 * A bar next to the text with line numbers and your own columns, like warnings or bookmarks
 * Syntax highlighting for many languages with [KodeHighlighter](https://github.com/markusressel/KodeHighlighter), or your own rules
 * Hardware keyboard support, selection handles and a text menu
@@ -241,11 +241,24 @@ behind a folded line. The editor handles everything else, so only finding the re
 ```kotlin
 KodeEditor(
     // ...
-    foldProvider = MarkdownFoldProvider,
+    foldProvider = KotlinFoldProvider,
 )
+```
 
-// any other language
-val braces = KodeEditorFoldProvider { text -> listOf(FoldRegion(startLine = 0, endLine = 3)) }
+Every language of KodeHighlighter has a built-in provider: `CFoldProvider`, `CppFoldProvider`, `CSharpFoldProvider`,
+`DartFoldProvider`, `DiffFoldProvider`, `GoFoldProvider`, `JavaFoldProvider`, `JsonFoldProvider`, `KotlinFoldProvider`,
+`MarkdownFoldProvider`, `OCamlFoldProvider`, `PropertiesFoldProvider`, `PythonFoldProvider`, `RustFoldProvider`,
+`SwiftFoldProvider`, `TomlFoldProvider`, `XmlFoldProvider` and `YamlFoldProvider`.
+`KodeEditorFoldProviders.forLanguageId("kotlin")` finds one by the id of its language. They fold blocks, brackets over
+several lines, comments, runs of imports, and what else belongs to the language, like the headings of Markdown, the
+elements of XML or the hunks of a diff. Each one reads the text once.
+
+For other languages, `BraceFoldProvider` folds languages with curly brackets and `IndentFoldProvider` languages with
+indented blocks, both with your settings for comments, strings and imports. Or write your own:
+
+```kotlin
+val scala = BraceFoldProvider(nestedBlockComments = true, importPrefixes = listOf("import "))
+val custom = KodeEditorFoldProvider { text -> listOf(FoldRegion(startLine = 0, endLine = 3)) }
 ```
 
 A folded line gets a background and a placeholder, their colors are `foldedLineBackgroundColor` and
