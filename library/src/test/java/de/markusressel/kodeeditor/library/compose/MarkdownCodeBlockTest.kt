@@ -1,5 +1,6 @@
 package de.markusressel.kodeeditor.library.compose
 
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -62,7 +63,13 @@ class MarkdownCodeBlockTest {
         val updating = launch(Dispatchers.Default) { keepUpdated() }
         val before = styles
         change()
-        withTimeout(5000) { while (styles === before) delay(10) }
+        // without a recomposer, nothing tells the snapshotFlow of keepUpdated about the change
+        withTimeout(5000) {
+            while (styles === before) {
+                Snapshot.sendApplyNotifications()
+                delay(10)
+            }
+        }
         updating.cancel()
         styles
     }
