@@ -46,7 +46,7 @@ you need:
 ```kotlin
 dependencies {
     implementation("com.github.markusressel:KodeEditor:8.1.0")
-    implementation("com.github.markusressel.KodeHighlighter:markdown:6.0.0")
+    implementation("com.github.markusressel.KodeHighlighter:markdown:6.1.0")
 }
 ```
 
@@ -85,7 +85,7 @@ Have a look at the demo app (`app` module) for a complete sample.
 | `autoCorrect` | whether the keyboard may correct words on its own, it can still offer suggestions without this | `false` |
 | `gutterColumns` | what [the bar next to the text](#the-bar-next-to-the-text) shows | line numbers |
 | `animations` | what [the editor animates](#animations) | everything |
-| `foldProvider` | what [can be folded](#folding) | nothing |
+| `foldProvider` | what [can be folded](#folding) | the provider of the language of `languageRuleBook` |
 | `lineDecorations` | what [the editor shows on whole lines](#line-decorations) | nothing |
 | `keyBindings` | what [the keys of a hardware keyboard](#keyboard) do | `KodeEditorDefaults.keyBindings` |
 | `overlay` | [content on top of the text](#overlay) | nothing |
@@ -236,12 +236,16 @@ Folding moves what is below a fold to its new place and fades the lines of the f
 ## Folding
 
 `foldProvider` decides what can be folded, and adds a column with arrows to the end of the bar. Tap an arrow or the `⋯`
-behind a folded line. The editor handles everything else, so only finding the regions depends on the language:
+behind a folded line. The editor handles everything else, so only finding the regions depends on the language.
+
+By default, the editor folds the language of its `languageRuleBook`, so a `KotlinRuleBook` folds Kotlin without any
+setup. A rule book whose `language` has no provider, like most of your own, folds nothing. Pass a provider to choose
+one, or `null` to turn folding off:
 
 ```kotlin
 KodeEditor(
     // ...
-    foldProvider = KotlinFoldProvider,
+    foldProvider = null,
 )
 ```
 
@@ -249,7 +253,7 @@ Every language of KodeHighlighter has a built-in provider: `CFoldProvider`, `Cpp
 `DartFoldProvider`, `DiffFoldProvider`, `GoFoldProvider`, `JavaFoldProvider`, `JsonFoldProvider`, `KotlinFoldProvider`,
 `MarkdownFoldProvider`, `OCamlFoldProvider`, `PropertiesFoldProvider`, `PythonFoldProvider`, `RustFoldProvider`,
 `SwiftFoldProvider`, `TomlFoldProvider`, `XmlFoldProvider` and `YamlFoldProvider`.
-`KodeEditorFoldProviders.forLanguageId("kotlin")` finds one by the id of its language. They fold blocks, brackets over
+`KodeEditorFoldProviders.forLanguage(KotlinLanguage)` and `forLanguageId("kotlin")` find one by its language. They fold blocks, brackets over
 several lines, comments, runs of imports, and what else belongs to the language, like the headings of Markdown, the
 elements of XML or the hunks of a diff. Each one reads the text once.
 
