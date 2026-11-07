@@ -6,6 +6,7 @@ import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.takeOrElse
@@ -74,6 +77,9 @@ import androidx.compose.ui.zIndex
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
+import de.markusressel.kodehighlighter.core.colorscheme.GitHubDarkTheme
+import de.markusressel.kodehighlighter.core.colorscheme.GitHubLightTheme
+import de.markusressel.kodehighlighter.core.colorscheme.withFallback
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import de.markusressel.kodehighlighter.core.rule.RuleHelper
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
@@ -110,7 +116,9 @@ private const val SCROLLBAR_ALPHA = 0.4f
  * @param text the current text of the editor
  * @param languageRuleBook the language rule book to use for highlighting, remember it so the highlighting of an
  * unchanged text can be reused
- * @param colorScheme the color scheme to apply, remember it for the same reason
+ * @param colorScheme the color scheme to apply, remember it for the same reason. Rules it has no style for, like those
+ * of a language in a code block of Markdown, get the colors of `GitHubDarkTheme` or `GitHubLightTheme`, whichever fits
+ * the brightness of `textFieldBackgroundColor`
  * @param onValueChange callback for changes to the text and/or cursor selection
  * @param colors the color scheme to use for highlighting
  * @param textStyle the text style used for the editor text
@@ -262,7 +270,9 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param state the text of the editor, see [rememberKodeEditorState]
  * @param languageRuleBook the language rule book to use for highlighting, remember it so the text is not highlighted
  * again on each recomposition
- * @param colorScheme the color scheme to apply, remember it for the same reason
+ * @param colorScheme the color scheme to apply, remember it for the same reason. Rules it has no style for, like those
+ * of a language in a code block of Markdown, get the colors of `GitHubDarkTheme` or `GitHubLightTheme`, whichever fits
+ * the brightness of `textFieldBackgroundColor`
  * @param modifier compose modifiers
  * @param colors the color scheme to use for highlighting
  * @param textStyle the text style used for the editor text
@@ -354,8 +364,11 @@ fun KodeEditor(
     val currentAnimations by rememberUpdatedState(animations)
     val viewScope = rememberCoroutineScope()
 
-    val highlighting = remember(state, languageRuleBook, colorScheme) {
-        EditorHighlighting(state, languageRuleBook, colorScheme)
+    val darkBackground = colors.textFieldBackgroundColor().value.let { background ->
+        if (background.isSpecified && background.alpha > 0f) background.luminance() < 0.5f else isSystemInDarkTheme()
+    }
+    val highlighting = remember(state, languageRuleBook, colorScheme, darkBackground) {
+        EditorHighlighting(state, languageRuleBook, colorScheme.withEmbeddedFallback(darkBackground))
     }
     DisposableEffect(highlighting) {
         state.spliceObserver = highlighting.spliceObserver
@@ -1238,6 +1251,10 @@ private data class DummyData(
 )
 
 private val dummyData = DummyData()
+
+/** styles the rules this color scheme doesn't know, like those of another language in the text, with a GitHub theme */
+internal fun ColorScheme<SpanStyle>.withEmbeddedFallback(dark: Boolean): ColorScheme<SpanStyle> =
+    withFallback(if (dark) GitHubDarkTheme.spanStyleColorScheme else GitHubLightTheme.spanStyleColorScheme)
 
 @Preview
 @Composable
