@@ -2,7 +2,7 @@
 activityCompose = "1.13.0"
 androidComposeMaterial3 = "1.4.0"
 androidDesugarJdkLibs = "2.1.5"
-androidGradlePlugin = "9.5.0"
+androidGradlePlugin = "9.5.1"
 androidxComposeBom = "2026.09.00"
 androidxComposeUi = "1.10.4"
 androidxComposeUiText = "1.10.4"
