@@ -42,8 +42,10 @@ data class KodeEditorAnimations(
 
 /**
  * How text that the application marks appears, e.g. text that somebody else writes. It fades in, and can rise into its
- * place while it does. This only changes how the text is drawn, nothing is measured again. The system setting that
- * scales the duration of animations scales this too, and turns it off with a scale of 0.
+ * place while it does. This only changes how the text is drawn, nothing is measured again. Text that somebody else
+ * inserts with [KodeEditorState.applyRemote] takes its room at once, also while it is still hidden, and the text behind
+ * it slides out of the way, into other rows too, like the cursors glide (see [KodeEditorCursorGlide.durationMs]). The
+ * system setting that scales the duration of animations scales this too, and turns it off with a scale of 0.
  *
  * @param durationMs how long the text takes to appear
  * @param window of text that appears piece after piece, like typing, how many of the last characters can still be
