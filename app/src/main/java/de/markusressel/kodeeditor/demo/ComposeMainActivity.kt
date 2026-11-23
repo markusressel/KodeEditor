@@ -12,9 +12,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
@@ -30,9 +33,12 @@ import de.markusressel.kodeeditor.demo.ui.theme.Teal200
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
 import de.markusressel.kodeeditor.library.compose.KodeEditorLayout
+import de.markusressel.kodeeditor.library.compose.KodeEditorListener
+import de.markusressel.kodeeditor.library.compose.KodeEditorState
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 class ComposeMainActivity : ComponentActivity() {
@@ -47,17 +53,67 @@ class ComposeMainActivity : ComponentActivity() {
                     modifier = Modifier.background(MaterialTheme.colorScheme.background),
                 ) {
                     // not saveable, a large document does not fit into the saved instance state
-                    var text by remember {
-                        val initialText = readResourceFileAsText(R.raw.short_sample)
-                        mutableStateOf(TextFieldValue(initialText))
-                    }
+                    val state = remember { KodeEditorState(readResourceFileAsText(R.raw.short_sample)) }
+                    val agent = remember(state) { AgentTyping(state) }
+                    var readOnly by remember { mutableStateOf(false) }
 
                     val columnWidth = with(LocalDensity.current) { 20.dp.roundToPx() }
                     val warnings = remember(columnWidth) { WarningColumn(columnWidth, Color(0xFFFFC107)) }
                     val bookmarks = remember(columnWidth) { BookmarkColumn(columnWidth, Teal200) }
 
-                    LaunchedEffect(text.text) {
-                        warnings.warnings = withContext(Dispatchers.Default) { findWarnings(text.text) }
+                    DisposableEffect(state, warnings, bookmarks) {
+                        var lastText = state.text
+                        val lines = object : KodeEditorListener {
+                            // remote changes of the agent move the lines too, so this does not use onLocalEdit
+                            override fun onStateChanged() {
+                                if (state.text == lastText) return
+                                val edit = LineEdit(lastText, state.text)
+                                bookmarks.onEdit(edit)
+                                warnings.onEdit(edit)
+                                lastText = state.text
+                            }
+                        }
+                        state.addListener(lines)
+                        state.addListener(agent)
+                        onDispose {
+                            state.removeListener(lines)
+                            state.removeListener(agent)
+                        }
+                    }
+
+                    val text = state.text
+                    LaunchedEffect(text) {
+                        warnings.warnings = withContext(Dispatchers.Default) { findWarnings(text) }
+                    }
+
+                    // about 30 frames per second, a few characters each
+                    // not the head itself, that would compose all of this again for each frame of the typing
+                    val agentTyping by remember(agent) { derivedStateOf { agent.head != null } }
+                    LaunchedEffect(agentTyping) {
+                        while (agentTyping && agent.reveal(characters = 2)) delay(33)
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = {
+                                if (agentTyping) {
+                                    agent.stop()
+                                } else {
+                                    // at the start of the line of the cursor, the text of that line moves down
+                                    val cursor = state.selection.min
+                                    agent.start(AGENT_TEXT, state.text.lastIndexOf('\n', cursor - 1) + 1)
+                                }
+                            },
+                        ) {
+                            Text(if (agentTyping) "Stop agent" else "Agent types")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Text("Read only", color = MaterialTheme.colorScheme.onSurface)
+                        Switch(
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            checked = readOnly,
+                            onCheckedChange = { readOnly = it },
+                        )
                     }
 
                     warnings.selectedMessage?.let { message ->
@@ -82,15 +138,8 @@ class ComposeMainActivity : ComponentActivity() {
                             .border(BorderStroke(1.dp, MaterialTheme.colorScheme.primary)),
                         languageRuleBook = ruleBook,
                         colorScheme = colorScheme,
-                        text = text,
-                        onValueChange = {
-                            if (it.text != text.text) {
-                                val edit = LineEdit(text.text, it.text)
-                                bookmarks.onEdit(edit)
-                                warnings.onEdit(edit)
-                            }
-                            text = it
-                        },
+                        state = state,
+                        readOnly = readOnly,
                         textStyle = editorTextStyle,
                         colors = KodeEditorDefaults.editorColors(),
                         lineWrapping = true,
@@ -103,7 +152,7 @@ class ComposeMainActivity : ComponentActivity() {
                         overlay = { layout ->
                             // fake cursor and selection of another user
                             val selectedText = "syntax highlighting"
-                            val selectionStart = text.text.indexOf(selectedText)
+                            val selectionStart = text.indexOf(selectedText)
                             // the text can be edited, so the phrase may be gone
                             if (selectionStart >= 0) {
                                 RemoteCursor(
@@ -111,6 +160,14 @@ class ComposeMainActivity : ComponentActivity() {
                                     name = "Jane",
                                     color = Teal200,
                                     selection = TextRange(selectionStart, selectionStart + selectedText.length),
+                                )
+                            }
+                            agent.head?.let { head ->
+                                RemoteCursor(
+                                    layout = layout,
+                                    name = "Agent",
+                                    color = Color(0xFFFF4081),
+                                    selection = TextRange(head),
                                 )
                             }
                         }
