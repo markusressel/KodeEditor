@@ -146,6 +146,8 @@ internal fun VisibleLines(
                             if (fadingParts == null) drawRowContent(line) else drawFadingRow(line, fadingParts)
                         } else {
                             val rowAlpha = layout.rowAlpha(line.row)
+                            // text that still appears keeps its alpha while it moves, or it flashes up for the move
+                            val fadingParts = layout.fadingParts(line)
                             parts.forEach { part ->
                                 val drawPart = {
                                     translate(part.distance.x, part.distance.y) {
@@ -155,7 +157,11 @@ internal fun VisibleLines(
                                             right = line.position.x + part.right,
                                             bottom = line.position.y + line.layout.size.height,
                                         ) {
-                                            drawRowContent(line)
+                                            if (fadingParts == null) {
+                                                drawRowContent(line)
+                                            } else {
+                                                drawFadingRow(line, fadingParts)
+                                            }
                                         }
                                     }
                                 }

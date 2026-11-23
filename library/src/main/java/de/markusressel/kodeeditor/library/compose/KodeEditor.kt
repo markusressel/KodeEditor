@@ -97,7 +97,7 @@ private const val MENU_DELAY_MS = 250L
 internal const val GUTTER_ANIMATION_MS = 150
 private val HANDLE_EDGE_SIZE = 48.dp
 private val HANDLE_EDGE_SPEED = 12.dp
-private val TEXT_START_PADDING = 4.dp
+internal val TEXT_START_PADDING = 4.dp
 private val FOLD_COLUMN_WIDTH = 24.dp
 private const val FOLDED_LINE_SELECTION_ALPHA = 0.5f
 
