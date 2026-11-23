@@ -203,11 +203,11 @@ internal class EditorLineLayout(
     private val collapsed: CollapsedRanges? get() = folds?.inline?.collapsed
 
     /** the text between two positions of a row as it was shown, without styles, which is enough to know where it was */
-    private fun measureBetween(start: Int, end: Int, ranges: CollapsedRanges?): Float {
-        if (start == end) return 0f
+    private fun measureBetween(start: Int, end: Int, ranges: CollapsedRanges?, all: String = state.text): Float {
+        if (start >= end) return 0f
         val visibleEnd = ranges?.outsideOf(end) ?: end
-        val text = ranges?.inRow(start, visibleEnd)?.shownText(state.text, visibleEnd)
-            ?: state.text.substring(start, visibleEnd)
+        val text = ranges?.inRow(start, visibleEnd)?.shownText(all, visibleEnd)
+            ?: all.substring(start, visibleEnd)
         return measurer.measure(text, style = textStyle, softWrap = false)
             .getHorizontalPosition(text.length, usePrimaryDirection = true)
     }
@@ -393,9 +393,55 @@ internal class EditorLineLayout(
     private var foldedRows: FoldedRows? = null
     private var foldedGeneration = -1
 
+    /** how long the text behind what somebody else inserted takes to move out of the way, 0 jumps */
+    var insertSlideMs: () -> Int = { 0 }
+
     /** tells the rows about changes of the text */
-    val rowObserver: ((TextSplice) -> Unit)? = wrappedRows?.let { rows ->
-        { splice -> rows.onSplice(splice, settledWidth = if (state.replacingText) wrapWidth() else null) }
+    val rowObserver: (TextSplice) -> Unit = { splice ->
+        val slide = if (state.applyingRemote && !state.replacingText) layoutBeforeInsert(splice) else null
+        wrappedRows?.onSplice(splice, settledWidth = if (state.replacingText) wrapWidth() else null)
+        if (slide != null) {
+            reflow = ReflowTransition(
+                state = state,
+                firstRows = IntArray(0),
+                breaks = emptyArray(),
+                previous = reflow,
+                lineHeight = lineHeight,
+                measure = { _, _ -> 0f },
+                changedFolds = listOf(TextRange(splice.start, splice.start + splice.inserted.length)),
+                durationMs = insertSlideMs(),
+                easing = CubicEaseOut,
+                inserted = slide,
+            )
+            foldAnimations++
+        }
+    }
+
+    /**
+     * @return where the text was before somebody else inserted text, while the rows are still those from before, null
+     * if it does not move animated
+     */
+    private fun layoutBeforeInsert(splice: TextSplice): LayoutBeforeInsert? {
+        if (insertSlideMs() <= 0 || splice.removedLength != 0 || splice.inserted.isEmpty()) return null
+        val hidden = folds?.hidden
+        // the lines that a fold hides are about the text after the change already
+        if (hidden != null && splice.inserted.contains('\n')) return null
+        val wrapped = wrappedRows
+        val linesBefore = state.lineCount - splice.inserted.count { it == '\n' }
+        val firstRows = wrapped?.currentFirstRows ?: IntArray(linesBefore + 1) { it }
+        val breaks = wrapped?.currentBreaks?.copyOf() ?: arrayOfNulls(linesBefore)
+        val ranges = collapsed
+        val text = state.text
+        return LayoutBeforeInsert(
+            text = text,
+            lineStarts = state.lineStarts(),
+            start = splice.start,
+            length = splice.inserted.length,
+            firstRows = hidden?.shownFirstRows(firstRows) ?: firstRows,
+            breaks = breaks,
+            lineHeight = lineHeight,
+            measure = { all, start, end -> measureBetween(start, end, ranges, all) },
+        )
     }
 
     /** lines with few wide characters can be wider than the one with the most characters */

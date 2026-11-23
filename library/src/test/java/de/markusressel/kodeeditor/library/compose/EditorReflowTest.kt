@@ -90,4 +90,78 @@ class EditorReflowTest {
         rows.update(4f)
         assertEquals(1, reflows)
     }
+
+    private fun beforeInsert(text: String, start: Int, length: Int, firstRows: IntArray, breaks: Array<IntArray?>) =
+        LayoutBeforeInsert(
+            text = text,
+            lineStarts = KodeEditorState(text).lineStarts(),
+            start = start,
+            length = length,
+            firstRows = firstRows,
+            breaks = breaks,
+            lineHeight = 20f,
+            measure = { _, from, to -> (to - from) * 10f },
+        )
+
+    @Test
+    fun `text behind an insertion starts where the insertion is`() {
+        // "hello world" became "hello brave world"
+        val before = beforeInsert("hello brave world", 6, 6, intArrayOf(0, 1), arrayOf(null))
+        assertEquals(Offset(30f, 0f), before.positionOf(3))
+        assertEquals("the inserted text", Offset(60f, 0f), before.positionOf(8))
+        assertEquals(Offset(60f, 0f), before.positionOf(12))
+        assertEquals(Offset(100f, 0f), before.positionOf(16))
+    }
+
+    @Test
+    fun `text behind an insertion starts in the row it was in`() {
+        // "hello world" broke behind "hello ", the break is behind the inserted text now
+        val before = beforeInsert("hello brave world", 6, 6, intArrayOf(0, 2), arrayOf(intArrayOf(6)))
+        assertEquals(Offset(0f, 20f), before.positionOf(12))
+        assertEquals(Offset(20f, 20f), before.positionOf(14))
+        assertEquals(listOf(12), before.breaksOf(0)?.toList())
+    }
+
+    @Test
+    fun `lines behind inserted lines start in their rows from before`() {
+        // "ab\ncd" became "aX\nYb\ncd"
+        val before = beforeInsert("aX\nYb\ncd", 1, 3, intArrayOf(0, 1, 2), arrayOf(null, null))
+        assertEquals(Offset(10f, 0f), before.positionOf(4))
+        assertEquals(Offset(0f, 20f), before.positionOf(6))
+        assertEquals(Offset(10f, 20f), before.positionOf(7))
+        assertEquals(0, before.toBefore(0))
+        assertEquals(1, before.toBefore(2))
+        assertEquals(3, before.toBefore(6))
+    }
+
+    @Test
+    fun `an insertion during another one starts where the text is`() {
+        val text = KodeEditorState("ab")
+        val first = ReflowTransition(
+            state = text,
+            firstRows = IntArray(0),
+            breaks = emptyArray(),
+            previous = null,
+            lineHeight = 20f,
+            measure = { _, _ -> 0f },
+            durationMs = 100,
+            inserted = beforeInsert("aXb", 1, 1, intArrayOf(0, 1), arrayOf(null)),
+        )
+        first.onFrame(1000)
+        first.onFrame(1050)
+        text.applyRemote(listOf(TextSplice(2, 0, "Y")))
+        val second = ReflowTransition(
+            state = text,
+            firstRows = IntArray(0),
+            breaks = emptyArray(),
+            previous = first,
+            lineHeight = 20f,
+            measure = { _, _ -> 0f },
+            durationMs = 100,
+            inserted = beforeInsert("aXYb", 2, 1, intArrayOf(0, 1), arrayOf(null)),
+        )
+        // "b" was at 10 before the first insertion, at 20 before the second one, and is on its way
+        val start = second.startOf(3).x
+        assertTrue("$start", start > 10f && start < 20f)
+    }
 }

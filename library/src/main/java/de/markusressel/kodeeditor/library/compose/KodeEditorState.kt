@@ -74,6 +74,10 @@ class KodeEditorState(
     internal var replacingText = false
         private set
 
+    /** whether the change that is being applied came from somebody else, see [applyRemote] */
+    internal var applyingRemote = false
+        private set
+
     /** changes each time the whole text was set */
     internal var textReplacements by mutableIntStateOf(0)
         private set
@@ -177,6 +181,9 @@ class KodeEditorState(
         return lines.lineOf(offset.coerceIn(0, currentText.length))
     }
 
+    /** @return where the lines start now, a copy that stays the same */
+    internal fun lineStarts(): IntArray = lines.starts()
+
     /** the line with the most characters */
     internal fun longestLine(): Int {
         versionState.intValue
@@ -211,7 +218,12 @@ class KodeEditorState(
             undoState++
             // The keyboard only hears where things are now. Starting it over would end what it does at the moment, and
             // what it sends in that moment would get lost.
-            replace(cleaned, selectionState.mapped(cleaned), compositionState?.mappedInside(cleaned))
+            applyingRemote = true
+            try {
+                replace(cleaned, selectionState.mapped(cleaned), compositionState?.mappedInside(cleaned))
+            } finally {
+                applyingRemote = false
+            }
             if (appear) appear(start, start + cleaned.inserted.length, appearTag)
         }
     }
@@ -605,6 +617,9 @@ internal class LineIndex(text: String) {
     }
 
     fun start(line: Int): Int = starts[line.coerceIn(0, count - 1)]
+
+    /** @return where the lines start now, a copy */
+    fun starts(): IntArray = starts.copyOf(count)
 
     fun lineOf(offset: Int): Int {
         var low = 0
