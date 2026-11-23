@@ -51,6 +51,8 @@ data class KodeEditorAnimations(
  * @param maxRanges how many ranges can be appearing at once, the oldest is shown at once when there would be more.
  * Each costs a small layer on each row it is in
  * @param slide how far below its place the text starts, 0 only fades
+ * @param cursorGlide how the cursors of other users move to their new place, see [KodeEditorRemoteCursor], null
+ * makes them jump
  */
 @Immutable
 data class KodeEditorAppearance(
@@ -58,4 +60,5 @@ data class KodeEditorAppearance(
     val window: Int = 16,
     val maxRanges: Int = 24,
     val slide: Dp = 0.dp,
+    val cursorGlide: KodeEditorCursorGlide? = KodeEditorCursorGlide(),
 )
