@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 
@@ -56,6 +58,8 @@ class KodeEditorState(
     private val undoStack = UndoStack()
     private var undoState by mutableIntStateOf(0)
     private val listeners = mutableListOf<KodeEditorListener>()
+    private var rangeStylesState by mutableStateOf(emptyList<AnnotatedString.Range<SpanStyle>>())
+    private var rangeAlphasState by mutableStateOf(emptyList<AnnotatedString.Range<Float>>())
 
     private var batchDepth = 0
     private var changedInBatch = false
@@ -101,6 +105,29 @@ class KodeEditorState(
 
     /** the current text, selection and composition */
     val value: TextFieldValue get() = TextFieldValue(text, selection, composition)
+
+    /**
+     * Styles drawn over ranges of the text, set with [setRangeStyles]. They move with each change of the text, in the
+     * same call that changes it.
+     */
+    val rangeStyles: List<AnnotatedString.Range<SpanStyle>> get() = rangeStylesState
+
+    /**
+     * How visible the ranges of the text are that are appearing, see [appear]. They move with each change of the text,
+     * like [rangeStyles].
+     */
+    internal val rangeAlphas: List<AnnotatedString.Range<Float>> get() = rangeAlphasState
+
+    /** how text appears, set by the editor that shows this state, null while none shows it or it does not animate */
+    internal var appearance: KodeEditorAppearance? = null
+        set(value) {
+            field = value
+            if (value == null) finishAppearing()
+        }
+
+    /** the time of the frame each appearing range started in, by its tag */
+    private val appearStarts = HashMap<String, Long>()
+    private var nextAppearId = 0
 
     val canUndo: Boolean
         get() {
@@ -159,8 +186,12 @@ class KodeEditorState(
      * The selection and the composition move with the text, and the keyboard is told about it. Text inserted at the
      * edge of the composition stays out of it, so the keyboard does not replace it with the next letter. Each splice
      * refers to the text after the one before it.
+     *
+     * @param splices the changes
+     * @param appear whether the inserted text appears animated, see [appear]
+     * @param appearTag tells the appearing text apart, see [finishAppearing]
      */
-    fun applyRemote(splices: List<TextSplice>) = batch {
+    fun applyRemote(splices: List<TextSplice>, appear: Boolean = false, appearTag: String = "") = batch {
         splices.forEach { splice ->
             val start = splice.start.coerceIn(0, currentText.length)
             val end = (start + splice.removedLength).coerceIn(start, currentText.length)
@@ -170,6 +201,7 @@ class KodeEditorState(
             // The keyboard only hears where things are now. Starting it over would end what it does at the moment, and
             // what it sends in that moment would get lost.
             replace(cleaned, selectionState.mapped(cleaned), compositionState?.mappedInside(cleaned))
+            if (appear) appear(start, start + cleaned.inserted.length, appearTag)
         }
     }
 
@@ -206,6 +238,91 @@ class KodeEditorState(
             compositionState = null
             changedInBatch = true
         }
+    }
+
+    /**
+     * Styles ranges of the text from outside, e.g. to hide a part with a transparent color until it is revealed. The
+     * text, the selection and the keyboard stay as they are, and copying copies the real text. These styles win over
+     * the highlighting and the underline of the composition. Changing them only redraws the lines that are shown.
+     * Use styles that keep the size of the text, like a color or a background: the positions of the cursor and of
+     * touches are measured without these styles.
+     *
+     * Each range moves with the changes of the text, in the same call that changes it: text inserted in front of it
+     * moves it, text inserted inside of it becomes a part of it, text inserted right at its start or its end stays out
+     * of it, and removed text shrinks it. A range that ends up empty is removed. They can be set at any time on the
+     * main thread, also from a [KodeEditorListener], and the next frame shows them.
+     *
+     * @param ranges the styles with their ranges in UTF-16 characters of [text], like [String] indices, the start is
+     * included and the end is not. The tag is not used, it can tell the ranges apart. Ranges are cut to the text,
+     * empty ones are left out
+     */
+    fun setRangeStyles(ranges: List<AnnotatedString.Range<SpanStyle>>) {
+        rangeStylesState = ranges.cutTo(currentText.length)
+    }
+
+    /**
+     * Draws ranges of the text with an alpha. Each range costs a layer of its own on each row it is in.
+     *
+     * @param ranges how visible each range is, from 0 for invisible to 1. Ranges with an alpha of 1 or more are drawn
+     * as usual
+     */
+    internal fun setRangeAlphas(ranges: List<AnnotatedString.Range<Float>>) {
+        rangeAlphasState = ranges.cutTo(currentText.length)
+        appearStarts.keys.retainAll(rangeAlphasState.mapTo(HashSet()) { it.tag })
+    }
+
+    /**
+     * Lets a range of the text appear animated, as set with the appearance of [KodeEditorAnimations], e.g. text that
+     * somebody else writes, or each piece of text that is revealed from under [setRangeStyles]. It starts with the next
+     * frame. Nothing happens while no editor shows this state or its appearance is off. Text that is still hidden by a
+     * transparent range style stays hidden while it appears. The range moves with the changes of the text like the
+     * [rangeStyles]. Changes of the user do not end it, the application decides with [finishAppearing].
+     *
+     * @param start the start of the range, in UTF-16 characters of [text]
+     * @param end the end of the range, not included
+     * @param tag tells the appearing text apart, e.g. who wrote it, see [finishAppearing]
+     */
+    fun appear(start: Int, end: Int, tag: String = "") {
+        val config = appearance ?: return
+        val from = start.coerceIn(0, currentText.length)
+        val to = end.coerceIn(from, currentText.length)
+        if (from == to) return
+        val added = AnnotatedString.Range(0f, from, to, "${nextAppearId++}$APPEAR_TAG_SEPARATOR$tag")
+        setRangeAlphas(limitAppearing(rangeAlphasState, added, config))
+    }
+
+    /**
+     * Shows text that is appearing at once, e.g. when the application stops following somebody else.
+     *
+     * @param tag only the text with this tag of [appear], null for all of it
+     */
+    fun finishAppearing(tag: String? = null) {
+        val ranges = rangeAlphasState
+        if (ranges.isEmpty()) return
+        setRangeAlphas(if (tag == null) emptyList() else ranges.filter { it.tag.appearTag() != tag })
+    }
+
+    /**
+     * Moves the appearing text on by a frame.
+     *
+     * @param nowMs the time of the frame
+     * @param durationMs how long text takes to appear, 0 shows it at once
+     * @return whether text is still appearing
+     */
+    internal fun onAppearFrame(nowMs: Long, durationMs: Long): Boolean {
+        val ranges = rangeAlphasState
+        if (ranges.isEmpty()) return false
+        setRangeAlphas(
+            ranges.mapNotNull { range ->
+                val started = appearStarts.getOrPut(range.tag) { nowMs }
+                val progress = if (durationMs > 0) (nowMs - started).toFloat() / durationMs else 1f
+                if (progress >= 1f) return@mapNotNull null
+                // fast at first, so new text does not stay invisible for long
+                val remaining = 1f - progress.coerceAtLeast(0f)
+                AnnotatedString.Range(1f - remaining * remaining, range.start, range.end, range.tag)
+            },
+        )
+        return rangeAlphasState.isNotEmpty()
     }
 
     /** selects the whole text */
@@ -322,6 +439,7 @@ class KodeEditorState(
             }
             lines.apply(old, splice)
             versionState.intValue++
+            moveRangeStyles(splice)
             spliceObserver?.invoke(splice)
             foldObserver?.invoke(splice)
             rowObserver?.invoke(splice)
@@ -329,6 +447,11 @@ class KodeEditorState(
         selectionState = selection.coercedIn(currentText.length)
         compositionState = composition?.takeIf { !it.collapsed && it.max <= currentText.length }
         changedInBatch = true
+    }
+
+    private fun moveRangeStyles(splice: TextSplice) {
+        rangeStylesState = rangeStylesState.movedInside(splice)
+        rangeAlphasState = rangeAlphasState.movedInside(splice)
     }
 
     private companion object {
@@ -378,6 +501,63 @@ internal fun TextRange.mappedInside(splice: TextSplice): TextRange? {
     val first = if (isInsertion && min == splice.start) min + splice.inserted.length else mapPosition(min, splice)
     val last = mapPosition(max, splice)
     return if (first < last) TextRange(first, last) else null
+}
+
+/**
+ * The appearing ranges with [added], without those that have to be shown at once now: of text that appears piece after
+ * piece with the same tag, only the last [KodeEditorAppearance.window] characters appear, and there are at most
+ * [KodeEditorAppearance.maxRanges].
+ */
+internal fun limitAppearing(
+    ranges: List<AnnotatedString.Range<Float>>,
+    added: AnnotatedString.Range<Float>,
+    config: KodeEditorAppearance,
+): List<AnnotatedString.Range<Float>> {
+    val finished = HashSet<AnnotatedString.Range<Float>>()
+    // the pieces of the same writer in front of the new one, the newest first
+    val tag = added.tag.appearTag()
+    var chainStart = added.start
+    var length = added.end - added.start
+    for (range in ranges.asReversed()) {
+        if (range.end != chainStart || range.tag.appearTag() != tag) continue
+        length += range.end - range.start
+        chainStart = range.start
+        if (length > config.window) finished += range
+    }
+    val kept = ranges.filter { it !in finished } + added
+    return kept.takeLast(config.maxRanges.coerceAtLeast(1))
+}
+
+private const val APPEAR_TAG_SEPARATOR = '/'
+
+/** the tag the application gave to [KodeEditorState.appear], behind the id that makes each range unique */
+internal fun String.appearTag() = substringAfter(APPEAR_TAG_SEPARATOR)
+
+/** the ranges cut to a text of [length], without the empty ones */
+private fun <T> List<AnnotatedString.Range<T>>.cutTo(length: Int) = mapNotNull { range ->
+    val start = range.start.coerceIn(0, length)
+    val end = range.end.coerceIn(start, length)
+    when {
+        start == end -> null
+        start == range.start && end == range.end -> range
+        else -> AnnotatedString.Range(range.item, start, end, range.tag)
+    }
+}
+
+/** each range moved by [movedInside], the same list if none of them moved */
+private fun <T> List<AnnotatedString.Range<T>>.movedInside(splice: TextSplice): List<AnnotatedString.Range<T>> {
+    if (isEmpty()) return this
+    var changed = false
+    val moved = mapNotNull { range -> range.movedInside(splice).also { if (it !== range) changed = true } }
+    return if (changed) moved else this
+}
+
+/** like [mappedInside], the same object if it does not move, null if it ends up empty */
+internal fun <T> AnnotatedString.Range<T>.movedInside(splice: TextSplice): AnnotatedString.Range<T>? {
+    // in front of the change, also when text is inserted right at its end
+    if (end <= splice.start) return this
+    val moved = TextRange(start, end).mappedInside(splice) ?: return null
+    return if (moved.min == start && moved.max == end) this else AnnotatedString.Range(item, moved.min, moved.max, tag)
 }
 
 internal fun mapPosition(position: Int, splice: TextSplice): Int {

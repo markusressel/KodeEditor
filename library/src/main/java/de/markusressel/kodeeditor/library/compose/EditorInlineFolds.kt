@@ -53,6 +53,12 @@ internal class CollapsedRanges(val starts: IntArray, val ends: IntArray, val pla
         return if (index < size && starts[index] == offset) index else -1
     }
 
+    /** @return the range that has [offset] within it, its start included, -1 if there is none */
+    fun containing(offset: Int): Int {
+        val index = firstFrom(offset + 1) - 1
+        return if (index >= 0 && ends[index] > offset) index else -1
+    }
+
     /** @return the start of the range that has [offset] strictly within it, otherwise the [offset] */
     fun outsideOf(offset: Int): Int {
         val index = firstFrom(offset) - 1

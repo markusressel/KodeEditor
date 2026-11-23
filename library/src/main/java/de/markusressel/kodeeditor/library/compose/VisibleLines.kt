@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.State
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameMillis
@@ -11,9 +12,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.toRect
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
@@ -78,7 +83,10 @@ internal fun VisibleLines(
     window: State<IntRect>,
     decorations: List<KodeEditorLineDecoration> = emptyList(),
     foldBoxColor: Color = Color.Transparent,
+    appearSlide: Float = 0f,
 ) {
+    // saveLayer copies it, so one is enough for all layers
+    val layerPaint = remember { Paint() }
     LaunchedEffect(layout) {
         snapshotFlow { layout.currentWrapWidth to layout.foldAnimations }.collectLatest {
             while (layout.reflowing) {
@@ -106,11 +114,34 @@ internal fun VisibleLines(
                     drawText(textLayoutResult = line.layout, topLeft = line.position)
                 }
 
+                /** draws the parts with an alpha of their own in a small layer each, the rest of the row as usual */
+                fun drawFadingRow(line: EditorLineLayout.DrawnLine, parts: List<EditorLineLayout.FadingPart>) {
+                    // only this row is drawn with these clips, so they can reach far above and below it
+                    val height = line.layout.size.height
+                    val top = line.position.y - height
+                    val bottom = line.position.y + 2f * height
+                    val rects = parts.map { Rect(line.position.x + it.left, top, line.position.x + it.right, bottom) }
+                    val fadingArea = Path().apply { rects.forEach { addRect(it) } }
+                    clipPath(fadingArea, ClipOp.Difference) { drawRowContent(line) }
+                    parts.forEachIndexed { index, part ->
+                        if (part.alpha <= 0f) return@forEachIndexed
+                        val rect = rects[index]
+                        layerPaint.alpha = part.alpha
+                        drawContext.canvas.saveLayer(rect, layerPaint)
+                        clipRect(rect.left, rect.top, rect.right, rect.bottom) {
+                            // rises into its place while it appears
+                            translate(top = (1f - part.alpha) * appearSlide) { drawRowContent(line) }
+                        }
+                        drawContext.canvas.restore()
+                    }
+                }
+
                 translate(left, top) {
                     layout.linesWithin(area).forEach { line ->
                         val parts = layout.movingParts(line)
                         if (parts == null) {
-                            drawRowContent(line)
+                            val fadingParts = layout.fadingParts(line)
+                            if (fadingParts == null) drawRowContent(line) else drawFadingRow(line, fadingParts)
                         } else {
                             val rowAlpha = layout.rowAlpha(line.row)
                             parts.forEach { part ->

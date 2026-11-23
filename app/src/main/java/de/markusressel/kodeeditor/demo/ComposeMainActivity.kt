@@ -12,9 +12,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
@@ -29,10 +33,18 @@ import de.markusressel.kodeeditor.demo.ui.theme.KodeEditorTheme
 import de.markusressel.kodeeditor.demo.ui.theme.Teal200
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
+import de.markusressel.kodeeditor.library.compose.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.KodeEditorAppearance
 import de.markusressel.kodeeditor.library.compose.KodeEditorLayout
+import de.markusressel.kodeeditor.library.compose.KodeEditorListener
+import de.markusressel.kodeeditor.library.compose.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.TextSplice
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class ComposeMainActivity : ComponentActivity() {
@@ -47,17 +59,94 @@ class ComposeMainActivity : ComponentActivity() {
                     modifier = Modifier.background(MaterialTheme.colorScheme.background),
                 ) {
                     // not saveable, a large document does not fit into the saved instance state
-                    var text by remember {
-                        val initialText = readResourceFileAsText(R.raw.short_sample)
-                        mutableStateOf(TextFieldValue(initialText))
-                    }
+                    val state = remember { KodeEditorState(readResourceFileAsText(R.raw.short_sample)) }
+                    val agent = remember(state) { AgentTyping(state) }
+                    var readOnly by remember { mutableStateOf(false) }
 
                     val columnWidth = with(LocalDensity.current) { 20.dp.roundToPx() }
                     val warnings = remember(columnWidth) { WarningColumn(columnWidth, Color(0xFFFFC107)) }
                     val bookmarks = remember(columnWidth) { BookmarkColumn(columnWidth, Teal200) }
 
-                    LaunchedEffect(text.text) {
-                        warnings.warnings = withContext(Dispatchers.Default) { findWarnings(text.text) }
+                    DisposableEffect(state, warnings, bookmarks) {
+                        var lastText = state.text
+                        val lines = object : KodeEditorListener {
+                            // remote changes of the agent move the lines too, so this does not use onLocalEdit
+                            override fun onStateChanged() {
+                                if (state.text == lastText) return
+                                val edit = LineEdit(lastText, state.text)
+                                bookmarks.onEdit(edit)
+                                warnings.onEdit(edit)
+                                lastText = state.text
+                            }
+                        }
+                        state.addListener(lines)
+                        state.addListener(agent)
+                        onDispose {
+                            state.removeListener(lines)
+                            state.removeListener(agent)
+                        }
+                    }
+
+                    val text = state.text
+                    LaunchedEffect(text) {
+                        warnings.warnings = withContext(Dispatchers.Default) { findWarnings(text) }
+                    }
+
+                    var revealSteps by remember { mutableIntStateOf(2) }
+                    var appearOn by remember { mutableStateOf(true) }
+                    var appearMs by remember { mutableIntStateOf(250) }
+                    var appearWindow by remember { mutableIntStateOf(16) }
+                    var appearSlide by remember { mutableIntStateOf(0) }
+                    var showOptions by remember { mutableStateOf(false) }
+                    var editorLayout by remember { mutableStateOf<KodeEditorLayout?>(null) }
+                    val scope = rememberCoroutineScope()
+                    var janeTyping by remember { mutableStateOf<Job?>(null) }
+                    // how much Jane typed behind her phrase, null while she only has it selected
+                    var janeTyped by remember { mutableStateOf<Int?>(null) }
+
+                    // not the head itself, that would compose all of this again for each step of the typing
+                    val agentTyping by remember(agent) { derivedStateOf { agent.head != null } }
+                    LaunchedEffect(agentTyping) {
+                        while (agentTyping && agent.reveal(revealSteps) { editorLayout?.collapsedRangeAt(it) }) {
+                            delay(REVEAL_INTERVAL_MS)
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = {
+                                if (agentTyping) {
+                                    agent.stop()
+                                } else {
+                                    // at the start of the line of the cursor, the text of that line moves down
+                                    val cursor = state.selection.min
+                                    agent.start(AGENT_TEXT, state.text.lastIndexOf('\n', cursor - 1) + 1)
+                                }
+                            },
+                        ) {
+                            Text(if (agentTyping) "Stop agent" else "Agent types")
+                        }
+                        TextButton(
+                            enabled = janeTyping == null,
+                            onClick = {
+                                janeTyping = scope.launch {
+                                    janeTypes(state) { janeTyped = it }
+                                    janeTyping = null
+                                }
+                            },
+                        ) {
+                            Text("Jane types")
+                        }
+                        TextButton(onClick = { showOptions = !showOptions }) {
+                            Text(if (showOptions) "Hide options" else "Options")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Text("Read only", color = MaterialTheme.colorScheme.onSurface)
+                        Switch(
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            checked = readOnly,
+                            onCheckedChange = { readOnly = it },
+                        )
                     }
 
                     warnings.selectedMessage?.let { message ->
@@ -76,21 +165,45 @@ class ComposeMainActivity : ComponentActivity() {
                         lineHeight = 14.sp,
                     )
 
+                    if (showOptions) {
+                        OptionSlider("Characters per step", revealSteps, 1..10) { revealSteps = it }
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Appear animation", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                            Switch(
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                                checked = appearOn,
+                                onCheckedChange = { appearOn = it },
+                            )
+                        }
+                        OptionSlider("Appear duration (ms)", appearMs, 0..1000) { appearMs = it }
+                        OptionSlider("Appearing characters", appearWindow, 1..60) { appearWindow = it }
+                        OptionSlider("Slide (dp)", appearSlide, 0..20) { appearSlide = it }
+                    }
+
                     KodeEditor(
+                        onTextLayout = { editorLayout = it },
                         modifier = Modifier
                             .fillMaxSize()
                             .border(BorderStroke(1.dp, MaterialTheme.colorScheme.primary)),
                         languageRuleBook = ruleBook,
                         colorScheme = colorScheme,
-                        text = text,
-                        onValueChange = {
-                            if (it.text != text.text) {
-                                val edit = LineEdit(text.text, it.text)
-                                bookmarks.onEdit(edit)
-                                warnings.onEdit(edit)
-                            }
-                            text = it
-                        },
+                        state = state,
+                        readOnly = readOnly,
+                        // only what the agent and Jane write appears animated, typed text is there at once
+                        animations = KodeEditorAnimations(
+                            appearance = if (appearOn) {
+                                KodeEditorAppearance(
+                                    durationMs = appearMs,
+                                    window = appearWindow,
+                                    slide = appearSlide.dp,
+                                )
+                            } else {
+                                null
+                            },
+                        ),
                         textStyle = editorTextStyle,
                         colors = KodeEditorDefaults.editorColors(),
                         lineWrapping = true,
@@ -102,15 +215,30 @@ class ComposeMainActivity : ComponentActivity() {
                         ),
                         overlay = { layout ->
                             // fake cursor and selection of another user
-                            val selectedText = "syntax highlighting"
-                            val selectionStart = text.text.indexOf(selectedText)
+                            val selectedText = JANE_PHRASE
+                            val selectionStart = text.indexOf(selectedText)
                             // the text can be edited, so the phrase may be gone
                             if (selectionStart >= 0) {
+                                val phraseEnd = selectionStart + selectedText.length
+                                val typed = janeTyped
                                 RemoteCursor(
                                     layout = layout,
                                     name = "Jane",
                                     color = Teal200,
-                                    selection = TextRange(selectionStart, selectionStart + selectedText.length),
+                                    // her cursor follows what she types
+                                    selection = if (typed == null) {
+                                        TextRange(selectionStart, phraseEnd)
+                                    } else {
+                                        TextRange(phraseEnd + typed)
+                                    },
+                                )
+                            }
+                            agent.head?.let { head ->
+                                RemoteCursor(
+                                    layout = layout,
+                                    name = "Agent",
+                                    color = Color(0xFFFF4081),
+                                    selection = TextRange(head),
                                 )
                             }
                         }
@@ -166,11 +294,50 @@ class ComposeMainActivity : ComponentActivity() {
         )
     }
 
+    @Composable
+    private fun OptionSlider(label: String, value: Int, range: IntRange, onChange: (Int) -> Unit) {
+        Row(modifier = Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                modifier = Modifier.width(200.dp),
+                text = "$label: $value",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 12.sp,
+            )
+            Slider(
+                modifier = Modifier.weight(1f),
+                value = value.toFloat(),
+                valueRange = range.first.toFloat()..range.last.toFloat(),
+                onValueChange = { onChange(it.toInt()) },
+            )
+        }
+    }
+
+    /** another person, who types a line behind the phrase "Jane" selected, as remote changes that appear animated */
+    /** @param onTyped told how many characters Jane typed so far */
+    private suspend fun janeTypes(state: KodeEditorState, onTyped: (Int) -> Unit) {
+        JANE_TEXT.forEachIndexed { typed, char ->
+            delay(JANE_INTERVAL_MS)
+            // found again each time, the user may have changed the text in front of it meanwhile
+            val anchor = state.text.indexOf(JANE_PHRASE).takeIf { it >= 0 } ?: return
+            val position = anchor + JANE_PHRASE.length + typed
+            state.applyRemote(listOf(TextSplice(position, 0, char.toString())), appear = true, appearTag = "jane")
+            onTyped(typed + 1)
+        }
+    }
+
     private fun readResourceFileAsText(@RawRes resourceId: Int) =
         resources.openRawResource(resourceId).bufferedReader().readText()
 
 }
 
+
+/** how often the agent of the demo types, about 30 times per second */
+private const val REVEAL_INTERVAL_MS = 33L
+
+/** what Jane has selected, and types behind */
+private const val JANE_PHRASE = "syntax highlighting"
+private const val JANE_TEXT = " (Jane: this line appears as I type it)"
+private const val JANE_INTERVAL_MS = 90L
 
 @Preview(showBackground = true)
 @Composable
