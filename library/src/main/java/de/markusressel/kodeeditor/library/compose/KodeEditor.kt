@@ -599,7 +599,7 @@ fun KodeEditor(
     LaunchedEffect(glides) {
         // the system setting that scales animations, 0 when they are off
         glides.durationScale = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
-        snapshotFlow { glides.isGliding }.collectLatest { gliding ->
+        snapshotFlow { glides.isGliding to glides.starts }.collectLatest { (gliding) ->
             // frames only while a cursor glides, they only draw and place again
             while (gliding && withFrameMillis { glides.onFrame(it) }) Unit
         }

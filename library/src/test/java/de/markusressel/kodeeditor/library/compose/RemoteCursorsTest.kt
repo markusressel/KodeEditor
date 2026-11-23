@@ -469,6 +469,28 @@ class RemoteCursorsTest {
         assertTrue("about a character behind: $lags", lags.average() <= 1.0 && lags.all { it <= 1.5f })
     }
 
+    @Test
+    fun `a cursor that gets new places at uneven times keeps close behind them`() {
+        scene.show(glide)
+        composeRule.runOnIdle { scene.cursor.value = scene.janeAt(0) }
+        scene.settledPosition()
+        val layout = scene.layout!!
+        val char = layout.getCursorRect(1).left - layout.getCursorRect(0).left
+        composeRule.mainClock.autoAdvance = false
+
+        // 32 and 64 ms between the places, the glide after a short one is over before the next place
+        val lags = ArrayList<Float>()
+        for (step in 1..20) {
+            scene.moveTo(step * 3)
+            scene.frame()
+            if (step > 10) lags += (layout.getCursorRect(step * 3).center.x - caretX()) / char
+            if (step % 2 == 0) repeat(2) { scene.frame() }
+        }
+
+        assertTrue("never ahead: $lags", lags.all { it >= -0.5f })
+        assertTrue("about 2 characters behind: $lags", lags.average() <= 2.5 && lags.all { it <= 5f })
+    }
+
     /** @return where the red caret of Jane is drawn in the first row */
     private fun caretX(): Float {
         val image = composeRule.onNodeWithTag("editor").captureToImage().toPixelMap()
