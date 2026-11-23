@@ -235,6 +235,21 @@ internal class EditorFolds(
         return true
     }
 
+    /** unfolds the folds that hide the lines of a part of the text */
+    fun reveal(range: TextRange) {
+        val first = state.lineOf(range.min)
+        val last = state.lineOf(range.max)
+        for (line in first..last) {
+            while (isHidden(line)) {
+                val found = regions.value
+                // the innermost fold that hides the line
+                val header = foldedLines.filter { it < line && (regionAt(found, it)?.endLine ?: -1) >= line }
+                    .maxOrNull() ?: break
+                toggle(header)
+            }
+        }
+    }
+
     /** @return true if something at the cursor was folded, which is shown now */
     fun expandAtCursor(): Boolean {
         if (inline.openAtCursor()) return true

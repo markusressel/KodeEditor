@@ -84,6 +84,17 @@ class KodeEditorState(
     /** told about every change of the text too, for the wrapped rows */
     internal var rowObserver: ((TextSplice) -> Unit)? = null
 
+    /** told about each change of the text, right after the range styles moved */
+    private val spliceListeners = mutableListOf<(TextSplice) -> Unit>()
+
+    internal fun addSpliceListener(listener: (TextSplice) -> Unit) {
+        spliceListeners += listener
+    }
+
+    internal fun removeSpliceListener(listener: (TextSplice) -> Unit) {
+        spliceListeners -= listener
+    }
+
     /** the version without observing it, for code that is not a part of the UI */
     internal val rawVersion: Int get() = versionState.intValue
 
@@ -440,6 +451,7 @@ class KodeEditorState(
             lines.apply(old, splice)
             versionState.intValue++
             moveRangeStyles(splice)
+            spliceListeners.toList().forEach { it(splice) }
             spliceObserver?.invoke(splice)
             foldObserver?.invoke(splice)
             rowObserver?.invoke(splice)

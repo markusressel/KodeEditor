@@ -105,6 +105,8 @@ private const val FOLDED_LINE_SELECTION_ALPHA = 0.5f
 private const val INLINE_FOLD_SELECTION_ALPHA = 0.7f
 private const val FOLD_PLACEHOLDER_ALPHA = 0.6f
 private const val SCROLLBAR_ALPHA = 0.4f
+private val SEARCH_MATCH_COLOR = Color(0x55FFB300)
+private val CURRENT_SEARCH_MATCH_COLOR = Color(0xAAFF8F00)
 
 /**
  * A code editor for a [TextFieldValue] that the application keeps.
@@ -307,6 +309,7 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * its own, like [viewState], following the cursor or lines that wrap differently
  * @param scrollbars whether scrollbars show up while the view moves, whose thumbs can be dragged to move it
  * @param scrollbarStyle the size of the scrollbars and when they show and hide
+ * @param search highlights the matches of a search, and unfolds what hides its current match
  */
 @Composable
 fun KodeEditor(
@@ -334,6 +337,7 @@ fun KodeEditor(
     onUserMovedView: () -> Unit = {},
     scrollbars: Boolean = true,
     scrollbarStyle: KodeEditorScrollbarStyle = KodeEditorScrollbarStyle(),
+    search: KodeEditorSearch? = null,
 ) {
     val offsetState = remember { mutableStateOf(Offset.Zero) }
     var offset by offsetState
@@ -409,6 +413,20 @@ fun KodeEditor(
         }
     }
     LaunchedEffect(folds) { folds?.inline?.keepUpdated() }
+    DisposableEffect(search, folds) {
+        if (search == null) return@DisposableEffect onDispose {}
+        val reveal: (TextRange) -> Unit = { range -> folds?.reveal(range) }
+        search.reveal = reveal
+        onDispose {
+            if (search.reveal === reveal) search.reveal = null
+            folds?.inline?.shownMatch = null
+        }
+    }
+    // a folded part of a line is open while it has the current match
+    LaunchedEffect(search, folds) {
+        val inline = folds?.inline ?: return@LaunchedEffect
+        snapshotFlow { search?.current }.collect { inline.shownMatch = it }
+    }
 
     DisposableEffect(state, view) {
         val link = ViewInputLink(view, state)
@@ -486,6 +504,9 @@ fun KodeEditor(
         .takeOrElse { selectionColor.copy(alpha = selectionColor.alpha * INLINE_FOLD_SELECTION_ALPHA) }
     val inlineFoldText = colors.inlineFoldTextColor().value.takeOrElse { foldColor }
     val currentDecorations by rememberUpdatedState(decorations)
+    val searchMatchColor = colors.searchMatchBackgroundColor().value.takeOrElse { SEARCH_MATCH_COLOR }
+    val currentSearchMatchColor = colors.currentSearchMatchBackgroundColor().value
+        .takeOrElse { CURRENT_SEARCH_MATCH_COLOR }
     val scrollbarColor = colors.scrollbarColor().value
         .takeOrElse { foldColor.copy(alpha = foldColor.alpha * SCROLLBAR_ALPHA) }
     val targetGutterWidth by remember(state, gutterColumns, foldColumn) {
@@ -1138,6 +1159,15 @@ fun KodeEditor(
                         decorations = decorations,
                         window = drawWindow,
                         textPadding = textStartPadding,
+                    )
+                }
+                if (search != null) {
+                    SearchLayer(
+                        layout = layout,
+                        search = search,
+                        window = drawWindow,
+                        matchColor = searchMatchColor,
+                        currentColor = currentSearchMatchColor,
                     )
                 }
                 SelectionLayer(
