@@ -146,7 +146,8 @@ class KodeEditorSearchTest {
 
         find(KodeEditorSearchQuery("cat", wholeWord = true))
 
-        assertEquals(listOf(TextRange(0, 3), state.rangeOf("cat.").let { TextRange(it.min, it.min + 3) }), search.matches)
+        val last = state.rangeOf("cat.").min
+        assertEquals(listOf(TextRange(0, 3), TextRange(last, last + 3)), search.matches)
     }
 
     @Test

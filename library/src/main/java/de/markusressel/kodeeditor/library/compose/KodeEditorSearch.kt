@@ -67,7 +67,11 @@ class KodeEditorSearch(private val state: KodeEditorState) {
 
     private val visibleMatches = derivedStateOf {
         val hidden = state.rangeStyles.filter { it.item.color.isSpecified && it.item.color.alpha == 0f }
-        if (hidden.isEmpty()) found else found.filter { match -> hidden.none { it.start < match.max && it.end > match.min } }
+        if (hidden.isEmpty()) {
+            found
+        } else {
+            found.filter { match -> hidden.none { it.start < match.max && it.end > match.min } }
+        }
     }
 
     /**
@@ -207,7 +211,8 @@ class KodeEditorSearch(private val state: KodeEditorState) {
     }
 
     /**
-     * Searches the text whenever it or the [query] changes, until it is cancelled. [rememberKodeEditorSearch] runs this.
+     * Searches the text whenever it or the [query] changes, until it is cancelled. [rememberKodeEditorSearch] runs
+     * this.
      *
      * @param dispatcher where the text is searched
      */
@@ -233,7 +238,9 @@ class KodeEditorSearch(private val state: KodeEditorState) {
             try {
                 val result = withContext(dispatcher) { find(text, query) }
                 // the text may have changed meanwhile, then the next search is on its way
-                if (state.rawVersion == version) onSearched(query, version, result.matches, result.error, result.limited)
+                if (state.rawVersion == version) {
+                    onSearched(query, version, result.matches, result.error, result.limited)
+                }
             } finally {
                 isSearching = false
             }
