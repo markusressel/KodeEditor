@@ -310,6 +310,10 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param scrollbars whether scrollbars show up while the view moves, whose thumbs can be dragged to move it
  * @param scrollbarStyle the size of the scrollbars and when they show and hide
  * @param search highlights the matches of a search, and unfolds what hides its current match
+ * @param remoteCursors the cursors and selections of other users, drawn on top of the text. They glide to their new
+ * place with `cursorGlide` of [KodeEditorAppearance], and jump without an appearance
+ * @param remoteCursorLabel shows the name of another user at its first cursor, above it or below it on the first row.
+ * It is placed by the editor, and only composed again when its [KodeEditorRemoteCursor] changes
  */
 @Composable
 fun KodeEditor(
@@ -338,6 +342,8 @@ fun KodeEditor(
     scrollbars: Boolean = true,
     scrollbarStyle: KodeEditorScrollbarStyle = KodeEditorScrollbarStyle(),
     search: KodeEditorSearch? = null,
+    remoteCursors: List<KodeEditorRemoteCursor> = emptyList(),
+    remoteCursorLabel: (@Composable (KodeEditorRemoteCursor) -> Unit)? = null,
 ) {
     val offsetState = remember { mutableStateOf(Offset.Zero) }
     var offset by offsetState
@@ -573,6 +579,25 @@ fun KodeEditor(
 
     LaunchedEffect(layout) {
         snapshotFlow { state.version }.collect { currentOnTextLayout(layout) }
+    }
+
+    val currentRemoteCursors = rememberUpdatedState(remoteCursors)
+    val glides = remember(layout) { RemoteCursorGlides(layout) { settledGeometry.visibleSize.width } }
+    DisposableEffect(state, glides) {
+        state.addSpliceListener(glides.spliceListener)
+        onDispose { state.removeSpliceListener(glides.spliceListener) }
+    }
+    SideEffect {
+        glides.config = animations.appearance?.cursorGlide
+        glides.update(remoteCursors)
+    }
+    LaunchedEffect(glides) {
+        // the system setting that scales animations, 0 when they are off
+        glides.durationScale = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
+        snapshotFlow { glides.isGliding }.collectLatest { gliding ->
+            // frames only while a cursor glides, they only draw and place again
+            while (gliding && withFrameMillis { glides.onFrame(it) }) Unit
+        }
     }
 
     val maxOffset by remember(layout, textStartPadding) {
@@ -1175,6 +1200,9 @@ fun KodeEditor(
                     selection = { state.selection.takeIf { focused } },
                     window = drawWindow,
                 )
+                if (remoteCursors.isNotEmpty()) {
+                    RemoteSelectionLayer(layout, currentRemoteCursors, glides, drawWindow)
+                }
                 VisibleLines(
                     layout = layout,
                     window = drawWindow,
@@ -1189,6 +1217,14 @@ fun KodeEditor(
                         color = fieldColors.cursorColor().value,
                         blinking = windowInfo.isWindowFocused,
                     )
+                }
+                if (remoteCursors.isNotEmpty()) {
+                    RemoteCaretLayer(currentRemoteCursors, glides, drawWindow)
+                    if (remoteCursorLabel != null) {
+                        Box(modifier = Modifier.placedAt { IntRect(0, 0, totalSize.width, totalSize.height) }) {
+                            RemoteCursorLabels(remoteCursors, glides, remoteCursorLabel)
+                        }
+                    }
                 }
                 Box(
                     modifier = Modifier.placedAt {
