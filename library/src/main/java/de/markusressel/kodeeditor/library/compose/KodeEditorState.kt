@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 
@@ -56,6 +58,7 @@ class KodeEditorState(
     private val undoStack = UndoStack()
     private var undoState by mutableIntStateOf(0)
     private val listeners = mutableListOf<KodeEditorListener>()
+    private var rangeStylesState by mutableStateOf(emptyList<AnnotatedString.Range<SpanStyle>>())
 
     private var batchDepth = 0
     private var changedInBatch = false
@@ -101,6 +104,12 @@ class KodeEditorState(
 
     /** the current text, selection and composition */
     val value: TextFieldValue get() = TextFieldValue(text, selection, composition)
+
+    /**
+     * Styles drawn over ranges of the text, set with [setRangeStyles]. They move with each change of the text, in the
+     * same call that changes it.
+     */
+    val rangeStyles: List<AnnotatedString.Range<SpanStyle>> get() = rangeStylesState
 
     val canUndo: Boolean
         get() {
@@ -205,6 +214,35 @@ class KodeEditorState(
             selectionState = range
             compositionState = null
             changedInBatch = true
+        }
+    }
+
+    /**
+     * Styles ranges of the text from outside, e.g. to hide a part with a transparent color until it is revealed. The
+     * text, the selection and the keyboard stay as they are, and copying copies the real text. These styles win over
+     * the highlighting and the underline of the composition. Changing them only redraws the lines that are shown.
+     * Use styles that keep the size of the text, like a color or a background: the positions of the cursor and of
+     * touches are measured without these styles.
+     *
+     * Each range moves with the changes of the text, in the same call that changes it: text inserted in front of it
+     * moves it, text inserted inside of it becomes a part of it, text inserted right at its start or its end stays out
+     * of it, and removed text shrinks it. A range that ends up empty is removed. They can be set at any time on the
+     * main thread, also from a [KodeEditorListener], and the next frame shows them.
+     *
+     * @param ranges the styles with their ranges in UTF-16 characters of [text], like [String] indices, the start is
+     * included and the end is not. The tag is not used, it can tell the ranges apart. Ranges are cut to the text,
+     * empty ones are left out
+     */
+    fun setRangeStyles(ranges: List<AnnotatedString.Range<SpanStyle>>) {
+        val length = currentText.length
+        rangeStylesState = ranges.mapNotNull { range ->
+            val start = range.start.coerceIn(0, length)
+            val end = range.end.coerceIn(start, length)
+            when {
+                start == end -> null
+                start == range.start && end == range.end -> range
+                else -> AnnotatedString.Range(range.item, start, end, range.tag)
+            }
         }
     }
 
@@ -322,6 +360,7 @@ class KodeEditorState(
             }
             lines.apply(old, splice)
             versionState.intValue++
+            moveRangeStyles(splice)
             spliceObserver?.invoke(splice)
             foldObserver?.invoke(splice)
             rowObserver?.invoke(splice)
@@ -329,6 +368,16 @@ class KodeEditorState(
         selectionState = selection.coercedIn(currentText.length)
         compositionState = composition?.takeIf { !it.collapsed && it.max <= currentText.length }
         changedInBatch = true
+    }
+
+    private fun moveRangeStyles(splice: TextSplice) {
+        val ranges = rangeStylesState
+        if (ranges.isEmpty()) return
+        var changed = false
+        val moved = ranges.mapNotNull { range ->
+            range.movedInside(splice).also { if (it !== range) changed = true }
+        }
+        if (changed) rangeStylesState = moved
     }
 
     private companion object {
@@ -378,6 +427,14 @@ internal fun TextRange.mappedInside(splice: TextSplice): TextRange? {
     val first = if (isInsertion && min == splice.start) min + splice.inserted.length else mapPosition(min, splice)
     val last = mapPosition(max, splice)
     return if (first < last) TextRange(first, last) else null
+}
+
+/** like [mappedInside], the same object if it does not move, null if it ends up empty */
+internal fun <T> AnnotatedString.Range<T>.movedInside(splice: TextSplice): AnnotatedString.Range<T>? {
+    // in front of the change, also when text is inserted right at its end
+    if (end <= splice.start) return this
+    val moved = TextRange(start, end).mappedInside(splice) ?: return null
+    return if (moved.min == start && moved.max == end) this else AnnotatedString.Range(item, moved.min, moved.max, tag)
 }
 
 internal fun mapPosition(position: Int, splice: TextSplice): Int {

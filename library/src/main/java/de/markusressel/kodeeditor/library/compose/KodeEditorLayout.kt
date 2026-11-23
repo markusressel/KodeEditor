@@ -335,7 +335,9 @@ internal class EditorLineLayout(
             after.rangeOf(line) >= 0 && (before == null || before.rangeOf(line) < 0)
         }
         if (hiddenRows.isEmpty()) return emptyList()
-        val texts = lineTexts(state, shown, currentStyles(), state.composition, rows, collapsed, foldPlaceholderStyle)
+        val texts = lineTexts(
+            state, shown, currentStyles(), state.composition, rows, collapsed, foldPlaceholderStyle, state.rangeStyles,
+        )
         return hiddenRows.map { row ->
             val line = rows.lineOf(row)
             val layout = measurer.measure(texts[row - shown.first], style = textStyle, softWrap = false)
@@ -725,6 +727,7 @@ internal class EditorLineLayout(
     private var drawnGeneration = -1
     private var drawnStyles: List<AnnotatedString.Range<SpanStyle>>? = null
     private var drawnComposition: TextRange? = null
+    private var drawnRangeStyles: List<AnnotatedString.Range<SpanStyle>>? = null
     private var drawnHidden: HiddenLines? = null
     private var drawnCollapsed: CollapsedRanges? = null
     private var drawnLines = emptyList<DrawnLine>()
@@ -738,16 +741,17 @@ internal class EditorLineLayout(
         val shown = rowAt(area.top.toFloat())..rowAt(area.bottom.toFloat())
         val styles = currentStyles()
         val composition = state.composition
+        val rangeStyles = state.rangeStyles
         val generation = wrappedRows?.generation ?: 0
         val ranges = collapsed
         if (
             shown == drawnArea && state.rawVersion == drawnVersion && generation == drawnGeneration &&
             styles === drawnStyles && composition == drawnComposition && rowsHidden === drawnHidden &&
-            ranges === drawnCollapsed
+            ranges === drawnCollapsed && rangeStyles === drawnRangeStyles
         ) {
             return drawnLines
         }
-        val texts = lineTexts(state, shown, styles, composition, rows, ranges, foldPlaceholderStyle)
+        val texts = lineTexts(state, shown, styles, composition, rows, ranges, foldPlaceholderStyle, rangeStyles)
         drawnLines = texts.mapIndexedNotNull { index, line ->
             if (line.isEmpty()) return@mapIndexedNotNull null
             val layout = measurer.measure(line, style = textStyle, softWrap = false)
@@ -763,6 +767,7 @@ internal class EditorLineLayout(
         drawnGeneration = generation
         drawnStyles = styles
         drawnComposition = composition
+        drawnRangeStyles = rangeStyles
         drawnHidden = rowsHidden
         drawnCollapsed = ranges
         return drawnLines
@@ -922,6 +927,7 @@ internal class EditorLineLayout(
  * @param rows the rows of the text, by default each line is one
  * @param collapsed what is shown as a placeholder
  * @param placeholderStyle the style of the placeholders
+ * @param rangeStyles the styles set from outside, which win over the others
  */
 internal fun lineTexts(
     state: KodeEditorState,
@@ -931,6 +937,7 @@ internal fun lineTexts(
     rows: EditorRows = UnwrappedRows(state),
     collapsed: CollapsedRanges? = null,
     placeholderStyle: SpanStyle = SpanStyle(),
+    rangeStyles: List<AnnotatedString.Range<SpanStyle>> = emptyList(),
 ): List<AnnotatedString> {
     val count = lines.count()
     val first = rows.start(lines.first)
@@ -955,6 +962,7 @@ internal fun lineTexts(
 
     styles.forEach { add(it.item, it.start, it.end) }
     composition?.let { add(COMPOSING_STYLE, it.min, it.max) }
+    rangeStyles.forEach { add(it.item, it.start, it.end) }
 
     val text = state.text
     return List(count) { index ->
