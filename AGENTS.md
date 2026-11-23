@@ -27,6 +27,10 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 - Each composable file ends with a private `@Preview` function.
 - New parameters of public composables need defaults, so existing consumers keep compiling.
 
+## README animation
+
+- `screenshot/KodeEditor.webp` at the top of the README is recorded from a scripted showcase mode of the demo app. [docs/showcase.md](docs/showcase.md) describes the scenario, the device, the size budget and how to record it again with `scripts/showcase.sh`. Record it again when a change makes it outdated, and only on an emulator.
+
 ## Commits and PRs
 
 - Commit messages are short and lower case, e.g. `fix crash`, `migrate library to material 3`.
