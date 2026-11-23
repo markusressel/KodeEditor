@@ -5,7 +5,7 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 ## Layout
 
 - `library`: the published library, package `de.markusressel.kodeeditor.library`.
-  - `compose`: the Compose editor (`KodeEditor`, `KodeEditorState`, `KodeEditorViewState`, `KodeEditorLayout`, `ZoomLayout`, `EditorGutter`, `EditorFolds`, `KodeEditorLineDecoration`, `KodeEditorColors`/`KodeEditorDefaults`). There is no text field: `KodeEditorState` holds the only copy of the text, `EditorInputConnection` connects the keyboard to it, and only visible lines are measured and drawn.
+  - `compose`: the Compose editor (`KodeEditor`, `KodeEditorState`, `KodeEditorViewState`, `KodeEditorLayout`, `ZoomLayout`, `EditorGutter`, `EditorFolds`, `KodeEditorLineDecoration`, `KodeEditorColors`/`KodeEditorDefaults`, `KodeEditorRemoteCursors`, `KodeEditorReveal`). There is no text field: `KodeEditorState` holds the only copy of the text, `EditorInputConnection` connects the keyboard to it, and only visible lines are measured and drawn.
 - `app`: demo app, package `de.markusressel.kodeeditor.demo`. `ComposeMainActivity` (launcher) shows the editor.
 - `build-logic`: Gradle convention plugins (`kodeeditor.android.library`, `...compose`, `...publishing`, ...). Versions live in `gradle/libs.versions.toml`.
 
@@ -26,6 +26,10 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 - Colors follow the Material pattern: an interface with `@Composable fun xColor(): State<Color>` and a `...Defaults` object with a factory function.
 - Each composable file ends with a private `@Preview` function.
 - New parameters of public composables need defaults, so existing consumers keep compiling.
+
+## Shared rules
+
+- [docs/reveal.md](docs/reveal.md) has the rules for text that arrives in chunks and the cursor at its head, with all numbers. The MkDocsEditor Android app and the web client follow them too, so change them only together with those, and keep the doc in step with `KodeEditorReveal` and `RemoteCursorGlides`.
 
 ## README animation
 
