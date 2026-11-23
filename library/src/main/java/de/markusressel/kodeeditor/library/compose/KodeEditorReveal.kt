@@ -50,6 +50,9 @@ class KodeEditorReveal(
     private val prefix = "$tag$ORDER_SEPARATOR"
     private var nextOrder = 0L
     private var charsPerSecond = 0f
+
+    /** the speed [charsPerSecond] goes to, see [SPEED_UP_MS] */
+    private var targetCharsPerSecond = 0f
     private var carry = 0f
     private var inserting = false
 
@@ -110,7 +113,11 @@ class KodeEditorReveal(
                 else -> others + AnnotatedString.Range(HIDDEN, at, at + text.length, "$prefix${nextOrder++}")
             },
         )
-        charsPerSecond = max(max(charsPerSecond, minCharsPerSecond), hiddenLength * 1000f / catchUpMs)
+        // a bit faster than the hidden text needs, for the time it takes to get to that speed
+        val needed = hiddenLength * 1000f / (catchUpMs - SPEED_UP_MS).coerceAtLeast(SPEED_UP_MS)
+        targetCharsPerSecond = max(max(targetCharsPerSecond, minCharsPerSecond), needed)
+        // from a rest it starts at once at its speed, while revealing it gets faster smoothly
+        if (charsPerSecond == 0f) charsPerSecond = targetCharsPerSecond
     }
 
     /** shows all hidden text at once, and ends its appearing */
@@ -130,6 +137,10 @@ class KodeEditorReveal(
         if (pending.isEmpty()) {
             rested()
             return false
+        }
+        if (charsPerSecond < targetCharsPerSecond) {
+            val step = (targetCharsPerSecond - charsPerSecond) * (elapsedMs.toFloat() / SPEED_UP_MS).coerceAtMost(1f)
+            charsPerSecond = (charsPerSecond + step).coerceAtLeast(charsPerSecond)
         }
         carry += charsPerSecond * elapsedMs / 1000f
         var steps = floor(carry).toInt()
@@ -192,12 +203,19 @@ class KodeEditorReveal(
 
     private fun rested() {
         charsPerSecond = 0f
+        targetCharsPerSecond = 0f
         carry = 0f
     }
 
     private companion object {
         const val ORDER_SEPARATOR = '\u0000'
         const val FRAME_MS = 16L
+
+        /**
+         * how long the reveal takes to get faster, about, so it does not jump to a new speed when a chunk arrives. It
+         * aims for a bit more than the hidden text needs, so it is still shown within [catchUpMs]
+         */
+        const val SPEED_UP_MS = 150L
         val HIDDEN = SpanStyle(color = Color.Transparent)
     }
 }

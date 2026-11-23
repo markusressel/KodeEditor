@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.util.lerp
@@ -10,6 +11,63 @@ internal const val REFLOW_ANIMATION_MS = 150
 
 /** slows down towards the end like the cursors of other users, `1 - (1 - t)^3` */
 internal val CubicEaseOut = Easing { 1f - (1f - it).let { rest -> rest * rest * rest } }
+
+/**
+ * An insertion right behind the one before this soon after it moves the text at an even speed for the time between the
+ * two, like the cursor of whoever types it
+ */
+internal const val STEADY_INSERT_MS = 250L
+
+/**
+ * An insertion that is typed on moves the text for this times the smoothed time between the keys, so it is still on
+ * its way when the next key comes, and the text does not stop and start again at each key
+ */
+internal const val STEADY_SPAN_FACTOR = 1.5f
+
+/** how much the time since the last key counts for the smoothed time between the keys, the rest is the one before */
+internal const val STEADY_SMOOTHING = 0.3f
+
+/**
+ * Up to this smoothed time between keys, a step glides at an even speed for 1.5 × that time, so fast typing does not
+ * pump. From [CRISP_INTERVAL_MS] on, a step is quick and crisp, [CRISP_STEP_MS] with the cubic ease-out, so slow typing
+ * does not drag. In between, both blend in a straight line.
+ */
+internal const val CONTINUOUS_INTERVAL_MS = 100f
+
+/** see [CONTINUOUS_INTERVAL_MS] */
+internal const val CRISP_INTERVAL_MS = 200f
+
+/** how long a crisp step of slow typing takes, see [CONTINUOUS_INTERVAL_MS] */
+internal const val CRISP_STEP_MS = 100f
+
+/**
+ * @param intervalMs the smoothed time between the keys
+ * @return how crisp a step is, from 0 for an even glide to 1 for a crisp one, see [CONTINUOUS_INTERVAL_MS]
+ */
+internal fun crispnessOf(intervalMs: Float): Float =
+    ((intervalMs - CONTINUOUS_INTERVAL_MS) / (CRISP_INTERVAL_MS - CONTINUOUS_INTERVAL_MS)).coerceIn(0f, 1f)
+
+/**
+ * @param evenMs how long the step takes as an even glide
+ * @param crisp see [crispnessOf]
+ * @return how long the step takes
+ */
+internal fun steadyStepMs(evenMs: Float, crisp: Float): Float = lerp(evenMs, CRISP_STEP_MS, crisp)
+
+/** @return how far a step of typing is at the part [t] of its time, an even glide blended with the cubic ease-out */
+internal fun steadyStepEase(t: Float, crisp: Float): Float = lerp(t, CubicEaseOut.transform(t), crisp)
+
+/** @return how fast a step of typing moves at the part [t] of its time, for a whole step in a time of 1 */
+internal fun steadyStepSpeed(t: Float, crisp: Float): Float = lerp(1f, 3f * (1f - t) * (1f - t), crisp)
+
+/** the time between two frames at 60 Hz */
+private const val STEADY_FRAME_MS = 16L
+
+/** characters, a longer insertion is no key somebody types */
+internal const val STEADY_INSERT_CHARS = 3
+
+/** the shortest move of such an insertion, about two frames */
+private const val MIN_STEADY_INSERT_MS = 32
 
 /** A change of the wrap width follows the zoom, so a lot of them can be on the way at once */
 private const val MAX_RUNNING_REFLOWS = 12
@@ -29,6 +87,9 @@ private const val MAX_RUNNING_REFLOWS = 12
  * @param easing how the text speeds up and slows down on its way
  * @param inserted where the text was before an insertion, instead of [firstRows], [breaks] and [measure]. Such a
  * transition knows its places without the state, so the next insertion can start from where the text is on its way
+ * @param typedOn the insertion this one is right behind, like the key before of somebody who types, also when it is
+ * done. Soon after it, see [STEADY_INSERT_MS], the text moves at an even speed for the time between the two, so typing
+ * does not pump
  */
 internal class ReflowTransition(
     private val state: KodeEditorState,
@@ -38,9 +99,10 @@ internal class ReflowTransition(
     private val lineHeight: Float,
     private val measure: (start: Int, end: Int) -> Float,
     private val changedFolds: List<TextRange> = emptyList(),
-    private val durationMs: Int = REFLOW_ANIMATION_MS,
-    private val easing: Easing = FastOutSlowInEasing,
+    private var durationMs: Int = REFLOW_ANIMATION_MS,
+    private var easing: Easing = FastOutSlowInEasing,
     private val inserted: LayoutBeforeInsert? = null,
+    private var typedOn: ReflowTransition? = null,
 ) {
     // the places of a transition from before a change of the text are about a text that is gone, unless it kept them
     private var previous: ReflowTransition? =
@@ -49,6 +111,12 @@ internal class ReflowTransition(
     private val version = state.rawVersion
     private var startMs = -1L
     private var depth: Int = (previous?.depth ?: 0) + 1
+
+    /** stays where it is, an insertion that follows takes the text on from there */
+    private var frozen = false
+
+    /** the smoothed time between the keys of somebody who types, see [STEADY_SPAN_FACTOR] */
+    private var keyIntervalMs = -1f
 
     /** where text was before the change, which is the same on each frame */
     private val positions = HashMap<Int, Offset>()
@@ -63,16 +131,42 @@ internal class ReflowTransition(
     /** how far the view scrolled because of the reflow, the text must not jump on the screen because of it */
     var scrolled = 0f
 
+    /** how far the view scrolled sideways because of the change, like [scrolled] */
+    var scrolledX = 0f
+
     /** whether the text is still the one this reflow started with */
     val valid: Boolean get() = version == state.rawVersion
 
     /** @param nowMs the time of the frame */
     fun onFrame(nowMs: Long) {
+        if (frozen) return
+        val first = startMs < 0
         previous?.let {
             it.onFrame(nowMs)
+            // an insertion takes the text on from where it is drawn, instead of adding its move to the one before
+            if (first && inserted != null && it.inserted != null) it.frozen = true
             if (it.progress >= 1f || depth > MAX_RUNNING_REFLOWS) previous = null
         }
-        if (startMs < 0) startMs = nowMs
+        val before = typedOn
+        // only its time is needed, the transitions do not keep each other
+        typedOn = null
+        var steady = false
+        if (first && before != null && before.startMs >= 0 && durationMs > 0) {
+            // the key before started a frame early too, so this is the time between the keys
+            val since = nowMs - before.startMs - STEADY_FRAME_MS
+            if (since <= STEADY_INSERT_MS) {
+                val interval = before.keyIntervalMs
+                keyIntervalMs = if (interval < 0) since.toFloat() else lerp(interval, since.toFloat(), STEADY_SMOOTHING)
+                val shortest = minOf(MIN_STEADY_INSERT_MS, durationMs)
+                val even = (keyIntervalMs * STEADY_SPAN_FACTOR).coerceIn(shortest.toFloat(), STEADY_INSERT_MS.toFloat())
+                val crisp = crispnessOf(keyIntervalMs)
+                durationMs = steadyStepMs(even, crisp).toInt()
+                easing = if (crisp <= 0f) LinearEasing else Easing { steadyStepEase(it, crisp) }
+                steady = true
+            }
+        }
+        // one that takes the text on moves in its first frame already, the text does not stop for a frame at each key
+        if (startMs < 0) startMs = if (steady) nowMs - STEADY_FRAME_MS else nowMs
         val time = ((nowMs - startMs) / durationMs.toFloat()).coerceAtMost(1f)
         progress = easing.transform(time)
     }
@@ -80,10 +174,10 @@ internal class ReflowTransition(
     /** @return where the text at [offset] started this reflow, in the coordinates of the document */
     fun startOf(offset: Int): Offset {
         val position = positions.getOrPut(offset) { positionOf(offset) }
-        val before = previous ?: return Offset(position.x, position.y + scrolled)
+        val before = previous ?: return Offset(position.x + scrolledX, position.y + scrolled)
         val from = before.startOf(inserted?.toBefore(offset) ?: offset)
         return Offset(
-            x = lerp(from.x, position.x, before.progress),
+            x = lerp(from.x, position.x, before.progress) + scrolledX,
             y = lerp(from.y, position.y, before.progress) + scrolled,
         )
     }
@@ -125,17 +219,19 @@ internal class ReflowTransition(
 }
 
 /**
- * Where the text was before an insertion, as seen from the text after it, which is all it uses. Before the insertion,
- * the text behind it was where the inserted text starts now.
+ * Where the text was before a change, an insertion, a removal or both, as seen from the text after it, which is all it
+ * uses besides the removed text. Before an insertion, the text behind it was where the inserted text starts now. Before
+ * a removal, it was behind the removed text.
  *
- * @param text the text after the insertion
+ * @param text the text after the change
  * @param lineStarts where the lines of [text] start
- * @param start where the text was inserted
+ * @param start where the text changed
  * @param length how long the inserted text is
  * @param firstRows the first row of each line before, as shown, and the number of rows at the end
  * @param breaks the positions where each line broke before, relative to its start
  * @param lineHeight the height of a row
- * @param measure the width of a part of [text] in a row
+ * @param measure the width of a part of [text] in a row, or of a part of [removed]
+ * @param removed the text that was removed at [start]
  */
 internal class LayoutBeforeInsert(
     private val text: String,
@@ -146,10 +242,13 @@ internal class LayoutBeforeInsert(
     private val breaks: Array<IntArray?>,
     private val lineHeight: Float,
     private val measure: (text: String, start: Int, end: Int) -> Float,
+    private val removed: String = "",
 ) {
     private val end = start + length
+    private val removedEnd = start + removed.length
     private val firstLine = lineOf(start)
     private val insertedLines = text.substring(start, end).count { it == '\n' }
+    private val removedLines = removed.count { it == '\n' }
 
     private fun lineOf(offset: Int): Int {
         var low = 0
@@ -161,41 +260,59 @@ internal class LayoutBeforeInsert(
         return low
     }
 
-    /** @return the position in the text before the insertion, the inserted text is where it was inserted */
+    /** @return the position in the text before the change, the inserted text is where it was inserted */
     fun toBefore(offset: Int): Int = when {
         offset < start -> offset
         offset < end -> start
-        else -> offset - length
+        else -> offset - length + removed.length
     }
 
-    /** @return the position in [text] of a position before the insertion, text behind it is behind the inserted text */
-    private fun fromBefore(offset: Int): Int = if (offset < start) offset else offset + length
-
-    /** @return the line before the insertion of a line after it */
-    private fun lineBefore(line: Int): Int = when {
-        line <= firstLine -> line
-        line <= firstLine + insertedLines -> firstLine
-        else -> line - insertedLines
+    /** @return the position in [text] of a position before the change, removed text is where it was removed */
+    private fun fromBefore(offset: Int): Int = when {
+        offset < start -> offset
+        offset < removedEnd -> start
+        else -> offset - removed.length + length
     }
 
-    /** @return where a line before the insertion started, in the text before it */
-    private fun startBefore(line: Int): Int =
-        if (line <= firstLine) lineStarts[line] else toBefore(lineStarts[line + insertedLines])
+    /** @return the line of a position in the text before the change */
+    private fun lineBefore(offset: Int): Int = when {
+        offset < start -> lineOf(offset)
+        offset < removedEnd -> firstLine + removed.substring(0, offset - start).count { it == '\n' }
+        else -> lineOf(fromBefore(offset)) - insertedLines + removedLines
+    }
 
-    /** @return the width of a part of the text before the insertion, measured in [text] around the inserted text */
-    private fun measureBefore(from: Int, to: Int): Float {
-        return when {
-            from >= to -> 0f
-            to <= start -> measure(text, from, to)
-            from >= start -> measure(text, from + length, to + length)
-            else -> measure(text, from, start) + measure(text, end, to + length)
+    /** @return where a line before the change started, in the text before it */
+    private fun startBefore(line: Int): Int = when {
+        line <= firstLine -> lineStarts[line]
+        line <= firstLine + removedLines -> {
+            // a line that started in the removed text
+            var index = -1
+            repeat(line - firstLine) { index = removed.indexOf('\n', index + 1) }
+            start + index + 1
         }
+
+        else -> toBefore(lineStarts[line - removedLines + insertedLines])
     }
 
-    /** @return where the text at [offset] of [text] was before the insertion, in the coordinates of the document */
+    /** @return the width of a part of the text before the change, measured in [text] and [removed] */
+    private fun measureBefore(from: Int, to: Int): Float {
+        if (from >= to) return 0f
+        var width = 0f
+        if (from < start) width += measure(text, from, minOf(to, start))
+        if (to > start && from < removedEnd) {
+            width += measure(removed, maxOf(from, start) - start, minOf(to, removedEnd) - start)
+        }
+        if (to > removedEnd) {
+            val shift = length - removed.length
+            width += measure(text, maxOf(from, removedEnd) + shift, to + shift)
+        }
+        return width
+    }
+
+    /** @return where the text at [offset] of [text] was before the change, in the coordinates of the document */
     fun positionOf(offset: Int): Offset {
         val before = toBefore(offset)
-        val line = lineBefore(lineOf(if (offset in start until end) start else offset))
+        val line = lineBefore(before)
         val lineStart = startBefore(line)
         val lineBreaks = breaks.getOrNull(line)
         val index = lineBreaks?.count { it <= before - lineStart } ?: 0
@@ -204,15 +321,20 @@ internal class LayoutBeforeInsert(
         return Offset(measureBefore(rowStart, before), row * lineHeight)
     }
 
-    /** @return where the [line] of [text] broke before the insertion, relative to its start */
+    /** @return where the [line] of [text] broke before the change, relative to its start */
     fun breaksOf(line: Int): IntArray? {
-        val before = lineBefore(line)
-        val lineBreaks = breaks.getOrNull(before) ?: return null
-        if (before != firstLine) return lineBreaks
+        if (line < firstLine) return breaks.getOrNull(line)
+        if (line > firstLine + insertedLines) return breaks.getOrNull(line - insertedLines + removedLines)
+        // the lines of the change: the breaks and the starts of the lines it joined, where the rows started before
         val lineStart = lineStarts[line]
         val lineEnd = lineStarts.getOrNull(line + 1) ?: (text.length + 1)
-        val beforeStart = startBefore(before)
-        return lineBreaks.map { fromBefore(beforeStart + it) }.filter { it in lineStart until lineEnd }
-            .map { it - lineStart }.toIntArray().takeIf { it.isNotEmpty() }
+        val result = ArrayList<Int>()
+        for (before in firstLine..firstLine + removedLines) {
+            val beforeStart = startBefore(before)
+            if (before > firstLine) result += fromBefore(beforeStart)
+            breaks.getOrNull(before)?.forEach { result += fromBefore(beforeStart + it) }
+        }
+        return result.filter { it in lineStart until lineEnd }.distinct().sorted().map { it - lineStart }
+            .toIntArray().takeIf { it.isNotEmpty() }
     }
 }

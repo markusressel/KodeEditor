@@ -171,7 +171,7 @@ class KodeEditorSearch(private val state: KodeEditorState) {
         val query = query ?: return false
         val text = state.text
         val inserted = replacementFor(query, text, match, replacement) ?: return false
-        state.localEdit(match.min, match.max, inserted)
+        state.bigChange { state.localEdit(match.min, match.max, inserted) }
         // the replacement is no match until the text is searched again
         val replaced = TextRange(match.min, match.min + inserted.length)
         found = found.filterNot { it == replaced }
@@ -205,7 +205,7 @@ class KodeEditorSearch(private val state: KodeEditorState) {
         val lastEnd = all.last().max
         val changedEnd = result.length - (text.length - lastEnd)
         // one change from the first to the end of the last match, so it is one step to undo
-        state.localEdit(first, lastEnd, result.substring(first, changedEnd), TextRange(changedEnd))
+        state.bigChange { state.localEdit(first, lastEnd, result.substring(first, changedEnd), TextRange(changedEnd)) }
         currentAnchor = null
         return replaced
     }

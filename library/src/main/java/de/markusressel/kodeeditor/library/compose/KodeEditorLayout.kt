@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.text.AnnotatedString
@@ -21,6 +22,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
+import kotlin.math.abs
 import kotlin.math.ceil
 
 /**
@@ -235,6 +237,22 @@ internal class EditorLineLayout(
         reflow?.let { it.scrolled += distance }
     }
 
+    /**
+     * where the user looks, the position in the text that a change of somebody else in front of it must not move on the
+     * screen, null for none
+     */
+    var remoteAnchor: () -> Int? = { null }
+
+    /** the [remoteAnchor] right before the change of somebody else that is being applied */
+    private var anchorBeforeChange: Int? = null
+
+    /** told right before a change of somebody else, while the text and the rows are still those from before */
+    val beforeRemoteChange: () -> Unit = { anchorBeforeChange = remoteAnchor() }
+
+    /** scrolls the view by a distance, and returns how far it scrolled, see [remoteAnchor] */
+    var onRemoteShift: (Offset) -> Offset = { Offset.Zero }
+
+
     private val rows: EditorRows
         get() {
             // the rows are no state of their own, whoever reads them depends on what they are made from
@@ -396,9 +414,59 @@ internal class EditorLineLayout(
     /** how long the text behind what somebody else inserted takes to move out of the way, 0 jumps */
     var insertSlideMs: () -> Int = { 0 }
 
+    /**
+     * where the cursor was after the last change, the end of an insertion or the start of a removal. A short insertion
+     * right there, or a short removal in front of it, is typed on, see [STEADY_INSERT_MS]
+     */
+    private var lastChangeEnd = -1
+
+    /** whether the last slide is that of a big change of the user, see [localCursorRect] */
+    private var localSlide = false
+
+    /**
+     * @return where the cursor of the user is drawn: with the text while a change of somebody else slides it, at its
+     * new place at once after a change of the user
+     */
+    fun localCursorRect(offset: Int): Rect {
+        val transition = activeReflow
+        val ownSlide = transition != null && transition === lastInsert && localSlide
+        return if (ownSlide) getCursorRect(offset) else shownCursorRect(offset)
+    }
+
+    /**
+     * @return whether the text behind a change of somebody else slides right now and [offset] is where their cursor is
+     * after it, so the slide carries their cursor
+     */
+    fun carriesCursorAt(offset: Int): Boolean {
+        val transition = activeReflow ?: return false
+        return transition === lastInsert && !localSlide && offset == lastChangeEnd
+    }
+
+    /** the transition of the last change, also when it is done */
+    private var lastInsert: ReflowTransition? = null
+
     /** tells the rows about changes of the text */
     val rowObserver: (TextSplice) -> Unit = { splice ->
-        val slide = if (state.applyingRemote && !state.replacingText) layoutBeforeInsert(splice) else null
+        val local = state.applyingBigChange && !state.applyingRemote
+        val animated = state.applyingRemote || (local && state.appearance?.local?.bigChanges == true)
+        val remote = state.applyingRemote && !state.replacingText
+        // the place the user looks at, if the change is in front of it
+        val anchor = if (remote) anchorBeforeChange else null
+        anchorBeforeChange = null
+        val shifted = anchor?.takeIf { it > splice.start && it >= splice.start + splice.removedLength }
+            ?.let { mapPosition(it, splice) }
+        val slides = animated && !state.replacingText && insertSlideMs() > 0
+        val before = if (shifted != null || slides) beforeChange(splice) else null
+        val slide = if (slides) before else null
+        val removed = splice.removedLength
+        val inserted = splice.inserted.length
+        // a key or a backspace right behind the one before
+        val typedOn = when {
+            removed == 0 -> inserted <= STEADY_INSERT_CHARS && splice.start == lastChangeEnd
+            inserted == 0 -> removed <= STEADY_INSERT_CHARS && splice.start + removed == lastChangeEnd
+            else -> false
+        }
+        lastChangeEnd = splice.start + inserted
         wrappedRows?.onSplice(splice, settledWidth = if (state.replacingText) wrapWidth() else null)
         if (slide != null) {
             reflow = ReflowTransition(
@@ -412,22 +480,27 @@ internal class EditorLineLayout(
                 durationMs = insertSlideMs(),
                 easing = CubicEaseOut,
                 inserted = slide,
+                typedOn = lastInsert.takeIf { typedOn },
             )
+            lastInsert = reflow
+            localSlide = local
             foldAnimations++
         }
+        if (shifted != null && before != null) keepInView(shifted, before)
     }
 
     /**
-     * @return where the text was before somebody else inserted text, while the rows are still those from before, null
-     * if it does not move animated
+     * @return where the text was before somebody else inserted or removed text, while the rows are still those from
+     * before, null if it does not move animated
      */
-    private fun layoutBeforeInsert(splice: TextSplice): LayoutBeforeInsert? {
-        if (insertSlideMs() <= 0 || splice.removedLength != 0 || splice.inserted.isEmpty()) return null
+    private fun beforeChange(splice: TextSplice): LayoutBeforeInsert? {
+        if (splice.removedLength == 0 && splice.inserted.isEmpty()) return null
+        val removed = state.lastRemoved
         val hidden = folds?.hidden
         // the lines that a fold hides are about the text after the change already
-        if (hidden != null && splice.inserted.contains('\n')) return null
+        if (hidden != null && (splice.inserted.contains('\n') || removed.contains('\n'))) return null
         val wrapped = wrappedRows
-        val linesBefore = state.lineCount - splice.inserted.count { it == '\n' }
+        val linesBefore = state.lineCount - splice.inserted.count { it == '\n' } + removed.count { it == '\n' }
         val firstRows = wrapped?.currentFirstRows ?: IntArray(linesBefore + 1) { it }
         val breaks = wrapped?.currentBreaks?.copyOf() ?: arrayOfNulls(linesBefore)
         val ranges = collapsed
@@ -440,8 +513,30 @@ internal class EditorLineLayout(
             firstRows = hidden?.shownFirstRows(firstRows) ?: firstRows,
             breaks = breaks,
             lineHeight = lineHeight,
-            measure = { all, start, end -> measureBetween(start, end, ranges, all) },
+            // the collapsed parts are those of the text, not of the removed text
+            measure = { all, start, end -> measureBetween(start, end, ranges.takeIf { all === text }, all) },
+            removed = removed,
         )
+    }
+
+    /**
+     * Scrolls the view by how far a change of somebody else moved the text at [anchor], so it stays where it is on the
+     * screen, also while the text slides. Sideways only without wrapping, where a change in its row moves it sideways.
+     *
+     * @param anchor where the text the user looks at is after the change
+     * @param before where the text was before the change
+     */
+    private fun keepInView(anchor: Int, before: LayoutBeforeInsert) {
+        val was = before.positionOf(anchor)
+        val now = getCursorRect(anchor).topLeft
+        val moved = Offset(if (wrappedRows == null) now.x - was.x else 0f, now.y - was.y)
+        if (abs(moved.x) < 0.01f && abs(moved.y) < 0.01f) return
+        val scrolled = onRemoteShift(moved)
+        // the text that slides starts where it was on the screen
+        reflow?.let {
+            it.scrolled += scrolled.y
+            it.scrolledX += scrolled.x
+        }
     }
 
     /** lines with few wide characters can be wider than the one with the most characters */
@@ -717,6 +812,7 @@ internal class EditorLineLayout(
     fun fadingParts(line: DrawnLine): List<FadingPart>? {
         val alphas = state.rangeAlphas
         if (alphas.isEmpty()) return null
+        val hidden = behindCarets(line, alphas)
         val rows = rows
         val start = rows.start(line.row)
         val end = rows.end(line.row)
@@ -731,7 +827,72 @@ internal class EditorLineLayout(
             val parts = result ?: mutableListOf<FadingPart>().also { result = it }
             parts += FadingPart(minOf(left, right), maxOf(left, right), range.item.coerceAtLeast(0f))
         }
-        return result
+        if (hidden.isEmpty()) return result
+        // what is not drawn yet is not drawn faded either
+        val faded = result.orEmpty().flatMap { part ->
+            hidden.fold(listOf(part)) { pieces, cut ->
+                pieces.flatMap { piece ->
+                    if (cut.right <= piece.left || cut.left >= piece.right) {
+                        listOf(piece)
+                    } else {
+                        listOfNotNull(
+                            FadingPart(piece.left, cut.left, piece.alpha).takeIf { cut.left > piece.left },
+                            FadingPart(cut.right, piece.right, piece.alpha).takeIf { cut.right < piece.right },
+                        )
+                    }
+                }
+            }
+        }
+        return faded + hidden
+    }
+
+    /** the cursors of other users, where each is in the text and where its caret is drawn, see [behindCarets] */
+    var remoteCarets: () -> List<Pair<Int, Offset>> = { emptyList() }
+
+    /**
+     * Text that appears in front of the cursor of somebody else, which they just typed or which is revealed for them,
+     * shows only where their caret has passed already. It is not drawn behind the caret, so it never shows ahead of it
+     * while the caret glides.
+     *
+     * @return the parts of the [line] that are not drawn yet, as parts without alpha
+     */
+    private fun behindCarets(line: DrawnLine, alphas: List<AnnotatedString.Range<Float>>): List<FadingPart> {
+        val carets = remoteCarets()
+        if (carets.isEmpty()) return emptyList()
+        val rows = rows
+        val rowStart = rows.start(line.row)
+        val rowEnd = rows.end(line.row)
+        var parts: MutableList<FadingPart>? = null
+        carets.forEach { (offset, drawn) ->
+            // the appearing text right in front of the caret, which may be several pieces one behind the other, and
+            // pieces behind it, whose caret comes a frame later
+            var start = offset
+            while (true) {
+                start = alphas.firstOrNull { it.end == start && it.start < start }?.start ?: break
+            }
+            var end = offset
+            while (true) {
+                end = alphas.firstOrNull { it.start == end && it.end > end }?.end ?: break
+            }
+            if (start == end) return@forEach
+            val from = start.coerceAtLeast(rowStart)
+            val to = end.coerceAtMost(rowEnd)
+            if (from >= to) return@forEach
+            val caretRow = ((drawn.y + lineHeight / 2) / lineHeight).toInt()
+            if (line.row < caretRow) return@forEach
+            val left = line.layout.getHorizontalPosition(inRow(line.row, from), usePrimaryDirection = true)
+            var right = line.layout.getHorizontalPosition(inRow(line.row, to), usePrimaryDirection = true)
+            // a letter can reach a bit beyond its place, where nothing is shown behind it that would be cut off
+            val shownBehind = end < rowEnd && state.rangeStyles.none {
+                it.item.color == Color.Transparent && it.start <= end && end < it.end
+            }
+            if (!shownBehind) right += lineHeight / 2
+            val hiddenFrom = if (line.row == caretRow) maxOf(left, drawn.x - line.position.x) else left
+            if (hiddenFrom >= right) return@forEach
+            val list = parts ?: mutableListOf<FadingPart>().also { parts = it }
+            list += FadingPart(hiddenFrom, right, 0f)
+        }
+        return parts ?: emptyList()
     }
 
     /** the next position from [offset] in the given direction that is not folded away */
