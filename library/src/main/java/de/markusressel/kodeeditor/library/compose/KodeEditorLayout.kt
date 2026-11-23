@@ -420,13 +420,26 @@ internal class EditorLineLayout(
      */
     private var lastChangeEnd = -1
 
+    /** whether the last slide is that of a big change of the user, see [localCursorRect] */
+    private var localSlide = false
+
+    /**
+     * @return where the cursor of the user is drawn: with the text while a change of somebody else slides it, at its
+     * new place at once after a change of the user
+     */
+    fun localCursorRect(offset: Int): Rect {
+        val transition = activeReflow
+        val ownSlide = transition != null && transition === lastInsert && localSlide
+        return if (ownSlide) getCursorRect(offset) else shownCursorRect(offset)
+    }
+
     /**
      * @return whether the text behind a change of somebody else slides right now and [offset] is where their cursor is
      * after it, so the slide carries their cursor
      */
     fun carriesCursorAt(offset: Int): Boolean {
         val transition = activeReflow ?: return false
-        return transition === lastInsert && offset == lastChangeEnd
+        return transition === lastInsert && !localSlide && offset == lastChangeEnd
     }
 
     /** the transition of the last change, also when it is done */
@@ -434,14 +447,17 @@ internal class EditorLineLayout(
 
     /** tells the rows about changes of the text */
     val rowObserver: (TextSplice) -> Unit = { splice ->
+        val local = state.applyingBigChange && !state.applyingRemote
+        val animated = state.applyingRemote || (local && state.appearance?.local?.bigChanges == true)
         val remote = state.applyingRemote && !state.replacingText
         // the place the user looks at, if the change is in front of it
         val anchor = if (remote) anchorBeforeChange else null
         anchorBeforeChange = null
         val shifted = anchor?.takeIf { it > splice.start && it >= splice.start + splice.removedLength }
             ?.let { mapPosition(it, splice) }
-        val before = if (shifted != null || (remote && insertSlideMs() > 0)) beforeChange(splice) else null
-        val slide = if (remote && insertSlideMs() > 0) before else null
+        val slides = animated && !state.replacingText && insertSlideMs() > 0
+        val before = if (shifted != null || slides) beforeChange(splice) else null
+        val slide = if (slides) before else null
         val removed = splice.removedLength
         val inserted = splice.inserted.length
         // a key or a backspace right behind the one before
@@ -467,6 +483,7 @@ internal class EditorLineLayout(
                 typedOn = lastInsert.takeIf { typedOn },
             )
             lastInsert = reflow
+            localSlide = local
             foldAnimations++
         }
         if (shifted != null && before != null) keepInView(shifted, before)
