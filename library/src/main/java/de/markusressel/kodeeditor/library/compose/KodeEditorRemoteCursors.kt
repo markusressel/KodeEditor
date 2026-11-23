@@ -113,6 +113,9 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
         /** the smoothed time between its steps at an even speed, see [STEADY_SPAN_FACTOR] */
         var stepIntervalMs = -1f
+
+        /** how crisp its steps are, see [crispnessOf], 0 is an even glide */
+        var crisp = 0f
     }
 
     private val glides = HashMap<String, Glide>()
@@ -222,8 +225,11 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         val anchorMove = anchorTarget - shownAnchor
         val headMove = headTarget - shownHead
         val moves = !anchorMove.isTiny() || !headMove.isTiny()
+        // a key or a backspace of the cursor: the text behind it slides, and carries the cursor with it, so both stay
+        // together. A glide of its own would add a second move with a time of its own
+        val carried = anchor == head && headStep <= STEADY_MAX_CHARS && layout.carriesCursorAt(head)
         // the rules are those of the caret, the other end grows or shrinks with it
-        if (config == null || durationMs <= 0 || !moves || !fits(config, headMove)) {
+        if (config == null || durationMs <= 0 || !moves || carried || !fits(config, headMove)) {
             glide.started = NONE
             glide.movedAt = NONE
             glide.linear = false
@@ -274,8 +280,11 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
     private fun steadyMs(glide: Glide, since: Long): Long {
         val interval = glide.stepIntervalMs
         glide.stepIntervalMs = if (interval < 0) since.toFloat() else interval + (since - interval) * STEADY_SMOOTHING
-        return (glide.stepIntervalMs * STEADY_SPAN_FACTOR).toLong()
+        val even = (glide.stepIntervalMs * STEADY_SPAN_FACTOR).toLong()
             .coerceIn(minOf(MIN_CATCH_UP_MS, durationMs), STEADY_WINDOW_MS)
+        // slow typing takes quick crisp steps instead, see CONTINUOUS_INTERVAL_MS
+        glide.crisp = crispnessOf(glide.stepIntervalMs)
+        return steadyStepMs(even.toFloat(), glide.crisp).toLong()
     }
 
     /** @return how long a glide takes that starts [since] the last new place of the cursor */
@@ -350,7 +359,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         val duration = glide.durationMs
         val t = if (started == NOT_STARTED || duration <= 0) 0f else ((now - started).toFloat() / duration).coerceIn(0f, 1f)
         val start = Offset(end.startX, end.startY)
-        if (glide.linear) return start * (1f - t)
+        if (glide.linear) return start * (1f - steadyStepEase(t, glide.crisp))
         val velocity = end.velocity ?: return start * (1f - t).let { it * it * it }
         val h00 = 2 * t * t * t - 3 * t * t + 1
         val h10 = t * t * t - 2 * t * t + t
@@ -364,7 +373,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         if (started < 0 || duration <= 0) return Offset.Zero
         val t = ((now - started).toFloat() / duration).coerceIn(0f, 1f)
         val start = Offset(end.startX, end.startY)
-        if (glide.linear) return start * (-1f / duration)
+        if (glide.linear) return start * (-steadyStepSpeed(t, glide.crisp) / duration)
         val velocity = end.velocity ?: (start * (-3f / duration))
         val dh00 = 6 * t * t - 6 * t
         val dh10 = 3 * t * t - 4 * t + 1

@@ -126,6 +126,13 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   between their keys instead of starting fast and stopping at each one ("pumping"). It ends about one key interval
   behind. The first step after a rest, and every larger move, keep the rules above. For a reveal at about one character
   per frame this is a glide of 32 ms, about 1 character behind the head.
+- R5c, slow typing is crisp: the speed of the typing decides the curve and the time of such a step. With
+  `crisp = clamp((interval - 100) / (200 - 100), 0, 1)`:
+  - the time is `lerp(clamp(1.5 × interval, 32, 250), 100, crisp)` ms;
+  - the way at the part `t` of it is `lerp(t, 1 - (1 - t)³, crisp)`, an even glide blended with the cubic ease-out.
+  So fast typing (keys at most 100 ms apart) glides on evenly as above, and slow typing (200 ms or more) takes quick
+  steps of 100 ms that slow down at their place, like a single key. In between, both blend, so a typist who gets
+  faster or slower changes smoothly, without a jump of the cursor. Each step starts from where the cursor is drawn.
 - R3 and R5 go together: revealed per frame at about one character, the cursor stays about 1 to 1.5 characters behind
   the head with an even speed. Revealed in steps of several characters, the Hermite glide is smooth but lags more, about
   6 characters at 8 characters every 32 ms.
@@ -141,7 +148,10 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   even speed (linear) for `clamp(1.5 × interval, 32, 250)` ms, with the time between the keys smoothed like in R5b. It
   starts a frame (16 ms) early, so the text does not stand still for a frame at each key. A cursor at the end of the
   insertion is drawn where the text behind it is drawn on its way, so the text behind the cursor of somebody who types
-  moves exactly with their cursor, at the even speed of R5b.
+  moves exactly with their cursor, at the even speed of R5b. The time and the curve follow R5c, with the same
+  numbers, so slow typing moves the text behind the cursor in crisp steps too.
+- While the text behind a key or a backspace slides, a cursor at the end of the change glides no extra way of its
+  own: the slide carries it. So the cursor and the text behind it stay together whatever the curve.
 - The same for backspace: a removal of at most 3 characters right in front of where the cursor was after the change
   before (the end of an insertion, the start of a removal), at most 250 ms after it, slides at an even speed to the
   left, with the same times. An insertion right after a removal at the same place is typed on too. So a typo that is
@@ -175,7 +185,10 @@ the end of a line:
 - `TypingTest`, on the pixels of each frame, with keys at the times of a person (log-normal around 150 ms, see
   [typing-pattern.md](typing-pattern.md)): the text behind the cursor of somebody who types keeps its distance to the
   caret (±2 px), no typed or revealed text shows right of the caret, and the speed of the caret while typing has a 95th
-  percentile of at most 2.5 times its mean. With `durationMs = 1000`, no character's alpha changes by more than 0.1
+  percentile of at most 2.5 times its mean, for a fast typist (log-normal around 70 ms). For slow typing, standing
+  still between keys is right. Keys 250 ms apart take steps of at most 120 ms. A typist who goes from 80 to 250 to 160
+  and back to 80 ms between keys keeps the text behind the caret at its distance (±2 px), and the caret moves at most
+  0.75 of a key per frame, never back. With `durationMs = 1000`, no character's alpha changes by more than 0.1
   between two frames, for a person typing and for a reveal of 400 characters, and neither at 500 ms. With a typo that
   is removed with backspace, the text behind the cursor keeps its distance (±2 px) and the caret speed has a 95th
   percentile of at most 2.5 times its mean. Text removed by somebody else slides the text behind it to the left.

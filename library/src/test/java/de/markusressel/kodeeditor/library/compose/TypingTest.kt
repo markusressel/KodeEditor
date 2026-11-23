@@ -129,19 +129,22 @@ class TypingTest {
         }
     }
 
-    /** times between keys like a person types them: log-normal around 150 ms, from 60 to 400 ms */
-    private fun humanGaps(count: Int, random: Random): List<Long> = List(count) {
+    /** times between keys like a person types them: log-normal around [median] ms, from 60 to 400 ms */
+    private fun humanGaps(count: Int, random: Random, median: Double = 150.0): List<Long> = List(count) {
         val normal = sqrt(-2.0 * ln(1.0 - random.nextDouble())) * kotlin.math.cos(2.0 * Math.PI * random.nextDouble())
-        exp(ln(150.0) + 0.4 * normal).toLong().coerceIn(60L, 400L)
+        exp(ln(median) + 0.4 * normal).toLong().coerceIn(60L, 400L)
     }
+
+    /** a fast typist, whose steps glide on evenly, below CONTINUOUS_INTERVAL_MS */
+    private val fastMedian = 70.0
 
     /**
      * Jane types [typed] at [at], one key after the other at the times of a person, and her cursor moves behind each
      *
      * @param onFrame called with each frame and the time since the start
      */
-    private fun janeTypes(typed: String, at: Int, onFrame: (PixelMap, Long) -> Unit) {
-        val gaps = humanGaps(typed.length, Random(3))
+    private fun janeTypes(typed: String, at: Int, median: Double = 150.0, onFrame: (PixelMap, Long) -> Unit) {
+        val gaps = humanGaps(typed.length, Random(3), median)
         janePresses(typed.mapIndexed { index, char -> gaps[index] to char }, at, onFrame)
     }
 
@@ -231,7 +234,7 @@ class TypingTest {
         val xs = ArrayList<Float>()
         var typing = 0L
 
-        janeTypes(" typed by Jane, one key after the other", 10) { image, time ->
+        janeTypes(" typed by Jane, one key after the other", 10, fastMedian) { image, time ->
             xs += image.caretX()
             typing = time
         }
@@ -333,8 +336,8 @@ class TypingTest {
     }
 
     /** a person types [text], with a typo after [typoAfter] characters that they remove with backspace */
-    private fun typedWithTypo(text: String, typoAfter: Int): List<Pair<Long, Char?>> {
-        val gaps = humanGaps(text.length + 6, Random(5))
+    private fun typedWithTypo(text: String, typoAfter: Int, median: Double = 150.0): List<Pair<Long, Char?>> {
+        val gaps = humanGaps(text.length + 6, Random(5), median).map { it }
         val keys = ArrayList<Pair<Long, Char?>>()
         text.take(typoAfter).forEachIndexed { index, char -> keys += gaps[index] to char }
         // two wrong keys, noticed after 350 ms, removed 120 ms apart, then on with the right ones
@@ -365,7 +368,7 @@ class TypingTest {
         show("first line", 10)
         val xs = ArrayList<Float>()
 
-        janePresses(typedWithTypo(" typed by Jane, one key after the other", 12), 10) { image, _ ->
+        janePresses(typedWithTypo(" typed by Jane, one key after the other", 12, fastMedian), 10) { image, _ ->
             xs += image.caretX()
         }
         val speeds = xs.zipWithNext { a, b -> abs(b - a) }.dropLast(300 / 16)
@@ -410,5 +413,57 @@ class TypingTest {
 
         val differences = short.zip(long) { a, b -> abs(a - b) }
         assertTrue("the same way: $short\n$long", short.size == long.size && differences.all { it <= 1f })
+    }
+
+    /** the mean width of a character of the first row */
+    private fun charWidth() = composeRule.runOnIdle {
+        (layout as EditorLineLayout).let { (it.getCursorRect(10).left - it.getCursorRect(0).left) / 10 }
+    }
+
+    @Test
+    fun `the caret of somebody who types slowly takes quick steps`() {
+        show("first line", 10)
+        val xs = ArrayList<Float>()
+        val keys = ArrayList<Int>()
+        // a key each 250 ms
+        janePresses(" slowly typed".map { 250L to it }, 10) { image, _ ->
+            xs += image.caretX()
+            if (composeRule.runOnIdle { caret.intValue } != keys.lastOrNull()) keys += xs.size - 1
+        }
+        // the frames each step takes, from a key until the caret stands still
+        val stepFrames = xs.indices.filter { index -> index > 0 && abs(xs[index] - xs[index - 1]) > 0.25f }
+            .groupBy { frame -> stepFrameKey(frame, xs) }.values.map { it.size }
+
+        assertTrue("steps of at most 120 ms: $stepFrames in $xs", stepFrames.drop(2).all { it * 16 <= 120 })
+    }
+
+    /** the frames of a step are those in a row in which the caret moves */
+    private fun stepFrameKey(frame: Int, xs: List<Float>): Int {
+        var start = frame
+        while (start > 1 && abs(xs[start - 1] - xs[start - 2]) > 0.25f) start--
+        return start
+    }
+
+    @Test
+    fun `the caret and the text behind it stay together when somebody types faster and slower`() {
+        show("first line", 5)
+        val tail = ArrayList<Float>()
+        val xs = ArrayList<Float>()
+        val gaps = List(8) { 80L } + List(6) { 250L } + List(6) { 160L } + List(8) { 80L }
+        janePresses(gaps.mapIndexed { index, gap -> gap to ('a' + index % 26) }, 5) { image, _ ->
+            val caretX = image.caretX()
+            xs += caretX
+            val first = image.inkColumns().firstOrNull { it > caretX + 2 } ?: return@janePresses
+            tail += first - caretX
+        }
+        val moves = xs.zipWithNext { a, b -> b - a }
+        // the mean step of a key, of the letters she typed
+        val step = composeRule.runOnIdle {
+            (layout.getCursorRect(5 + gaps.size).left - layout.getCursorRect(5).left) / gaps.size
+        }
+
+        assertTrue("together: $tail", tail.max() - tail.min() <= 2f)
+        // a step goes over a few frames, also a crisp one
+        assertTrue("no jump: $moves, $step", moves.all { it >= -0.5f && it <= step * 0.75f })
     }
 }

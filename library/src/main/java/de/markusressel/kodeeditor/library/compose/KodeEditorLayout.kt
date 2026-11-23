@@ -403,6 +403,15 @@ internal class EditorLineLayout(
      */
     private var lastChangeEnd = -1
 
+    /**
+     * @return whether the text behind a change of somebody else slides right now and [offset] is where their cursor is
+     * after it, so the slide carries their cursor
+     */
+    fun carriesCursorAt(offset: Int): Boolean {
+        val transition = activeReflow ?: return false
+        return transition === lastInsert && offset == lastChangeEnd
+    }
+
     /** the transition of the last change, also when it is done */
     private var lastInsert: ReflowTransition? = null
 

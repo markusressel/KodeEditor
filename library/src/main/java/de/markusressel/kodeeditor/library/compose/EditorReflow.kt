@@ -27,6 +27,39 @@ internal const val STEADY_SPAN_FACTOR = 1.5f
 /** how much the time since the last key counts for the smoothed time between the keys, the rest is the one before */
 internal const val STEADY_SMOOTHING = 0.3f
 
+/**
+ * Up to this smoothed time between keys, a step glides at an even speed for 1.5 × that time, so fast typing does not
+ * pump. From [CRISP_INTERVAL_MS] on, a step is quick and crisp, [CRISP_STEP_MS] with the cubic ease-out, so slow typing
+ * does not drag. In between, both blend in a straight line.
+ */
+internal const val CONTINUOUS_INTERVAL_MS = 100f
+
+/** see [CONTINUOUS_INTERVAL_MS] */
+internal const val CRISP_INTERVAL_MS = 200f
+
+/** how long a crisp step of slow typing takes, see [CONTINUOUS_INTERVAL_MS] */
+internal const val CRISP_STEP_MS = 100f
+
+/**
+ * @param intervalMs the smoothed time between the keys
+ * @return how crisp a step is, from 0 for an even glide to 1 for a crisp one, see [CONTINUOUS_INTERVAL_MS]
+ */
+internal fun crispnessOf(intervalMs: Float): Float =
+    ((intervalMs - CONTINUOUS_INTERVAL_MS) / (CRISP_INTERVAL_MS - CONTINUOUS_INTERVAL_MS)).coerceIn(0f, 1f)
+
+/**
+ * @param evenMs how long the step takes as an even glide
+ * @param crisp see [crispnessOf]
+ * @return how long the step takes
+ */
+internal fun steadyStepMs(evenMs: Float, crisp: Float): Float = lerp(evenMs, CRISP_STEP_MS, crisp)
+
+/** @return how far a step of typing is at the part [t] of its time, an even glide blended with the cubic ease-out */
+internal fun steadyStepEase(t: Float, crisp: Float): Float = lerp(t, CubicEaseOut.transform(t), crisp)
+
+/** @return how fast a step of typing moves at the part [t] of its time, for a whole step in a time of 1 */
+internal fun steadyStepSpeed(t: Float, crisp: Float): Float = lerp(1f, 3f * (1f - t) * (1f - t), crisp)
+
 /** the time between two frames at 60 Hz */
 private const val STEADY_FRAME_MS = 16L
 
@@ -122,8 +155,10 @@ internal class ReflowTransition(
                 val interval = before.keyIntervalMs
                 keyIntervalMs = if (interval < 0) since.toFloat() else lerp(interval, since.toFloat(), STEADY_SMOOTHING)
                 val shortest = minOf(MIN_STEADY_INSERT_MS, durationMs)
-                durationMs = (keyIntervalMs * STEADY_SPAN_FACTOR).toInt().coerceIn(shortest, STEADY_INSERT_MS.toInt())
-                easing = LinearEasing
+                val even = (keyIntervalMs * STEADY_SPAN_FACTOR).coerceIn(shortest.toFloat(), STEADY_INSERT_MS.toFloat())
+                val crisp = crispnessOf(keyIntervalMs)
+                durationMs = steadyStepMs(even, crisp).toInt()
+                easing = if (crisp <= 0f) LinearEasing else Easing { steadyStepEase(it, crisp) }
                 steady = true
             }
         }
