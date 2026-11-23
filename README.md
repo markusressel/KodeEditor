@@ -389,6 +389,9 @@ it, and its XML attributes and APIs are described in the
 
 * [sora-editor](https://github.com/Rosemoe/sora-editor): a View based code editor library for Android, with TextMate and
   tree-sitter highlighting, auto-completion and an LSP module (LGPL-2.1)
+* [SweetEditor](https://github.com/FinalScave/SweetEditor): an editor core in C++17 with native rendering on Android
+  (View), Apple platforms, Windows, Swing, Flutter and more, with folding, inlay hints, ghost text and snippets (MIT).
+  Its Compose Multiplatform layer is in progress
 
 # Contributing
 

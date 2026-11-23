@@ -11,7 +11,8 @@ in its code. "App" is whether the MkDocsEditor Android app would use it.
 ### Likely useful
 
 - [ ] **Search and replace**: highlight all matches, go to the next and previous one, replace one or all. The matches
-  can be drawn with range styles, it needs an API to search and to scroll to a match. M, app: yes
+  can be drawn with range styles, it needs an API to search and to scroll to a match. M, app: yes. An API proposal goes to
+  Markus before it is built
 - [ ] **Sticky headings**: the headings of the section at the top of the view stay there while scrolling. The fold
   providers already know the sections. M, app: yes, for markdown headings
 - [ ] **Symbol bar above the keyboard**: a row of symbols that are hard to reach on a soft keyboard, like `#`, `*`,
@@ -38,3 +39,16 @@ in its code. "App" is whether the MkDocsEditor Android app would use it.
 - [ ] Minimap. M
 - [ ] Inlay hints within a line, trailing texts of line decorations cover the end of a line. M
 - [ ] Snippets with placeholders to jump through. L
+
+## Decided against
+
+Ideas that came up and were turned down, so they are not discussed again. From a look at
+[klyx](https://github.com/klyx-dev/klyx) (2026-11-23), a GPL-3.0 editor app on top of
+[SweetEditor](https://github.com/FinalScave/SweetEditor).
+
+- **A bar of keys and symbols above the keyboard, and editing commands like indent, move line or toggle comment**:
+  MkDocsEditor has its own, styled and integrated in the app. They stay in the app, not in the library.
+- **Auto-completion and diagnostics from a language server**: no markdown language server or linter is planned.
+- **Workspaces, tabs and saved sessions**: that is the structure of an app, MkDocsEditor has its own.
+- **Deep links to open a file**: belong to the app.
+- **Themes**: the highlighting rules live in KodeHighlighter, and colors belong to the app.
