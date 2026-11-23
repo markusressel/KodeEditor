@@ -128,7 +128,8 @@ class TypingTest {
                 val position = at + index
                 val char = typed[index]
                 composeRule.runOnIdle {
-                    state.applyRemote(listOf(TextSplice(position, 0, char.toString())), appear = true, appearTag = "jane")
+                    val splice = TextSplice(position, 0, char.toString())
+                    state.applyRemote(listOf(splice), appear = true, appearTag = "jane")
                     caret.intValue = position + 1
                 }
                 next = time + gaps[index]
