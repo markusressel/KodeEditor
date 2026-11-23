@@ -69,7 +69,7 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
     fun janeAt(offset: Int, selection: TextRange = TextRange(offset)) =
         KodeEditorRemoteCursor("jane", listOf(selection), Color.Red, Color.Green.copy(alpha = 0.5f))
 
-    fun show(animations: KodeEditorAnimations) {
+    fun show(animations: KodeEditorAnimations, lineWrapping: Boolean = false) {
         rule.setContent {
             KodeEditor(
                 modifier = Modifier.size(400.dp).testTag("editor"),
@@ -80,6 +80,7 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
                 animations = animations,
                 gutterColumns = emptyList(),
                 remoteCursors = if (present.value) listOf(cursor.value) else emptyList(),
+                lineWrapping = lineWrapping,
                 remoteCursorLabel = {
                     SideEffect { labelCompositions++ }
                     Box(Modifier.size(10.dp).testTag(LABEL))
@@ -444,6 +445,24 @@ class RemoteCursorsTest {
         val first = selectionIn(10)
 
         assertEquals(scene.run { settledPosition(); selectionIn(10) }, first)
+    }
+
+    @Test
+    fun `a label at the start of a wrapped row is below the cursor`() {
+        scene.show(KodeEditorAnimations.None, lineWrapping = true)
+        val layout = scene.layout as EditorLineLayout
+        // the first line is longer than the editor is wide, its second row continues it
+        val rowStart = layout.startOfRow(1)
+        composeRule.runOnIdle { scene.cursor.value = scene.janeAt(rowStart) }
+        composeRule.waitForIdle()
+        val atStart = scene.labelPosition.y
+        composeRule.runOnIdle { scene.cursor.value = scene.janeAt(rowStart + 3) }
+        composeRule.waitForIdle()
+        val inRow = scene.labelPosition.y
+        val caret = layout.getCursorRect(rowStart)
+
+        assertEquals("below the cursor", caret.bottom, atStart, 1f)
+        assertTrue("above the cursor within the row: $inRow ${caret.top}", inRow < caret.top)
     }
 
     @Test

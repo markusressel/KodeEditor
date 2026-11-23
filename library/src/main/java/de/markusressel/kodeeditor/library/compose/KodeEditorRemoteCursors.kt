@@ -282,6 +282,18 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
     fun drawn(cursors: List<KodeEditorRemoteCursor>): List<Pair<KodeEditorRemoteCursor, Float>> =
         cursors.map { it to 1f } + leaving.map { it.cursor to alphaOf(it) }
 
+    /**
+     * @return whether the first cursor of a user is at the start of a row that continues a wrapped line, where the text
+     * it just wrote ends in the row above
+     */
+    fun atWrappedRowStart(cursor: KodeEditorRemoteCursor): Boolean {
+        val text = layout.text
+        val head = cursor.selections.firstOrNull()?.end?.coerceIn(0, text.length) ?: return false
+        if (head == 0 || text[head - 1] == '\n') return false
+        val rect = layout.getCursorRect(head)
+        return layout.startOfRow(layout.rowAt(rect.top + layout.lineHeight / 2)) == head
+    }
+
     private fun keyOf(cursor: KodeEditorRemoteCursor, index: Int) = "$index/${cursor.id}"
 
     private companion object {
@@ -405,9 +417,10 @@ internal fun RemoteCaretLayer(
 }
 
 /**
- * The labels of other users at their first cursor, above it, or below it on the first row. A label stays inside the
- * right edge of the visible text while its cursor is visible. Only placing them follows a glide or a scroll, and only
- * drawing them a fade out, they are not composed again for it.
+ * The labels of other users at their first cursor, above it, or below it on the first row and at the start of a row
+ * that continues a wrapped line, where the label would cover the text just written in the row above. A label stays
+ * inside the right edge of the visible text while its cursor is visible. Only placing them follows a glide or a
+ * scroll, and only drawing them a fade out, they are not composed again for it.
  */
 @Composable
 internal fun RemoteCursorLabels(
@@ -428,7 +441,9 @@ internal fun RemoteCursorLabels(
                         val placeable = measurable.measure(Constraints())
                         layout(placeable.width, placeable.height) {
                             val rect = glides.caretRect(current.value, 0)
-                            val y = if (rect.top >= placeable.height) rect.top - placeable.height else rect.bottom
+                            // above the cursor, except where that would cover what was just written in the row above
+                            val below = rect.top < placeable.height || glides.atWrappedRowStart(current.value)
+                            val y = if (below) rect.bottom else rect.top - placeable.height
                             val right = visibleRight()
                             // the cursor stays under the label, a label of a cursor out of sight stays with it
                             val x = if (rect.left > right) {

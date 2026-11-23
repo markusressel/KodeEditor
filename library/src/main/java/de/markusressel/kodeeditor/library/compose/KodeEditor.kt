@@ -312,8 +312,8 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param search highlights the matches of a search, and unfolds what hides its current match
  * @param remoteCursors the cursors and selections of other users, drawn on top of the text. They glide to their new
  * place with `cursorGlide` of [KodeEditorAppearance], and jump without an appearance. A user who leaves fades out
- * @param remoteCursorLabel shows the name of another user at its first cursor, above it or below it on the first row,
- * and inside the right edge of the text.
+ * @param remoteCursorLabel shows the name of another user at its first cursor, above it, or below it on the first row
+ * and at the start of a wrapped row, and inside the right edge of the text.
  * It is placed by the editor, and only composed again when its [KodeEditorRemoteCursor] changes
  */
 @Composable
