@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose
 
 import android.app.Application
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
@@ -59,10 +60,33 @@ class TypingTest {
     /** where the caret of Jane is in the text */
     private val caret = mutableIntStateOf(0)
 
+    /** how long text takes to appear, and a new editor each time [run] changes */
+    private val appearMs = mutableIntStateOf(500)
+    private val run = mutableIntStateOf(0)
+
     private fun show(text: String, caretAt: Int, revealing: Boolean = false, appearMs: Int = 500) {
         state = KodeEditorState(text)
         caret.intValue = caretAt
-        composeRule.setContent {
+        this.appearMs.intValue = appearMs
+        composeRule.setContent { key(run.intValue) { editor(revealing) } }
+        composeRule.waitForIdle()
+        composeRule.mainClock.autoAdvance = false
+    }
+
+    /** a new editor with [text], and a fade of [appearMs], in the same composition */
+    private fun showAgain(text: String, caretAt: Int, appearMs: Int) {
+        composeRule.runOnIdle {
+            state = KodeEditorState(text)
+            caret.intValue = caretAt
+            this.appearMs.intValue = appearMs
+            run.intValue++
+        }
+        repeat(5) { frame() }
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun editor(revealing: Boolean) {
+        run {
             val reveal = if (revealing) rememberKodeEditorReveal(state, "jane").also { reveal = it } else null
             val at = reveal?.head ?: caret.intValue
             KodeEditor(
@@ -74,15 +98,13 @@ class TypingTest {
                     layout = it
                     reveal?.layout = it
                 },
-                animations = KodeEditorAnimations(appearance = KodeEditorAppearance(durationMs = appearMs)),
+                animations = KodeEditorAnimations(appearance = KodeEditorAppearance(durationMs = appearMs.intValue)),
                 gutterColumns = emptyList(),
                 remoteCursors = listOf(
                     KodeEditorRemoteCursor("jane", listOf(TextRange(at)), Color.Red, Color.Red.copy(alpha = 0.3f)),
                 ),
             )
         }
-        composeRule.waitForIdle()
-        composeRule.mainClock.autoAdvance = false
     }
 
     private fun frame(): PixelMap {
@@ -374,5 +396,19 @@ class TypingTest {
         val steps = tail.zipWithNext { a, b -> a - b }
         assertTrue("moves left: $tail", tail.first() > tail.last() + 10)
         assertTrue("no jump: $steps", steps.all { it < (tail.first() - tail.last()) / 2 })
+    }
+
+    @Test
+    fun `the caret of somebody who types moves the same with a longer fade`() {
+        show("first line", 10, appearMs = 250)
+        val short = ArrayList<Float>()
+        janeTypes(" typed by Jane", 10) { image, _ -> short += image.caretX() }
+
+        showAgain("first line", 10, appearMs = 1000)
+        val long = ArrayList<Float>()
+        janeTypes(" typed by Jane", 10) { image, _ -> long += image.caretX() }
+
+        val differences = short.zip(long) { a, b -> abs(a - b) }
+        assertTrue("the same way: $short\n$long", short.size == long.size && differences.all { it <= 1f })
     }
 }
