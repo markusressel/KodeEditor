@@ -217,8 +217,8 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         }
         // a cursor that gets a new place while it glides or shortly after, like at the head of text that is revealed,
         // catches up: its glide is a bit longer than the time between its places, so it stays close behind them. The
-        // time of the frames stands still between glides, so a cursor at rest knows how long it rested at its next frame
-        // running already, a glide that waits for its first frame does not know the time yet
+        // time of the frames stands still between glides, so a cursor at rest knows how long it rested only at its
+        // next frame. Only a running glide counts, one that waits for its first frame does not know the time yet
         val gliding = glide.started >= 0
         if (gliding && glide.movedAt != NONE) {
             glide.durationMs = catchUpMs(now - glide.movedAt)
