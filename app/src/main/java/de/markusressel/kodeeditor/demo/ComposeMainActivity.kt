@@ -9,7 +9,9 @@ import androidx.annotation.RawRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -129,12 +131,12 @@ class ComposeMainActivity : ComponentActivity() {
                     val agentTyping by remember(agent) { derivedStateOf { agent.isRevealing } }
                     val agentBusy = agentTyping || agentWriting != null
 
-                    /** the agent writes at the start of the line of the cursor, the text of that line moves down */
-                    fun agentWrites(chunked: Boolean) {
+                    /** the agent writes [text] in chunks at the start of the line of the cursor */
+                    fun agentWrites(text: String) {
                         val cursor = state.selection.min
                         val position = state.text.lastIndexOf('\n', cursor - 1) + 1
                         agentWriting = scope.launch {
-                            agentWrites(agent, position, AGENT_TEXT, chunked)
+                            agentWrites(agent, position, text, chunked = true)
                             agentWriting = null
                         }
                     }
@@ -146,7 +148,11 @@ class ComposeMainActivity : ComponentActivity() {
                         }
                     }
 
-                    if (!showcase) Row(verticalAlignment = Alignment.CenterVertically) {
+                    // scrolls sideways when it does not fit, e.g. on a narrow phone or with a large font
+                    if (!showcase) Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         if (agentBusy) {
                             TextButton(
                                 onClick = {
@@ -158,10 +164,10 @@ class ComposeMainActivity : ComponentActivity() {
                                 Text("Stop agent")
                             }
                         } else {
-                            TextButton(onClick = { agentWrites(chunked = false) }) {
+                            TextButton(onClick = { agentWrites(AGENT_TEXT) }) {
                                 Text("Agent types")
                             }
-                            TextButton(onClick = { agentWrites(chunked = true) }) {
+                            TextButton(onClick = { agentWrites(AGENT_LONG_TEXT) }) {
                                 Text("Agent chunks")
                             }
                         }
@@ -187,8 +193,7 @@ class ComposeMainActivity : ComponentActivity() {
                         ) {
                             Text("Search")
                         }
-                        Spacer(Modifier.weight(1f))
-                        Text("Read only", color = MaterialTheme.colorScheme.onSurface)
+                        Text("Read only", color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
                         Switch(
                             modifier = Modifier.padding(horizontal = 8.dp),
                             checked = readOnly,
