@@ -69,6 +69,7 @@ data class KodeEditorAnimations(
  * @param maxDurationMs how long text takes to appear that comes fast, [durationMs] if it is shorter
  * @param slowCharsPerSecond up to this rate of a writer, their text appears in [durationMs]
  * @param fastCharsPerSecond from this rate of a writer on, their text appears in [maxDurationMs]
+ * @param local how the changes of the user move and appear, null for not at all. Their typing never animates
  */
 @Immutable
 data class KodeEditorAppearance(
@@ -80,6 +81,7 @@ data class KodeEditorAppearance(
     val maxDurationMs: Int = 1000,
     val slowCharsPerSecond: Float = 10f,
     val fastCharsPerSecond: Float = 120f,
+    val local: KodeEditorLocalAnimations? = null,
 ) {
     /** @return how long a piece takes to appear, for a writer who writes [charsPerSecond] */
     internal fun durationFor(charsPerSecond: Float): Int {
@@ -90,6 +92,21 @@ data class KodeEditorAppearance(
         return (durationMs + (longest - durationMs) * part).roundToInt()
     }
 }
+
+/**
+ * How the changes of the user animate. Typing, the keyboard and dragging a selection never do: the cursor and the text
+ * at it are where they belong at once.
+ *
+ * @param bigChanges whether paste, undo, redo and replacing with the search move the text behind the change to its
+ * new place like the changes of others, and fade the inserted or restored text in, so it is easy to see what changed.
+ * The cursor and the selection are at their new place at once
+ * @param highlightMs how long the inserted or restored text of such a change takes to appear
+ */
+@Immutable
+data class KodeEditorLocalAnimations(
+    val bigChanges: Boolean = false,
+    val highlightMs: Int = 400,
+)
 
 /** how long the rate of a writer is averaged over, see [KodeEditorAppearance] */
 internal const val APPEAR_RATE_MS = 1000f

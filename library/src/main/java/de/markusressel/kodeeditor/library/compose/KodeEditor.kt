@@ -858,7 +858,7 @@ fun KodeEditor(
 
     /** the point the handle at this text position points at, null outside the visible text */
     fun handleAnchor(position: Int): Offset? {
-        val cursor = layout.shownCursorRect(position)
+        val cursor = layout.localCursorRect(position)
         val point = geometry.toEditor(cursor.bottomCenter, offset)
         val visibleX = point.x >= geometry.gutterOnScreen && point.x <= totalSize.width
         return point.takeIf { visibleX && it.y >= 0f && it.y <= totalSize.height }
@@ -1345,7 +1345,7 @@ private fun EditorCursor(state: KodeEditorState, layout: EditorLineLayout, color
     Box(
         modifier = Modifier
             .placedAt {
-                val rect = layout.shownCursorRect(state.selection.end)
+                val rect = layout.localCursorRect(state.selection.end)
                 val left = rect.left.roundToInt()
                 IntRect(left, rect.top.roundToInt(), left + width, rect.bottom.roundToInt())
             }

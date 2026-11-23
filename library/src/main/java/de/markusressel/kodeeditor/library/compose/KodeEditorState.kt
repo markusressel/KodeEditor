@@ -76,6 +76,10 @@ class KodeEditorState(
     internal var replacingText = false
         private set
 
+    /** whether the change that is being applied is a big change of the user, see [bigChange] */
+    internal var applyingBigChange = false
+        private set
+
     /** whether the change that is being applied came from somebody else, see [applyRemote] */
     internal var applyingRemote = false
         private set
@@ -148,6 +152,9 @@ class KodeEditorState(
 
     /** the time of the frame each appearing range started in and how long it takes, by its tag */
     private val appearStarts = HashMap<String, AppearTiming>()
+
+    /** how long the appearing ranges take that do not follow the rate of their writer, by their tag */
+    private val fixedAppearMs = HashMap<String, Long>()
 
     /** how many characters per second appear for each writer, smoothed, by their tag */
     private val appearRates = HashMap<String, AppearRate>()
@@ -300,7 +307,9 @@ class KodeEditorState(
      */
     internal fun setRangeAlphas(ranges: List<AnnotatedString.Range<Float>>) {
         rangeAlphasState = ranges.cutTo(currentText.length)
-        appearStarts.keys.retainAll(rangeAlphasState.mapTo(HashSet()) { it.tag })
+        val tags = rangeAlphasState.mapTo(HashSet()) { it.tag }
+        appearStarts.keys.retainAll(tags)
+        fixedAppearMs.keys.retainAll(tags)
     }
 
     /**
@@ -314,12 +323,16 @@ class KodeEditorState(
      * @param end the end of the range, not included
      * @param tag tells the appearing text apart, e.g. who wrote it, see [finishAppearing]
      */
-    fun appear(start: Int, end: Int, tag: String = "") {
+    fun appear(start: Int, end: Int, tag: String = "") = appear(start, end, tag, null)
+
+    /** @param durationMs how long it takes, null for the rate of the writer, see [KodeEditorAppearance] */
+    private fun appear(start: Int, end: Int, tag: String, durationMs: Long?) {
         val config = appearance ?: return
         val from = start.coerceIn(0, currentText.length)
         val to = end.coerceIn(from, currentText.length)
         if (from == to) return
         val added = AnnotatedString.Range(0f, from, to, "${nextAppearId++}$APPEAR_TAG_SEPARATOR$tag")
+        if (durationMs != null) fixedAppearMs[added.tag] = durationMs
         setRangeAlphas(limitAppearing(rangeAlphasState, added, config))
     }
 
@@ -351,15 +364,16 @@ class KodeEditorState(
         val config = appearance ?: KodeEditorAppearance()
         // the rates first, with all that arrived in this frame
         ranges.forEach { range ->
-            if (range.tag in appearStarts) return@forEach
+            if (range.tag in appearStarts || range.tag in fixedAppearMs) return@forEach
             val writer = range.tag.appearTag()
             val rate = appearRates.getOrPut(writer) { AppearRate(0f, nowMs) }
             rate.add(range.end - range.start, nowMs)
         }
         ranges.forEach { range ->
             if (range.tag in appearStarts) return@forEach
-            val rate = appearRates.getValue(range.tag.appearTag()).charsPerSecond
-            appearStarts[range.tag] = AppearTiming(nowMs, (config.durationFor(rate) * scale).toLong())
+            val duration = fixedAppearMs.remove(range.tag)
+                ?: config.durationFor(appearRates.getValue(range.tag.appearTag()).charsPerSecond).toLong()
+            appearStarts[range.tag] = AppearTiming(nowMs, (duration * scale).toLong())
         }
         setRangeAlphas(
             ranges.mapNotNull { range ->
@@ -410,19 +424,37 @@ class KodeEditorState(
         }
 
     /** takes back the last change of the user */
-    fun undo() = batch {
-        val before = undoStack.undo() ?: return@batch
-        replace(before.splice, before.selection, null)
-        listeners.toList().forEach { it.onLocalEdit(before.splice) }
-        undoState++
+    fun undo() = bigChange {
+        batch {
+            val before = undoStack.undo() ?: return@batch
+            replace(before.splice, before.selection, null)
+            listeners.toList().forEach { it.onLocalEdit(before.splice) }
+            undoState++
+        }
     }
 
     /** does the last undone change of the user again */
-    fun redo() = batch {
-        val after = undoStack.redo() ?: return@batch
-        replace(after.splice, after.selection, null)
-        listeners.toList().forEach { it.onLocalEdit(after.splice) }
-        undoState++
+    fun redo() = bigChange {
+        batch {
+            val after = undoStack.redo() ?: return@batch
+            replace(after.splice, after.selection, null)
+            listeners.toList().forEach { it.onLocalEdit(after.splice) }
+            undoState++
+        }
+    }
+
+    /**
+     * Runs [block] as a big change of the user, like paste, undo or a replacement of the search, which animates with
+     * [KodeEditorLocalAnimations.bigChanges]
+     */
+    internal fun <T> bigChange(block: () -> T): T {
+        if (applyingBigChange) return block()
+        applyingBigChange = true
+        try {
+            return block()
+        } finally {
+            applyingBigChange = false
+        }
     }
 
     /** a change from the keyboard, which knows about it already */
@@ -496,6 +528,11 @@ class KodeEditorState(
             spliceObserver?.invoke(splice)
             foldObserver?.invoke(splice)
             rowObserver?.invoke(splice)
+            val local = appearance?.local
+            if (applyingBigChange && !applyingRemote && local?.bigChanges == true && splice.inserted.isNotEmpty()) {
+                val end = splice.start + splice.inserted.length
+                appear(splice.start, end, LOCAL_APPEAR_TAG, local.highlightMs.toLong())
+            }
         }
         selectionState = selection.coercedIn(currentText.length)
         compositionState = composition?.takeIf { !it.collapsed && it.max <= currentText.length }
@@ -600,6 +637,9 @@ internal fun limitAppearing(
 }
 
 private const val APPEAR_TAG_SEPARATOR = '/'
+
+/** the appear tag of the big changes of the user, see [KodeEditorLocalAnimations.bigChanges] */
+internal const val LOCAL_APPEAR_TAG = "kodeeditor.local"
 
 /** the tag the application gave to [KodeEditorState.appear], behind the id that makes each range unique */
 internal fun String.appearTag() = substringAfter(APPEAR_TAG_SEPARATOR)
