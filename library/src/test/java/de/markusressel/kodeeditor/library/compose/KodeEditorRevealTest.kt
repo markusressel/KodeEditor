@@ -6,6 +6,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import androidx.compose.runtime.MonotonicFrameClock
+import androidx.compose.runtime.snapshots.Snapshot
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import java.lang.reflect.Proxy
 import kotlin.random.Random
 
@@ -167,4 +172,86 @@ class KodeEditorRevealTest {
         check(method.name.startsWith("collapsedRangeAt")) { method.name }
         collapsed.takeIf { args[0] as Int in collapsed.min until collapsed.max }
     } as KodeEditorLayout
+
+    /** a frame each time the reveal waits for one, 16 ms apart */
+    private class TestFrameClock : MonotonicFrameClock {
+        var frames = 0
+        override suspend fun <R> withFrameNanos(onFrame: (frameTimeNanos: Long) -> R): R {
+            yield()
+            return onFrame(++frames * 16_000_000L)
+        }
+    }
+
+    /** runs [keepRevealing][KodeEditorReveal.keepRevealing] with its own frame clock while [block] runs */
+    private fun revealing(block: suspend (TestFrameClock) -> Unit) {
+        val clock = TestFrameClock()
+        runBlocking(clock) {
+            val job = launch { reveal.keepRevealing() }
+            yield()
+            block(clock)
+            job.cancel()
+        }
+    }
+
+    /** lets the frames run until [frames] passed */
+    private suspend fun TestFrameClock.until(frames: Int) {
+        Snapshot.sendApplyNotifications()
+        while (this.frames < frames) yield()
+    }
+
+    @Test
+    fun `the frames of the frame clock of the coroutine reveal the text`() = revealing { clock ->
+        reveal.insert(before.length, "a chunk of an agent")
+        clock.until(5)
+
+        // 0.96 characters in each frame
+        assertEquals(19 - 4, reveal.hiddenLength)
+    }
+
+    @Test
+    fun `run again, it goes on where it was`() {
+        revealing { clock ->
+            reveal.insert(before.length, "a chunk of an agent")
+            clock.until(5)
+        }
+        revealing { clock -> clock.until(5) }
+
+        assertEquals(19 - 9, reveal.hiddenLength)
+    }
+
+    @Test
+    fun `a change of somebody else inside the hidden text or at its edge shows it`() {
+        for (at in listOf(4, 0, 19)) {
+            state = KodeEditorState("${before}after\n")
+            reveal = KodeEditorReveal(state, "agent")
+            revealing { clock ->
+                reveal.insert(before.length, "a chunk of an agent")
+                clock.until(1)
+                state.applyRemote(listOf(TextSplice(before.length + at, 0, "x")))
+
+                assertFalse("at $at", reveal.isRevealing)
+            }
+        }
+    }
+
+    @Test
+    fun `a change of somebody else elsewhere moves the hidden text`() = revealing { clock ->
+        reveal.insert(before.length, "a chunk of an agent")
+        clock.until(1)
+        state.applyRemote(listOf(TextSplice(0, 0, "x")))
+        state.applyRemote(listOf(TextSplice(state.text.length, 0, "y")))
+
+        assertTrue(reveal.isRevealing)
+        assertEquals(before.length + 1, reveal.head)
+    }
+
+    @Test
+    fun `a change of the user shows all of it`() = revealing { clock ->
+        reveal.insert(before.length, "a chunk of an agent")
+        clock.until(1)
+        state.setSelection(androidx.compose.ui.text.TextRange(0))
+        state.replaceSelection("x")
+
+        assertFalse(reveal.isRevealing)
+    }
 }

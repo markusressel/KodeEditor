@@ -18,8 +18,18 @@ reveal.stop()                  // shows all hidden text at once
 reveal.layout = layout         // from KodeEditor(onTextLayout), shows collapsed parts as a whole
 ```
 
-`KodeEditorReveal(state, tag = "reveal", minCharsPerSecond = 60f, catchUpMs = 4000)` can also be created directly, then
-the app runs `keepRevealing()` in a coroutine of the composition, which `rememberKodeEditorReveal` does.
+`KodeEditorReveal(state, tag = "reveal", minCharsPerSecond = 60f, catchUpMs = 4000)` can also be created directly, e.g.
+next to a view model, then the app runs `keepRevealing()` in a coroutine of the composition, which
+`rememberKodeEditorReveal` does.
+
+- `keepRevealing()` waits for frames with the `MonotonicFrameClock` of its coroutine, so a test can run it with a clock
+  of its own.
+- It can be cancelled and run again, e.g. on rotation: the hidden text, the speed and the carry stay.
+- `insert` works while it does not run, the text stays hidden until it runs again or `stop()` is called. Changes that
+  show the hidden text (R1) are only noticed while it runs, so call `stop()` when the editor goes away.
+- `insert` and `applyRemote` can be mixed in one call on the main thread, no frame comes in between.
+- The reveal keeps all range styles that are not its own. An app that sets its own range styles must keep those of the
+  reveal (their tag starts with the tag of the reveal), or their text shows at once. Two reveals keep each other's.
 
 ## Rules
 
@@ -31,9 +41,9 @@ the app runs `keepRevealing()` in a coroutine of the composition, which `remembe
 - A new chunk never shows what is still hidden. Only a change of the user and `stop()` show all of it at once.
 - A chunk right behind the end of the newest hidden chunk joins it. A chunk inside hidden text joins that text. Any
   other chunk is a new entry at the end of the queue, also one right at the start of hidden text.
-- The hidden text moves with all changes of the text, like range styles: text inserted in front of it moves it, text
-  inserted inside of it becomes a part of it, text inserted right at its start or end stays out of it, removed text
-  shrinks it.
+- Nobody types into hidden text: a change of the user anywhere, and a change of anybody else inside the hidden text or
+  right at its start or end, shows all hidden text of that writer at once and ends its appearing, like `stop()`.
+- Other changes move the hidden text, like range styles: text inserted in front of it moves it.
 
 ### R2: the head walks the queue
 

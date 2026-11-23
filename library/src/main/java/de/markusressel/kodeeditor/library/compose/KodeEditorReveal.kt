@@ -25,7 +25,10 @@ import kotlin.math.max
  * - The speed is [minCharsPerSecond], or faster, so all hidden text is shown within [catchUpMs] of its arrival. It
  *   rises when a chunk arrives and does not drop while text is hidden, so the reveal never stutters.
  * - A collapsed part, like a folded link, counts as a single character and is shown as a whole, see [layout].
- * - A change of the user shows all hidden text at once, see [stop]. Changes of others keep moving the hidden text.
+ * - A change of the user shows all hidden text at once, see [stop]. So does a change of somebody else inside the hidden
+ *   text or right at its start or end, as nobody types into hidden text. Changes elsewhere move it, like range styles.
+ * - Other range styles stay as they are. An app that sets its own must keep the ones with this [tag] in
+ *   [KodeEditorState.setRangeStyles], or their text shows at once.
  *
  * [keepRevealing] does the work, [rememberKodeEditorReveal] runs it. docs/reveal.md has the rules with all numbers.
  *
@@ -48,9 +51,17 @@ class KodeEditorReveal(
     private var nextOrder = 0L
     private var charsPerSecond = 0f
     private var carry = 0f
+    private var inserting = false
 
     private val listener = object : KodeEditorListener {
         override fun onLocalEdit(splice: TextSplice) = stop()
+    }
+
+    // after the range styles moved with the change: what it inserted or where it removed text is at its start
+    private val spliceListener: (TextSplice) -> Unit = { splice ->
+        val end = splice.start + splice.inserted.length
+        val touched = state.rangeStyles.any { it.tag.startsWith(prefix) && it.start <= end && splice.start <= it.end }
+        if (touched && !inserting) stop()
     }
 
     /** the hidden chunks in the order they are revealed */
@@ -81,7 +92,12 @@ class KodeEditorReveal(
         val before = queue
         val inside = before.any { it.start < at && at < it.end }
         val newest = before.lastOrNull()
-        state.applyRemote(listOf(TextSplice(at, 0, text)))
+        inserting = true
+        try {
+            state.applyRemote(listOf(TextSplice(at, 0, text)))
+        } finally {
+            inserting = false
+        }
         // in the same call as the change, so no frame shows the chunk
         val others = state.rangeStyles
         state.setRangeStyles(
@@ -144,11 +160,13 @@ class KodeEditorReveal(
     }
 
     /**
-     * Reveals the hidden text frame by frame until it is cancelled, and shows it at once when a change of the user
-     * comes or animations are off. [rememberKodeEditorReveal] runs this.
+     * Reveals the hidden text frame by frame until it is cancelled, with the frame clock of the coroutine, and shows it
+     * at once when animations are off. Changes that show the hidden text at once are only noticed while this runs. It
+     * can be cancelled and run again, the hidden text and the speed stay. [rememberKodeEditorReveal] runs this.
      */
     suspend fun keepRevealing() {
         state.addListener(listener)
+        state.addSpliceListener(spliceListener)
         try {
             snapshotFlow { isRevealing }.collectLatest { revealing ->
                 if (!revealing) return@collectLatest
@@ -168,6 +186,7 @@ class KodeEditorReveal(
             }
         } finally {
             state.removeListener(listener)
+            state.removeSpliceListener(spliceListener)
         }
     }
 
