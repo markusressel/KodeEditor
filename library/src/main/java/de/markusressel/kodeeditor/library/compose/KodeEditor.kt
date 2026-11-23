@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.*
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawWithContent
@@ -85,6 +86,7 @@ import de.markusressel.kodehighlighter.core.rule.RuleHelper
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
 import kotlin.math.floor
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.delay
 
 private const val KEYBOARD_ZOOM_STEP = 1.1f
@@ -377,6 +379,24 @@ fun KodeEditor(
     LaunchedEffect(highlighting) { highlighting.keepUpdated() }
 
     val folds = remember(state, foldProvider) { foldProvider?.let { EditorFolds(state, it) } }
+    val appearance = animations.appearance
+    val appearSlide = with(LocalDensity.current) { (appearance?.slide ?: 0.dp).toPx() }
+    DisposableEffect(state, appearance) {
+        state.appearance = appearance
+        onDispose { state.appearance = null }
+    }
+    if (appearance != null) {
+        LaunchedEffect(state, appearance) {
+            // the system setting that scales animations, 0 when they are off
+            val scale = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
+            val duration = (appearance.durationMs * scale).toLong()
+            snapshotFlow { state.rangeAlphas.isNotEmpty() }.collectLatest { appearing ->
+                // no frames while nothing appears
+                while (appearing && withFrameMillis { state.onAppearFrame(it, duration) }) Unit
+            }
+        }
+    }
+
     DisposableEffect(state, folds) {
         if (folds == null) return@DisposableEffect onDispose {}
         state.foldObserver = folds.spliceObserver
@@ -1104,6 +1124,7 @@ fun KodeEditor(
                     window = drawWindow,
                     decorations = decorations,
                     foldBoxColor = inlineFoldBackground,
+                    appearSlide = appearSlide,
                 )
                 if (focused && enabled && !readOnly && selection.collapsed) {
                     EditorCursor(

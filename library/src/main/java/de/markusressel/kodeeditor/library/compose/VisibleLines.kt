@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.State
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameMillis
@@ -82,7 +83,10 @@ internal fun VisibleLines(
     window: State<IntRect>,
     decorations: List<KodeEditorLineDecoration> = emptyList(),
     foldBoxColor: Color = Color.Transparent,
+    appearSlide: Float = 0f,
 ) {
+    // saveLayer copies it, so one is enough for all layers
+    val layerPaint = remember { Paint() }
     LaunchedEffect(layout) {
         snapshotFlow { layout.currentWrapWidth to layout.foldAnimations }.collectLatest {
             while (layout.reflowing) {
@@ -122,8 +126,12 @@ internal fun VisibleLines(
                     parts.forEachIndexed { index, part ->
                         if (part.alpha <= 0f) return@forEachIndexed
                         val rect = rects[index]
-                        drawContext.canvas.saveLayer(rect, Paint().also { it.alpha = part.alpha })
-                        clipRect(rect.left, rect.top, rect.right, rect.bottom) { drawRowContent(line) }
+                        layerPaint.alpha = part.alpha
+                        drawContext.canvas.saveLayer(rect, layerPaint)
+                        clipRect(rect.left, rect.top, rect.right, rect.bottom) {
+                            // rises into its place while it appears
+                            translate(top = (1f - part.alpha) * appearSlide) { drawRowContent(line) }
+                        }
                         drawContext.canvas.restore()
                     }
                 }

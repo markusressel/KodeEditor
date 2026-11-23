@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose
 
 import android.app.Application
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
@@ -22,6 +23,7 @@ import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -178,6 +180,67 @@ class RangeStylesTest {
         assertEquals(emptyList<AnnotatedString.Range<Float>>(), state.rangeAlphas)
     }
 
+    private fun KodeEditorState.appearingRanges() = rangeAlphas.map { it.start to it.end }
+
+    @Test
+    fun `nothing appears while no editor shows the state with an appearance`() {
+        val state = KodeEditorState("hello world")
+        state.appear(0, 5)
+        state.applyRemote(listOf(TextSplice(0, 0, "ab")), appear = true)
+        assertTrue(state.rangeAlphas.isEmpty())
+    }
+
+    @Test
+    fun `only the last characters of text that appears piece after piece appear, per tag`() {
+        val state = KodeEditorState("abcdefghij")
+        state.appearance = KodeEditorAppearance(window = 4)
+        state.appear(0, 2, "agent")
+        state.appear(2, 4, "agent")
+        state.appear(8, 10, "jane")
+        assertEquals(listOf(0 to 2, 2 to 4, 8 to 10), state.appearingRanges())
+        state.appear(4, 6, "agent")
+        assertEquals("the first piece left the window", listOf(2 to 4, 8 to 10, 4 to 6), state.appearingRanges())
+    }
+
+    @Test
+    fun `there are never more appearing ranges than allowed, the oldest is shown at once`() {
+        val state = KodeEditorState("abcdefghij")
+        state.appearance = KodeEditorAppearance(maxRanges = 2)
+        state.appear(0, 1)
+        state.appear(3, 4)
+        state.appear(6, 7)
+        assertEquals(listOf(3 to 4, 6 to 7), state.appearingRanges())
+    }
+
+    @Test
+    fun `the application decides which text stops appearing, typing does not`() {
+        val state = KodeEditorState("abcdefghij")
+        state.appearance = KodeEditorAppearance()
+        state.appear(0, 2, "agent")
+        state.applyRemote(listOf(TextSplice(5, 0, "xy")), appear = true, appearTag = "jane")
+        state.setSelection(TextRange(10))
+        state.replaceSelection("!")
+        state.undo()
+        assertEquals(listOf(0 to 2, 5 to 7), state.appearingRanges())
+        state.finishAppearing("agent")
+        assertEquals(listOf(5 to 7), state.appearingRanges())
+        state.finishAppearing()
+        assertTrue(state.rangeAlphas.isEmpty())
+    }
+
+    @Test
+    fun `appearing text gets more visible with each frame until it is shown`() {
+        val state = KodeEditorState("abcdefghij")
+        state.appearance = KodeEditorAppearance()
+        state.appear(0, 2)
+        assertTrue(state.onAppearFrame(1000, 100))
+        assertEquals(0f, state.rangeAlphas.single().item)
+        assertTrue(state.onAppearFrame(1050, 100))
+        assertEquals(0.75f, state.rangeAlphas.single().item, 0.001f)
+        assertFalse(state.onAppearFrame(1100, 100))
+        assertTrue(state.rangeAlphas.isEmpty())
+    }
+
     private val noRules = object : LanguageRuleBook {
         override fun getRules() = emptyList<LanguageRule>()
     }
@@ -242,5 +305,32 @@ class RangeStylesTest {
         composeRule.waitForIdle()
         val half = drawnPixels()
         assertTrue("half of the alpha draws the range lighter", half > firstLine)
+    }
+
+    @Test
+    fun `text appears with the frames of the editor, and the frames stop when it is shown`() {
+        val state = KodeEditorState("hello")
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent {
+            KodeEditor(
+                modifier = Modifier.size(300.dp).testTag("editor"),
+                state = state,
+                languageRuleBook = noRules,
+                colorScheme = noColors,
+                readOnly = true,
+                animations = KodeEditorAnimations(appearance = KodeEditorAppearance(durationMs = 200)),
+            )
+        }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.runOnIdle {
+            state.applyRemote(listOf(TextSplice(5, 0, " world")), appear = true)
+            // a paused clock sends no notifications about changed state on its own
+            Snapshot.sendApplyNotifications()
+        }
+        composeRule.mainClock.advanceTimeBy(100)
+        val alpha = state.rangeAlphas.single().item
+        assertTrue("half way, $alpha", alpha > 0f && alpha < 1f)
+        composeRule.mainClock.advanceTimeBy(200)
+        assertTrue(state.rangeAlphas.isEmpty())
     }
 }

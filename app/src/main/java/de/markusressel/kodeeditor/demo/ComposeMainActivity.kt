@@ -2,7 +2,6 @@ package de.markusressel.kodeeditor.demo
 
 import de.markusressel.kodeeditor.library.compose.rememberLineNumberColumn
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RawRes
@@ -34,12 +33,18 @@ import de.markusressel.kodeeditor.demo.ui.theme.KodeEditorTheme
 import de.markusressel.kodeeditor.demo.ui.theme.Teal200
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
+import de.markusressel.kodeeditor.library.compose.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.KodeEditorAppearance
 import de.markusressel.kodeeditor.library.compose.KodeEditorLayout
 import de.markusressel.kodeeditor.library.compose.KodeEditorListener
 import de.markusressel.kodeeditor.library.compose.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.TextSplice
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class ComposeMainActivity : ComponentActivity() {
@@ -88,33 +93,20 @@ class ComposeMainActivity : ComponentActivity() {
                     }
 
                     var revealSteps by remember { mutableIntStateOf(2) }
-                    var fadeMs by remember { mutableIntStateOf(250) }
-                    var fadeWindow by remember { mutableIntStateOf(16) }
+                    var appearOn by remember { mutableStateOf(true) }
+                    var appearMs by remember { mutableIntStateOf(250) }
+                    var appearWindow by remember { mutableIntStateOf(16) }
+                    var appearSlide by remember { mutableIntStateOf(0) }
                     var showOptions by remember { mutableStateOf(false) }
                     var editorLayout by remember { mutableStateOf<KodeEditorLayout?>(null) }
+                    val scope = rememberCoroutineScope()
+                    var janeTyping by remember { mutableStateOf<Job?>(null) }
 
-                    // not the head itself, that would compose all of this again for each frame of the typing
+                    // not the head itself, that would compose all of this again for each step of the typing
                     val agentTyping by remember(agent) { derivedStateOf { agent.head != null } }
-                    val agentActive by remember(agent) { derivedStateOf { agent.head != null || agent.fading } }
-                    LaunchedEffect(agentActive) {
-                        // no fading when the system turns animations off
-                        val scale = Settings.Global.getFloat(
-                            contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
-                        )
-                        agent.fadeMs = (fadeMs * scale).toInt()
-                        agent.fadeWindow = fadeWindow
-                        var lastReveal = 0L
-                        while (agentActive) {
-                            val active = withFrameMillis { now ->
-                                // about 30 steps per second, the fading runs with every frame
-                                if (now - lastReveal >= REVEAL_INTERVAL_MS) {
-                                    lastReveal = now
-                                    agent.reveal(revealSteps, now) { editorLayout?.collapsedRangeAt(it) }
-                                }
-                                agent.fade(now)
-                                agent.head != null || agent.fading
-                            }
-                            if (!active) break
+                    LaunchedEffect(agentTyping) {
+                        while (agentTyping && agent.reveal(revealSteps) { editorLayout?.collapsedRangeAt(it) }) {
+                            delay(REVEAL_INTERVAL_MS)
                         }
                     }
 
@@ -131,6 +123,17 @@ class ComposeMainActivity : ComponentActivity() {
                             },
                         ) {
                             Text(if (agentTyping) "Stop agent" else "Agent types")
+                        }
+                        TextButton(
+                            enabled = janeTyping == null,
+                            onClick = {
+                                janeTyping = scope.launch {
+                                    janeTypes(state)
+                                    janeTyping = null
+                                }
+                            },
+                        ) {
+                            Text("Jane types")
                         }
                         TextButton(onClick = { showOptions = !showOptions }) {
                             Text(if (showOptions) "Hide options" else "Options")
@@ -162,8 +165,20 @@ class ComposeMainActivity : ComponentActivity() {
 
                     if (showOptions) {
                         OptionSlider("Characters per step", revealSteps, 1..10) { revealSteps = it }
-                        OptionSlider("Fade in (ms)", fadeMs, 0..1000) { fadeMs = it }
-                        OptionSlider("Fading characters at most", fadeWindow, 1..60) { fadeWindow = it }
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Appear animation", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                            Switch(
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                                checked = appearOn,
+                                onCheckedChange = { appearOn = it },
+                            )
+                        }
+                        OptionSlider("Appear duration (ms)", appearMs, 0..1000) { appearMs = it }
+                        OptionSlider("Appearing characters", appearWindow, 1..60) { appearWindow = it }
+                        OptionSlider("Slide (dp)", appearSlide, 0..20) { appearSlide = it }
                     }
 
                     KodeEditor(
@@ -175,6 +190,18 @@ class ComposeMainActivity : ComponentActivity() {
                         colorScheme = colorScheme,
                         state = state,
                         readOnly = readOnly,
+                        // only what the agent and Jane write appears animated, typed text is there at once
+                        animations = KodeEditorAnimations(
+                            appearance = if (appearOn) {
+                                KodeEditorAppearance(
+                                    durationMs = appearMs,
+                                    window = appearWindow,
+                                    slide = appearSlide.dp,
+                                )
+                            } else {
+                                null
+                            },
+                        ),
                         textStyle = editorTextStyle,
                         colors = KodeEditorDefaults.editorColors(),
                         lineWrapping = true,
@@ -186,7 +213,7 @@ class ComposeMainActivity : ComponentActivity() {
                         ),
                         overlay = { layout ->
                             // fake cursor and selection of another user
-                            val selectedText = "syntax highlighting"
+                            val selectedText = JANE_PHRASE
                             val selectionStart = text.indexOf(selectedText)
                             // the text can be edited, so the phrase may be gone
                             if (selectionStart >= 0) {
@@ -276,6 +303,17 @@ class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    /** another person, who types a line behind the phrase "Jane" selected, as remote changes that appear animated */
+    private suspend fun janeTypes(state: KodeEditorState) {
+        JANE_TEXT.forEachIndexed { typed, char ->
+            delay(JANE_INTERVAL_MS)
+            // found again each time, the user may have changed the text in front of it meanwhile
+            val anchor = state.text.indexOf(JANE_PHRASE).takeIf { it >= 0 } ?: return
+            val position = anchor + JANE_PHRASE.length + typed
+            state.applyRemote(listOf(TextSplice(position, 0, char.toString())), appear = true, appearTag = "jane")
+        }
+    }
+
     private fun readResourceFileAsText(@RawRes resourceId: Int) =
         resources.openRawResource(resourceId).bufferedReader().readText()
 
@@ -284,6 +322,11 @@ class ComposeMainActivity : ComponentActivity() {
 
 /** how often the agent of the demo types, about 30 times per second */
 private const val REVEAL_INTERVAL_MS = 33L
+
+/** what Jane has selected, and types behind */
+private const val JANE_PHRASE = "syntax highlighting"
+private const val JANE_TEXT = " (Jane: this line appears as I type it)"
+private const val JANE_INTERVAL_MS = 90L
 
 @Preview(showBackground = true)
 @Composable
