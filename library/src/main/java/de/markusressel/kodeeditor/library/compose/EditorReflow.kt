@@ -18,6 +18,18 @@ internal val CubicEaseOut = Easing { 1f - (1f - it).let { rest -> rest * rest * 
  */
 internal const val STEADY_INSERT_MS = 250L
 
+/**
+ * An insertion that is typed on moves the text for this times the smoothed time between the keys, so it is still on
+ * its way when the next key comes, and the text does not stop and start again at each key
+ */
+internal const val STEADY_SPAN_FACTOR = 1.5f
+
+/** how much the time since the last key counts for the smoothed time between the keys, the rest is the one before */
+internal const val STEADY_SMOOTHING = 0.3f
+
+/** the time between two frames at 60 Hz */
+private const val STEADY_FRAME_MS = 16L
+
 /** characters, a longer insertion is no key somebody types */
 internal const val STEADY_INSERT_CHARS = 3
 
@@ -70,6 +82,9 @@ internal class ReflowTransition(
     /** stays where it is, an insertion that follows takes the text on from there */
     private var frozen = false
 
+    /** the smoothed time between the keys of somebody who types, see [STEADY_SPAN_FACTOR] */
+    private var keyIntervalMs = -1f
+
     /** where text was before the change, which is the same on each frame */
     private val positions = HashMap<Int, Offset>()
 
@@ -99,15 +114,21 @@ internal class ReflowTransition(
         val before = typedOn
         // only its time is needed, the transitions do not keep each other
         typedOn = null
+        var steady = false
         if (first && before != null && before.startMs >= 0 && durationMs > 0) {
-            val since = nowMs - before.startMs
+            // the key before started a frame early too, so this is the time between the keys
+            val since = nowMs - before.startMs - STEADY_FRAME_MS
             if (since <= STEADY_INSERT_MS) {
+                val interval = before.keyIntervalMs
+                keyIntervalMs = if (interval < 0) since.toFloat() else lerp(interval, since.toFloat(), STEADY_SMOOTHING)
                 val shortest = minOf(MIN_STEADY_INSERT_MS, durationMs)
-                durationMs = since.toInt().coerceIn(shortest, STEADY_INSERT_MS.toInt())
+                durationMs = (keyIntervalMs * STEADY_SPAN_FACTOR).toInt().coerceIn(shortest, STEADY_INSERT_MS.toInt())
                 easing = LinearEasing
+                steady = true
             }
         }
-        if (startMs < 0) startMs = nowMs
+        // one that takes the text on moves in its first frame already, the text does not stop for a frame at each key
+        if (startMs < 0) startMs = if (steady) nowMs - STEADY_FRAME_MS else nowMs
         val time = ((nowMs - startMs) / durationMs.toFloat()).coerceAtMost(1f)
         progress = easing.transform(time)
     }

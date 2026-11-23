@@ -57,9 +57,11 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 
 - Each frame reveals `rate × elapsed` characters, with `elapsed` the time since the frame before. The fraction that is
   left is carried to the next frame. The first frame after a rest counts as 16 ms, so a chunk starts to show at once.
-- When a chunk arrives: `rate = max(rate, 60, hidden × 1000 / 4000)` characters per second, with `hidden` all hidden
-  characters of the writer, the new chunk included. The rate never drops while text is hidden, and goes back to 0 with
-  the carry when nothing is hidden anymore.
+- When a chunk arrives: `target = max(target, 60, hidden × 1000 / (4000 - 150))` characters per second, with `hidden`
+  all hidden characters of the writer, the new chunk included. The target never drops while text is hidden, and goes
+  back to 0 with the rate and the carry when nothing is hidden anymore.
+- From a rest, `rate = target` at once. While text is revealed, the rate gets there smoothly instead of jumping:
+  `rate += (target - rate) × min(1, elapsed / 150)` in each frame. The 150 ms less in the target make up for it.
 - So all text that is hidden when a chunk arrives is shown within 4 s at the most, and text that arrives at 60
   characters per second or slower is revealed at 60 characters per second, about one in each frame.
 - Why the rate does not drop: with `rate = max(60, hidden / 4 s)` taken anew in each frame, the hidden text shrinks
@@ -91,11 +93,13 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   most 20 ms before the frame, the new one starts in that frame, otherwise one frame (16 ms) earlier, so it moves in
   its first frame already. A jump forgets the time of the last new place.
 - R5b, typing: a step of at most 3 characters in the same row, at most 250 ms after the last new place of the cursor,
-  glides at an even speed (linear) from where the cursor is drawn, for `clamp(time since the last new place, 32, 250)`
-  ms. So the cursor of somebody who types keeps moving between their keys instead of starting fast and stopping at
-  each one ("pumping"). It ends about one key interval behind. The first step after a rest, and every larger move,
-  keep the rules above. For a reveal at about one character per frame this is a glide of 32 ms, about 1 character
-  behind the head.
+  glides at an even speed (linear) from where the cursor is drawn, for `clamp(1.5 × interval, 32, 250)` ms. The interval
+  is the time between its steps, smoothed: the first step of a run takes the time since the last new place, each one
+  after it `interval + 0.3 × (time since the last new place - interval)`. The factor 1.5 keeps it on its way when the
+  next step comes, so it does not stop and start again at each one. So the cursor of somebody who types keeps moving
+  between their keys instead of starting fast and stopping at each one ("pumping"). It ends about one key interval
+  behind. The first step after a rest, and every larger move, keep the rules above. For a reveal at about one character
+  per frame this is a glide of 32 ms, about 1 character behind the head.
 - R3 and R5 go together: revealed per frame at about one character, the cursor stays about 1 to 1.5 characters behind
   the head with an even speed. Revealed in steps of several characters, the Hermite glide is smooth but lags more, about
   6 characters at 8 characters every 32 ms.
@@ -107,9 +111,10 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 - A slide that starts while one runs starts from where the text is drawn, so the text never jumps: the one before
   stops where it is, and the new one takes the text on from there to its new place.
 - Typing (R6b): an insertion of at most 3 characters right behind the one before, at most 250 ms after it, slides at an
-  even speed (linear) for `clamp(time since the one before started, 32, 250)` ms. A cursor at the end of the insertion
-  is drawn where the text behind it is drawn on its way, so the text behind the cursor of somebody who types moves
-  exactly with their cursor, at the even speed of R5b.
+  even speed (linear) for `clamp(1.5 × interval, 32, 250)` ms, with the time between the keys smoothed like in R5b. It
+  starts a frame (16 ms) early, so the text does not stand still for a frame at each key. A cursor at the end of the
+  insertion is drawn where the text behind it is drawn on its way, so the text behind the cursor of somebody who types
+  moves exactly with their cursor, at the even speed of R5b.
 - Chunks of an agent are no typing: each chunk slides once, in 120 ms, when it arrives, and nothing moves while it is
   revealed.
 - Removals do not slide.

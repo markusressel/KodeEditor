@@ -110,6 +110,9 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
         /** whether its last move was small enough to glide at an even speed, decided at its first frame */
         var small = false
+
+        /** the smoothed time between its steps at an even speed, see [STEADY_SPAN_FACTOR] */
+        var stepIntervalMs = -1f
     }
 
     private val glides = HashMap<String, Glide>()
@@ -241,11 +244,12 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
             val since = now - glide.movedAt
             if (glide.small && since <= STEADY_WINDOW_MS) {
                 glide.linear = true
-                glide.durationMs = steadyMs(since)
+                glide.durationMs = steadyMs(glide, since)
                 anchorVelocity = null
                 headVelocity = null
             } else {
                 glide.durationMs = catchUpMs(since)
+                glide.stepIntervalMs = -1f
             }
             glide.movedAt = now
         } else {
@@ -263,8 +267,16 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         starts++
     }
 
-    /** @return how long a glide at an even speed takes, until about when the next new place is expected */
-    private fun steadyMs(since: Long): Long = since.coerceIn(minOf(MIN_CATCH_UP_MS, durationMs), STEADY_WINDOW_MS)
+    /**
+     * @return how long a glide at an even speed takes: a bit longer than the smoothed time between the steps, so it is
+     * still on its way when the next one comes, and does not stop and start again at each step
+     */
+    private fun steadyMs(glide: Glide, since: Long): Long {
+        val interval = glide.stepIntervalMs
+        glide.stepIntervalMs = if (interval < 0) since.toFloat() else interval + (since - interval) * STEADY_SMOOTHING
+        return (glide.stepIntervalMs * STEADY_SPAN_FACTOR).toLong()
+            .coerceIn(minOf(MIN_CATCH_UP_MS, durationMs), STEADY_WINDOW_MS)
+    }
 
     /** @return how long a glide takes that starts [since] the last new place of the cursor */
     private fun catchUpMs(since: Long): Long =
@@ -299,9 +311,11 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
                 val catchUp = !steady && glide.movedAt != NONE && since <= CATCH_UP_WINDOW_MS
                 if (steady) {
                     glide.linear = true
-                    glide.durationMs = steadyMs(since)
-                } else if (catchUp) {
-                    glide.durationMs = catchUpMs(since)
+                    glide.durationMs = steadyMs(glide, since)
+                } else {
+                    // a new run of steps starts with its own time between them
+                    glide.stepIntervalMs = -1f
+                    if (catchUp) glide.durationMs = catchUpMs(since)
                 }
                 // one that catches up moves in its first frame already
                 glide.started = if ((catchUp || steady) && start == timeMs) timeMs - FRAME_MS else start
@@ -468,6 +482,12 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
         /** characters, see [STEADY_WINDOW_MS] */
         const val STEADY_MAX_CHARS = 3
+
+        /** a glide at an even speed takes this times the smoothed time between the steps */
+        const val STEADY_SPAN_FACTOR = 1.5f
+
+        /** how much the time since the last step counts for the smoothed time between the steps */
+        const val STEADY_SMOOTHING = 0.3f
     }
 }
 

@@ -208,4 +208,27 @@ class TypingTest {
         assertTrue("$typing ms, forwards: $speeds", speeds.all { it >= -0.5f })
         assertTrue("p95 $p95, mean $mean: $speeds", p95 <= 2.5 * mean)
     }
+
+    @Test
+    fun `the text behind somebody who types on does not stop at a key`() {
+        show("first line", 10)
+        val stops = ArrayList<Long>()
+        var last = -1f
+        var keyAt = 0
+        var lastKeyTime = -1000L
+
+        janeTypes(" typed by Jane, one key after the other", 10) { _, time ->
+            val c = composeRule.runOnIdle { caret.intValue }
+            val x = composeRule.runOnIdle { (layout as EditorLineLayout).shownCursorRect(c).left }
+            if (c != keyAt) {
+                // a key right after the one before goes on moving in its first frame
+                if (time - lastKeyTime <= STEADY_INSERT_MS && x - last < 0.01f) stops += time
+                keyAt = c
+                lastKeyTime = time
+            }
+            last = x
+        }
+
+        assertTrue("stops at the keys at $stops ms", stops.isEmpty())
+    }
 }
