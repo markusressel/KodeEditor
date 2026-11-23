@@ -405,13 +405,15 @@ internal fun RemoteCaretLayer(
 }
 
 /**
- * The labels of other users at their first cursor, above it, or below it on the first row. Only placing them follows
- * a glide, and only drawing them a fade out, they are not composed again for it.
+ * The labels of other users at their first cursor, above it, or below it on the first row. A label stays inside the
+ * right edge of the visible text while its cursor is visible. Only placing them follows a glide or a scroll, and only
+ * drawing them a fade out, they are not composed again for it.
  */
 @Composable
 internal fun RemoteCursorLabels(
     cursors: List<KodeEditorRemoteCursor>,
     glides: RemoteCursorGlides,
+    visibleRight: () -> Float,
     label: @Composable (KodeEditorRemoteCursor) -> Unit,
 ) {
     (cursors + glides.leaving.map { it.cursor }).forEach { cursor ->
@@ -427,7 +429,14 @@ internal fun RemoteCursorLabels(
                         layout(placeable.width, placeable.height) {
                             val rect = glides.caretRect(current.value, 0)
                             val y = if (rect.top >= placeable.height) rect.top - placeable.height else rect.bottom
-                            placeable.place(rect.left.roundToInt(), y.roundToInt())
+                            val right = visibleRight()
+                            // the cursor stays under the label, a label of a cursor out of sight stays with it
+                            val x = if (rect.left > right) {
+                                rect.left
+                            } else {
+                                rect.left.coerceAtMost(right - placeable.width).coerceAtLeast(rect.left - placeable.width)
+                            }
+                            placeable.place(x.roundToInt(), y.roundToInt())
                         }
                     },
             ) {

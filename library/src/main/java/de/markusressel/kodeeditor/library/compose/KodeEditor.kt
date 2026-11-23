@@ -312,7 +312,8 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param search highlights the matches of a search, and unfolds what hides its current match
  * @param remoteCursors the cursors and selections of other users, drawn on top of the text. They glide to their new
  * place with `cursorGlide` of [KodeEditorAppearance], and jump without an appearance. A user who leaves fades out
- * @param remoteCursorLabel shows the name of another user at its first cursor, above it or below it on the first row.
+ * @param remoteCursorLabel shows the name of another user at its first cursor, above it or below it on the first row,
+ * and inside the right edge of the text.
  * It is placed by the editor, and only composed again when its [KodeEditorRemoteCursor] changes
  */
 @Composable
@@ -1226,7 +1227,12 @@ fun KodeEditor(
                     RemoteCaretLayer(currentRemoteCursors, glides, drawWindow)
                     if (remoteCursorLabel != null) {
                         Box(modifier = Modifier.placedAt { IntRect(0, 0, totalSize.width, totalSize.height) }) {
-                            RemoteCursorLabels(remoteCursors, glides, remoteCursorLabel)
+                            RemoteCursorLabels(
+                                cursors = remoteCursors,
+                                glides = glides,
+                                visibleRight = { offset.x - textStartPadding + geometry.visibleSize.width },
+                                label = remoteCursorLabel,
+                            )
                         }
                     }
                 }

@@ -447,6 +447,23 @@ class RemoteCursorsTest {
     }
 
     @Test
+    fun `a label at the right edge stays inside it`() {
+        scene.show(KodeEditorAnimations.None)
+        val editor = composeRule.onNodeWithTag("editor").fetchSemanticsNode().boundsInRoot
+        val layout = scene.layout!!
+        // the first line is longer than the editor is wide
+        val atEdge = layout.getOffsetForPosition(Offset(editor.width - 4f, layout.lineHeight / 2))
+        composeRule.runOnIdle { scene.cursor.value = scene.janeAt(atEdge) }
+        composeRule.waitForIdle()
+
+        // its bounds would be cut off at the editor, the place and the size are not
+        val node = composeRule.onNodeWithTag("label", useUnmergedTree = true).fetchSemanticsNode()
+        val right = node.positionInRoot.x + node.size.width
+        assertTrue("$right in $editor", right <= editor.right + 0.5f)
+        assertTrue("over the cursor: $right", right >= layout.getCursorRect(atEdge).left - 0.5f)
+    }
+
+    @Test
     fun `the caret and the selection are drawn`() {
         scene.cursor.value = scene.janeAt(4, TextRange(0, 4))
         scene.show(KodeEditorAnimations.None)

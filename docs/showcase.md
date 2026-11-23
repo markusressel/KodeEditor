@@ -13,8 +13,8 @@ of the library, like an app would.
 | Time   | What happens                                                                                                  |
 |--------|---------------------------------------------------------------------------------------------------------------|
 | 0 s    | The text as it is. Jane, another person, has "syntax highlighting" selected.                                  |
-| 1 s    | Jane types a line behind her selection, one character every 90 ms, which fades in.                            |
-| 1.7 s  | At the same time, an agent writes a new section above "## Try it": the text is there at once but hidden, and is revealed about 30 times per second. It fades in and rises 4 dp into its place. The text below it does not move while it is typed. |
+| 1 s    | Jane types a line behind her selection, one character every 90 ms, which fades in. Her selection shrinks into her cursor, and the text behind it slides out of the way. |
+| 1.7 s  | At the same time, an agent writes a new section above "## Try it": the text is there at once but hidden, and is revealed about 30 times per second. It fades in and rises 4 dp into its place. The text below it slides down once when the hidden text is inserted, and does not move while it is typed. |
 | ~8 s   | Both are done. "## Folded away" folds, then the section of the agent.                                         |
 | ~10 s  | The view zooms in to 1.8 and back to 1 around its middle, and the lines wrap again while it zooms.            |
 | ~13 s  | Both sections unfold again.                                                                                   |
@@ -36,7 +36,7 @@ The library features it shows:
 | Size         | 480 x 1066 px, the whole screen of the device scaled down                                 |
 | Frame rate   | 15 fps, identical frames are merged                                                       |
 | Duration     | about 15 s                                                                                |
-| File size    | at most 2 MB, it is 1.5 MB now, small enough for the README page on a phone              |
+| File size    | at most 2 MB, it is 1.6 MB now, small enough for the README page on a phone              |
 
 Why animated WebP: GitHub shows it in a README like any image and plays it. It is much smaller than a GIF of the same
 quality, and has more than 256 colors. An MP4 can only be embedded as a file uploaded to an issue or PR, not from the
