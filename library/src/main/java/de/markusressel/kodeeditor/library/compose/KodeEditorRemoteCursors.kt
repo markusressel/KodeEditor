@@ -56,7 +56,9 @@ data class KodeEditorRemoteCursor(
  * that scales the duration of animations scales this too, and turns it off with a scale of 0. The defaults are those of
  * the MkDocsEditor web client.
  *
- * @param durationMs how long a cursor takes to its new place, it slows down towards the end (cubic ease-out)
+ * @param durationMs how long a cursor takes to its new place, it slows down towards the end (cubic ease-out). A cursor
+ * that gets a new place while it still glides takes 1.5 times the time since its last new place, at most this, so it
+ * keeps close behind a fast series of places, like the head of revealed text
  * @param sameRowWidthFraction how far a cursor may move within its row and still glide, as a part of the width of
  * the text area
  * @param nextRowLines how far sideways a cursor may move to the row above or below and still glide, in line heights
@@ -89,6 +91,12 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
         /** when the glide started, [NOT_STARTED] until the next frame, [NONE] while the selection is at its place */
         var started = NONE
+
+        /** how long this glide takes, shorter when the cursor gets new places quickly */
+        var durationMs = 0L
+
+        /** the time of the frame of the last new place */
+        var movedAt = NONE
     }
 
     private val glides = HashMap<String, Glide>()
@@ -190,13 +198,24 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         // the rules are those of the caret, the other end grows or shrinks with it
         if (config == null || durationMs <= 0 || !moves || !fits(config, headMove)) {
             glide.started = NONE
+            glide.movedAt = NONE
             return
         }
+        // a cursor that gets a new place while it glides, like at the head of text that is revealed, catches up:
+        // its glide is a bit longer than the time between its places, so it stays close behind them
+        val since = if (glide.started != NONE && glide.movedAt != NONE) now - glide.movedAt else Long.MAX_VALUE
+        glide.durationMs = if (since == Long.MAX_VALUE) {
+            durationMs
+        } else {
+            (since * CATCH_UP_FACTOR).toLong().coerceIn(minOf(MIN_CATCH_UP_MS, durationMs), durationMs)
+        }
+        glide.movedAt = now
         glide.anchor.startX = -anchorMove.x
         glide.anchor.startY = -anchorMove.y
         glide.head.startX = -headMove.x
         glide.head.startY = -headMove.y
-        glide.started = NOT_STARTED
+        // during a glide the frames run, so it goes on from the current one instead of losing a frame
+        glide.started = if (since == Long.MAX_VALUE) NOT_STARTED else now
         isGliding = true
     }
 
@@ -222,7 +241,12 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         glides.values.forEach { glide ->
             if (glide.started == NOT_STARTED) glide.started = timeMs
             if (glide.started == NONE) return@forEach
-            if (timeMs - glide.started >= durationMs) glide.started = NONE else gliding = true
+            if (timeMs - glide.started >= glide.durationMs) {
+                glide.started = NONE
+                glide.movedAt = NONE
+            } else {
+                gliding = true
+            }
         }
         leaving.forEach { if (it.started == NOT_STARTED) it.started = timeMs }
         if (leaving.removeAll { timeMs - it.started >= fadeOutMs }) {
@@ -237,7 +261,8 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
     private fun distanceOf(glide: Glide, end: End): Offset {
         val started = glide.started
         if (started == NONE) return Offset.Zero
-        val progress = if (started == NOT_STARTED || durationMs <= 0) 0f else (now - started).toFloat() / durationMs
+        val duration = glide.durationMs
+        val progress = if (started == NOT_STARTED || duration <= 0) 0f else (now - started).toFloat() / duration
         val remaining = (1f - progress.coerceIn(0f, 1f)).let { it * it * it }
         return Offset(end.startX * remaining, end.startY * remaining)
     }
@@ -293,6 +318,12 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
         /** in line heights, a move to the row above or below is less than this */
         const val NEXT_ROW_HEIGHTS = 1.5f
+
+        /** a glide that starts during another one takes this times the time since that one started */
+        const val CATCH_UP_FACTOR = 1.5f
+
+        /** the shortest glide, about two frames */
+        const val MIN_CATCH_UP_MS = 32L
     }
 }
 
@@ -434,7 +465,9 @@ internal fun RemoteCursorLabels(
                             val x = if (rect.left > right) {
                                 rect.left
                             } else {
-                                rect.left.coerceAtMost(right - placeable.width).coerceAtLeast(rect.left - placeable.width)
+                                rect.left
+                                    .coerceAtMost(right - placeable.width)
+                                    .coerceAtLeast(rect.left - placeable.width)
                             }
                             placeable.place(x.roundToInt(), y.roundToInt())
                         }
