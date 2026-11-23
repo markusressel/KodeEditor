@@ -14,7 +14,8 @@ import androidx.compose.ui.unit.dp
  * wrap differently, which only applies with line wrapping
  * @param folding whether what is below a fold moves to its new place, and the lines of the fold fade with their columns
  * and decorations, when it folds or unfolds
- * @param scrolling whether the view can move to where [KodeEditorViewState] scrolls to, instead of jumping there
+ * @param scrolling whether the view can move to where [KodeEditorViewState] scrolls or zooms to, instead of jumping
+ * there
  * @param appearance how text appears that the application marks with [KodeEditorState.appear] or
  * [KodeEditorState.applyRemote], null shows it at once. Nothing else ever appears animated
  */

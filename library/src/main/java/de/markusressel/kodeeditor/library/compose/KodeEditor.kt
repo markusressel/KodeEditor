@@ -337,7 +337,9 @@ fun KodeEditor(
 ) {
     val offsetState = remember { mutableStateOf(Offset.Zero) }
     var offset by offsetState
-    var zoom by remember { mutableFloatStateOf(1f.coerceIn(minZoom, maxZoom)) }
+    val zoomState = remember { mutableFloatStateOf(1f.coerceIn(minZoom, maxZoom)) }
+    var zoom by zoomState
+    val currentZoomRange by rememberUpdatedState(minZoom..maxZoom)
     var focused by remember { mutableStateOf(false) }
     val cursorFollower = remember { CursorFollower() }
     val keyboardCursor = remember { KeyboardCursor() }
@@ -639,7 +641,31 @@ fun KodeEditor(
             )
 
             override val maxOffset: Offset get() = currentMaxOffset()
-            override val zoom: Float get() = settledGeometry.zoom
+            override val zoom: Float get() = zoomState.floatValue
+            override val zoomRange get() = currentZoomRange
+            override val folds get() = currentFolds
+
+            override fun zoomTo(zoom: Float) {
+                val oldZoom = zoomState.floatValue
+                val newZoom = zoom.coerceIn(currentZoomRange)
+                if (newZoom == oldZoom) return
+                val size = totalSize
+                val start = settledGeometry.gutterOnScreen(oldZoom)
+                // the middle of the text, right of the bar
+                val middle = Offset(start + (size.width - start) / 2f, size.height / 2f)
+                val moved = zoomedOffset(
+                    offset = offsetState.value,
+                    oldZoom = oldZoom,
+                    newZoom = newZoom,
+                    centroid = middle,
+                    pan = Offset.Zero,
+                    oldStart = start,
+                    newStart = settledGeometry.gutterOnScreen(newZoom),
+                )
+                cursorFollower.onUserMovedView()
+                offsetState.value = Offset(moved.x.coerceAtLeast(0f), moved.y.coerceAtLeast(0f))
+                zoomState.floatValue = newZoom
+            }
 
             override fun offsetPutting(line: Int, fraction: Float, y: Float): Offset {
                 val shown = line.coerceIn(0, (layout.lineCount - 1).coerceAtLeast(0))
