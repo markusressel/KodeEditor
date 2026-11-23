@@ -402,10 +402,9 @@ fun KodeEditor(
         LaunchedEffect(state, appearance) {
             // the system setting that scales animations, 0 when they are off
             val scale = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
-            val duration = (appearance.durationMs * scale).toLong()
             snapshotFlow { state.rangeAlphas.isNotEmpty() }.collectLatest { appearing ->
                 // no frames while nothing appears
-                while (appearing && withFrameMillis { state.onAppearFrame(it, duration) }) Unit
+                while (appearing && withFrameMillis { state.onAppearFrame(it, scale) }) Unit
             }
         }
     }

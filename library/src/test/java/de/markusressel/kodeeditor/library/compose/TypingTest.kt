@@ -98,7 +98,7 @@ class TypingTest {
                     layout = it
                     reveal?.layout = it
                 },
-                animations = KodeEditorAnimations(appearance = KodeEditorAppearance(durationMs = appearMs.intValue)),
+                animations = KodeEditorAnimations(appearance = KodeEditorAppearance(durationMs = appearMs.intValue, maxDurationMs = appearMs.intValue)),
                 gutterColumns = emptyList(),
                 remoteCursors = listOf(
                     KodeEditorRemoteCursor("jane", listOf(TextRange(at)), Color.Red, Color.Red.copy(alpha = 0.3f)),

@@ -114,7 +114,7 @@ class RevealFlickerTest {
             onFrame(state, layout!!, written)
         }
         // until the last piece appeared
-        repeat(KodeEditorAppearance().durationMs / 16 + 4) { composeRule.mainClock.advanceTimeByFrame() }
+        repeat(KodeEditorAppearance().maxDurationMs / 16 + 4) { composeRule.mainClock.advanceTimeByFrame() }
         onFrame(state, layout!!, written)
         return state to written
     }

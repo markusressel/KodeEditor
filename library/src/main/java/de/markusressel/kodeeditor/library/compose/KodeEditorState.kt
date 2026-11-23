@@ -12,6 +12,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import kotlin.math.abs
+import kotlin.math.exp
 
 /**
  * One change of the text.
@@ -145,8 +146,11 @@ class KodeEditorState(
             if (value == null) finishAppearing()
         }
 
-    /** the time of the frame each appearing range started in, by its tag */
-    private val appearStarts = HashMap<String, Long>()
+    /** the time of the frame each appearing range started in and how long it takes, by its tag */
+    private val appearStarts = HashMap<String, AppearTiming>()
+
+    /** how many characters per second appear for each writer, smoothed, by their tag */
+    private val appearRates = HashMap<String, AppearRate>()
     private var nextAppearId = 0
 
     val canUndo: Boolean
@@ -330,19 +334,38 @@ class KodeEditorState(
         setRangeAlphas(if (tag == null) emptyList() else ranges.filter { it.tag.appearTag() != tag })
     }
 
+    /** @return how long the appearing range with [tag] takes, null if it did not start yet */
+    internal fun appearDurationOf(tag: String): Long? = appearStarts[tag]?.durationMs
+
     /**
-     * Moves the appearing text on by a frame.
+     * Moves the appearing text on by a frame. A range that is new gets its duration from the rate of its writer, see
+     * [KodeEditorAppearance], and keeps it.
      *
      * @param nowMs the time of the frame
-     * @param durationMs how long text takes to appear, 0 shows it at once
+     * @param scale scales the durations, 0 shows all of it at once
      * @return whether text is still appearing
      */
-    internal fun onAppearFrame(nowMs: Long, durationMs: Long): Boolean {
+    internal fun onAppearFrame(nowMs: Long, scale: Float = 1f): Boolean {
         val ranges = rangeAlphasState
         if (ranges.isEmpty()) return false
+        val config = appearance ?: KodeEditorAppearance()
+        // the rates first, with all that arrived in this frame
+        ranges.forEach { range ->
+            if (range.tag in appearStarts) return@forEach
+            val writer = range.tag.appearTag()
+            val rate = appearRates.getOrPut(writer) { AppearRate(0f, nowMs) }
+            rate.add(range.end - range.start, nowMs)
+        }
+        ranges.forEach { range ->
+            if (range.tag in appearStarts) return@forEach
+            val rate = appearRates.getValue(range.tag.appearTag()).charsPerSecond
+            appearStarts[range.tag] = AppearTiming(nowMs, (config.durationFor(rate) * scale).toLong())
+        }
         setRangeAlphas(
             ranges.mapNotNull { range ->
-                val started = appearStarts.getOrPut(range.tag) { nowMs }
+                val timing = appearStarts.getValue(range.tag)
+                val started = timing.startMs
+                val durationMs = timing.durationMs
                 val progress = if (durationMs > 0) (nowMs - started).toFloat() / durationMs else 1f
                 if (progress >= 1f) return@mapNotNull null
                 // fast at first, so new text does not stay invisible for long
@@ -580,6 +603,26 @@ private const val APPEAR_TAG_SEPARATOR = '/'
 
 /** the tag the application gave to [KodeEditorState.appear], behind the id that makes each range unique */
 internal fun String.appearTag() = substringAfter(APPEAR_TAG_SEPARATOR)
+
+/**
+ * @param startMs the time of the frame a range started to appear in
+ * @param durationMs how long it takes
+ */
+private class AppearTiming(val startMs: Long, val durationMs: Long)
+
+/**
+ * The characters per second that appear for a writer, an exponential average over [APPEAR_RATE_MS]: n characters add
+ * n × 1000 / [APPEAR_RATE_MS], and the rate decays by e^(-elapsed / [APPEAR_RATE_MS]). So text that comes at r
+ * characters per second for a while has a rate of r.
+ */
+internal class AppearRate(var charsPerSecond: Float, private var lastMs: Long) {
+    /** @param chars how many characters arrived at [nowMs] */
+    fun add(chars: Int, nowMs: Long) {
+        val elapsed = (nowMs - lastMs).coerceAtLeast(0L)
+        charsPerSecond = charsPerSecond * exp(-elapsed / APPEAR_RATE_MS) + chars * 1000f / APPEAR_RATE_MS
+        lastMs = nowMs
+    }
+}
 
 /** the ranges cut to a text of [length], without the empty ones */
 private fun <T> List<AnnotatedString.Range<T>>.cutTo(length: Int) = mapNotNull { range ->

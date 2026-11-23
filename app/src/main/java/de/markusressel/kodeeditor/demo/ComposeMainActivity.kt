@@ -117,7 +117,8 @@ class ComposeMainActivity : ComponentActivity() {
                     }
 
                     var appearOn by remember { mutableStateOf(true) }
-                    var appearMs by remember { mutableIntStateOf(if (showcase) SHOWCASE_APPEAR_MS else 500) }
+                    var appearMs by remember { mutableIntStateOf(if (showcase) SHOWCASE_APPEAR_MS else 320) }
+                    var appearMaxMs by remember { mutableIntStateOf(if (showcase) SHOWCASE_APPEAR_MS else 1000) }
                     var appearSlide by remember { mutableIntStateOf(if (showcase) SHOWCASE_SLIDE_DP else 0) }
                     var showOptions by remember { mutableStateOf(false) }
                     val scope = rememberCoroutineScope()
@@ -234,7 +235,8 @@ class ComposeMainActivity : ComponentActivity() {
                                 onCheckedChange = { appearOn = it },
                             )
                         }
-                        OptionSlider("Appear duration (ms)", appearMs, 0..1000) { appearMs = it }
+                        OptionSlider("Fade of slow text (ms)", appearMs, 0..1000) { appearMs = it }
+                        OptionSlider("Fade of fast text (ms)", appearMaxMs, 0..2000) { appearMaxMs = it }
                         OptionSlider("Slide (dp)", appearSlide, 0..20) { appearSlide = it }
                     }
 
@@ -254,6 +256,7 @@ class ComposeMainActivity : ComponentActivity() {
                             appearance = if (appearOn) {
                                 KodeEditorAppearance(
                                     durationMs = appearMs,
+                                    maxDurationMs = appearMaxMs,
                                     slide = appearSlide.dp,
                                 )
                             } else {
@@ -426,7 +429,7 @@ private const val JANE_INTERVAL_MS = 90L
 /** how far the text of the agent and Jane rises into its place in the showcase */
 private const val SHOWCASE_SLIDE_DP = 4
 
-/** the appear duration the README animation was recorded with, see docs/showcase.md */
+/** the appear duration the README animation was recorded with, for slow and fast text, see docs/showcase.md */
 private const val SHOWCASE_APPEAR_MS = 250
 
 @Preview(showBackground = true)

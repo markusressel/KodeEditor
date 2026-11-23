@@ -75,8 +75,18 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   (`KodeEditorAppearance`), if it has one.
 - A new chunk does not end the pieces that are still appearing. Only `stop()` and a change of the user end them, with
   `finishAppearing(tag)`.
-- `durationMs` is 500 ms by default.
-- The alpha of a piece is `1 - (1 - p)²` with `p = time since the piece came / durationMs` (ease-out quadratic: fast at
+- How long a piece takes to appear depends on how fast its writer writes, so a lot of text at once is smoothed more
+  and slow text still shows soon:
+  - Each writer (the tag of the reveal, or `appearTag` of `applyRemote`) has a rate: in the first frame a piece is
+    drawn in, `rate = rate × e^(-elapsed / 1000 ms) + chars`, with `elapsed` the time since that writer's last piece
+    and `chars` the characters of the pieces of that frame. So text that comes at r characters per second for a while
+    has a rate of r, and one burst only nudges it.
+  - The piece gets `duration = durationMs + (maxDurationMs - durationMs) × clamp((rate - 10) / (120 - 10), 0, 1)`
+    (`slowCharsPerSecond` 10, `fastCharsPerSecond` 120), and keeps it. So no alpha changes afterwards.
+  - Defaults: `durationMs` 320 ms, `maxDurationMs` 1000 ms. A person typing (about 7 characters per second) gets
+    320 ms, a reveal at its slowest (60 per second) about 630 ms, a reveal that catches up (120 per second or more)
+    1000 ms. 320 ms is the shortest with the 0.1 below: the first frame of a piece reaches `1 - (1 - 16/320)² ≈ 0.098`.
+- The alpha of a piece is `1 - (1 - p)²` with `p = time since the piece came / duration` (ease-out quadratic: fast at
   first, so new text does not stay invisible for long, then slower until it is fully visible). Each piece has its own
   start, so pieces one behind the other differ by about one frame of the curve.
 - Per character, not per piece: the pieces one behind the other in a row are drawn in one layer, with an alpha that
@@ -87,8 +97,9 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   `maxRanges` (256) appearing pieces, the two pieces one behind the other of the same writer whose alphas are the
   closest become one, with the alpha of the more visible one. So a character gets visible by that difference at once,
   which is tiny with that many pieces. Without such neighbours, the most visible piece is shown at once.
-- So at `durationMs = 500` and `1000`, no character's alpha changes by more than 0.1 from one frame to the next, for
-  typing and for reveals. A reveal has about one piece per frame alive, about 31 at 500 ms and 63 at 1000 ms, far
+- So no character's alpha changes by more than 0.1 from one frame to the next, at 500 and 1000 ms, for typing and for
+  reveals, and while a writer gets faster and slower again. Pieces next to each other with different durations differ
+  a little in alpha, which the gradient smooths. A reveal has about one piece per frame alive, about 31 at 500 ms and 63 at 1000 ms, far
   below 256.
 
 ### R5: the cursor glides with its speed
@@ -168,3 +179,7 @@ the end of a line:
   between two frames, for a person typing and for a reveal of 400 characters, and neither at 500 ms. With a typo that
   is removed with backspace, the text behind the cursor keeps its distance (±2 px) and the caret speed has a 95th
   percentile of at most 2.5 times its mean. Text removed by somebody else slides the text behind it to the left.
+- `RangeStylesTest`: a person at 7 keys per second gets 320 ms, a reveal at 190 characters per second 1000 ms. A writer
+  who types, then writes fast, then types again never makes a character get less visible or more visible by over 0.1
+  in a frame, and the duration goes up and then down, never back and forth. A burst of 5 keys raises it by at most
+  50 ms.

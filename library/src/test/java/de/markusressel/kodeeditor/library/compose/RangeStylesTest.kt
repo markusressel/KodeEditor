@@ -246,13 +246,13 @@ class RangeStylesTest {
     @Test
     fun `appearing text gets more visible with each frame until it is shown`() {
         val state = KodeEditorState("abcdefghij")
-        state.appearance = KodeEditorAppearance()
+        state.appearance = KodeEditorAppearance(durationMs = 100, maxDurationMs = 100)
         state.appear(0, 2)
-        assertTrue(state.onAppearFrame(1000, 100))
+        assertTrue(state.onAppearFrame(1000))
         assertEquals(0f, state.rangeAlphas.single().item)
-        assertTrue(state.onAppearFrame(1050, 100))
+        assertTrue(state.onAppearFrame(1050))
         assertEquals(0.75f, state.rangeAlphas.single().item, 0.001f)
-        assertFalse(state.onAppearFrame(1100, 100))
+        assertFalse(state.onAppearFrame(1100))
         assertTrue(state.rangeAlphas.isEmpty())
     }
 
@@ -347,5 +347,85 @@ class RangeStylesTest {
         assertTrue("half way, $alpha", alpha > 0f && alpha < 1f)
         composeRule.mainClock.advanceTimeBy(200)
         assertTrue(state.rangeAlphas.isEmpty())
+    }
+
+    /**
+     * Jane writes [phases] one after the other at the end of the text, each how long it lasts and how many ms between
+     * two characters, with a frame each 16 ms
+     *
+     * @param onFrame called after each frame with the time
+     */
+    private fun KodeEditorState.writes(vararg phases: Pair<Long, Long>, onFrame: (Long) -> Unit = {}) {
+        var time = 0L
+        phases.forEach { (length, gap) ->
+            val end = time + length
+            var next = time
+            while (time < end) {
+                while (next <= time) {
+                    val at = text.length
+                    applyRemote(listOf(TextSplice(at, 0, "a")), appear = true, appearTag = "jane")
+                    next += gap
+                }
+                onAppearFrame(time)
+                onFrame(time)
+                time += 16
+            }
+        }
+    }
+
+    private fun KodeEditorState.newestDuration() = appearDurationOf(rangeAlphas.maxBy { it.start }.tag)
+
+    @Test
+    fun `text that comes slowly appears in the shortest time`() {
+        val state = KodeEditorState("")
+        state.appearance = KodeEditorAppearance()
+        // a person at about 7 keys per second
+        state.writes(3000L to 150L)
+        assertEquals(320L, state.newestDuration())
+    }
+
+    @Test
+    fun `text that comes fast appears in the longest time`() {
+        val state = KodeEditorState("")
+        state.appearance = KodeEditorAppearance()
+        // a reveal at about 190 characters per second, 3 in each frame
+        state.writes(3000L to 5L)
+        assertEquals(1000L, state.newestDuration())
+    }
+
+    @Test
+    fun `a writer who gets faster and slower again never makes a character jump`() {
+        val state = KodeEditorState("")
+        state.appearance = KodeEditorAppearance()
+        var before = FloatArray(0)
+        val problems = ArrayList<String>()
+        val durations = ArrayList<Long>()
+        state.writes(2000L to 150L, 2000L to 5L, 2000L to 150L) { time ->
+            val now = FloatArray(state.text.length) { 1f }
+            state.rangeAlphas.forEach { range -> (range.start until range.end).forEach { now[it] = range.item } }
+            for (index in before.indices) {
+                val step = now[index] - before[index]
+                if (step < -0.001f || step > 0.1f) problems += "$time ms: char $index ${before[index]} -> ${now[index]}"
+            }
+            before = now
+            state.newestDuration()?.let { durations += it }
+        }
+        assertTrue(problems.take(20).joinToString("\n"), problems.isEmpty())
+        assertTrue("both ends: $durations", durations.min() == 320L && durations.max() >= 950L)
+        // smoothed: up while it is fast, then down, never back and forth
+        val top = durations.indexOf(durations.max())
+        assertTrue("up: $durations", durations.take(top + 1).zipWithNext().all { (a, b) -> b >= a })
+        assertTrue("down: $durations", durations.drop(top).zipWithNext().all { (a, b) -> b <= a })
+    }
+
+    @Test
+    fun `a short burst while somebody types makes their text appear only a bit slower`() {
+        val state = KodeEditorState("")
+        state.appearance = KodeEditorAppearance()
+        val durations = ArrayList<Long>()
+        // 5 keys within 80 ms between slow typing
+        state.writes(2000L to 150L, 80L to 16L, 2000L to 150L) { state.newestDuration()?.let { durations += it } }
+        assertTrue("$durations", durations.max() <= 320L + 50L)
+        assertEquals(320L, durations.last())
     }
 }
