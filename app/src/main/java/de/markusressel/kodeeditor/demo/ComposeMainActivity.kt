@@ -101,6 +101,8 @@ class ComposeMainActivity : ComponentActivity() {
                     var editorLayout by remember { mutableStateOf<KodeEditorLayout?>(null) }
                     val scope = rememberCoroutineScope()
                     var janeTyping by remember { mutableStateOf<Job?>(null) }
+                    // how much Jane typed behind her phrase, null while she only has it selected
+                    var janeTyped by remember { mutableStateOf<Int?>(null) }
 
                     // not the head itself, that would compose all of this again for each step of the typing
                     val agentTyping by remember(agent) { derivedStateOf { agent.head != null } }
@@ -128,7 +130,7 @@ class ComposeMainActivity : ComponentActivity() {
                             enabled = janeTyping == null,
                             onClick = {
                                 janeTyping = scope.launch {
-                                    janeTypes(state)
+                                    janeTypes(state) { janeTyped = it }
                                     janeTyping = null
                                 }
                             },
@@ -217,11 +219,18 @@ class ComposeMainActivity : ComponentActivity() {
                             val selectionStart = text.indexOf(selectedText)
                             // the text can be edited, so the phrase may be gone
                             if (selectionStart >= 0) {
+                                val phraseEnd = selectionStart + selectedText.length
+                                val typed = janeTyped
                                 RemoteCursor(
                                     layout = layout,
                                     name = "Jane",
                                     color = Teal200,
-                                    selection = TextRange(selectionStart, selectionStart + selectedText.length),
+                                    // her cursor follows what she types
+                                    selection = if (typed == null) {
+                                        TextRange(selectionStart, phraseEnd)
+                                    } else {
+                                        TextRange(phraseEnd + typed)
+                                    },
                                 )
                             }
                             agent.head?.let { head ->
@@ -304,13 +313,15 @@ class ComposeMainActivity : ComponentActivity() {
     }
 
     /** another person, who types a line behind the phrase "Jane" selected, as remote changes that appear animated */
-    private suspend fun janeTypes(state: KodeEditorState) {
+    /** @param onTyped told how many characters Jane typed so far */
+    private suspend fun janeTypes(state: KodeEditorState, onTyped: (Int) -> Unit) {
         JANE_TEXT.forEachIndexed { typed, char ->
             delay(JANE_INTERVAL_MS)
             // found again each time, the user may have changed the text in front of it meanwhile
             val anchor = state.text.indexOf(JANE_PHRASE).takeIf { it >= 0 } ?: return
             val position = anchor + JANE_PHRASE.length + typed
             state.applyRemote(listOf(TextSplice(position, 0, char.toString())), appear = true, appearTag = "jane")
+            onTyped(typed + 1)
         }
     }
 
