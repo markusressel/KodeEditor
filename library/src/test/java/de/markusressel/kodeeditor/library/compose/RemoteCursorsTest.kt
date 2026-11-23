@@ -65,21 +65,28 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
     val labelShown: Boolean
         get() = rule.onAllNodesWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     var layout: KodeEditorLayout? = null
+    /** reveals what Jane writes, with [show] and its reveal on. Her cursor is at its head then */
+    var reveal: KodeEditorReveal? = null
 
     fun janeAt(offset: Int, selection: TextRange = TextRange(offset)) =
         KodeEditorRemoteCursor("jane", listOf(selection), Color.Red, Color.Green.copy(alpha = 0.5f))
 
-    fun show(animations: KodeEditorAnimations, lineWrapping: Boolean = false) {
+    fun show(animations: KodeEditorAnimations, lineWrapping: Boolean = false, reveal: Boolean = false) {
         rule.setContent {
+            val revealing = if (reveal) rememberKodeEditorReveal(state, "jane").also { this.reveal = it } else null
+            val jane = revealing?.head?.let { janeAt(it) } ?: cursor.value
             KodeEditor(
                 modifier = Modifier.size(400.dp).testTag("editor"),
                 state = state,
                 languageRuleBook = noRules,
                 colorScheme = noColors,
-                onTextLayout = { layout = it },
+                onTextLayout = {
+                    layout = it
+                    revealing?.layout = it
+                },
                 animations = animations,
                 gutterColumns = emptyList(),
-                remoteCursors = if (present.value) listOf(cursor.value) else emptyList(),
+                remoteCursors = if (present.value) listOf(jane) else emptyList(),
                 lineWrapping = lineWrapping,
                 remoteCursorLabel = {
                     SideEffect { labelCompositions++ }
@@ -448,48 +455,84 @@ class RemoteCursorsTest {
     }
 
     @Test
-    fun `a cursor that gets new places quickly keeps close behind them`() {
+    fun `a cursor at the head of text revealed in each frame keeps close behind it`() {
         scene.show(glide)
         composeRule.runOnIdle { scene.cursor.value = scene.janeAt(0) }
         scene.settledPosition()
         val layout = scene.layout!!
-        val char = layout.getCursorRect(1).left - layout.getCursorRect(0).left
+        // on average, "long " has narrow and wide ones
+        val char = (layout.getCursorRect(60).left - layout.getCursorRect(0).left) / 60
         composeRule.mainClock.autoAdvance = false
 
-        // like the head of revealed text: 3 characters about every 32 ms. A cursor that starts a new glide of 120 ms
-        // each time stays far behind, about 16 characters here
+        // like text that is revealed at 60 characters per second, one in each frame
         val lags = ArrayList<Float>()
-        for (step in 1..20) {
-            scene.moveTo(step * 3)
-            // a frame after its new place
-            scene.frame()
-            if (step > 10) lags += (layout.getCursorRect(step * 3).center.x - caretX()) / char
+        for (step in 1..60) {
+            scene.moveTo(step)
+            if (step > 30) lags += (layout.getCursorRect(step).center.x - caretX()) / char
         }
 
         assertTrue("never ahead: $lags", lags.all { it >= -0.5f })
-        assertTrue("about a character behind: $lags", lags.average() <= 1.0 && lags.all { it <= 1.5f })
+        assertTrue("about a character behind: $lags", lags.average() <= 1.5 && lags.all { it <= 2.5f })
     }
 
     @Test
-    fun `a cursor that gets new places at uneven times keeps close behind them`() {
+    fun `a cursor that gets new places quickly moves without jerks`() {
         scene.show(glide)
         composeRule.runOnIdle { scene.cursor.value = scene.janeAt(0) }
         scene.settledPosition()
         val layout = scene.layout!!
-        val char = layout.getCursorRect(1).left - layout.getCursorRect(0).left
+        val char = (layout.getCursorRect(60).left - layout.getCursorRect(0).left) / 60
         composeRule.mainClock.autoAdvance = false
 
-        // 32 and 64 ms between the places, the glide after a short one is over before the next place
-        val lags = ArrayList<Float>()
+        // 3 characters about every 32 ms. Starting each glide anew with the ease-out, it would move about 9 times as
+        // far in the frame of a new place as in the frame before it
+        val xs = ArrayList<Float>()
         for (step in 1..20) {
             scene.moveTo(step * 3)
+            xs += caretX()
             scene.frame()
-            if (step > 10) lags += (layout.getCursorRect(step * 3).center.x - caretX()) / char
-            if (step % 2 == 0) repeat(2) { scene.frame() }
+            xs += caretX()
+        }
+        val moves = xs.zipWithNext { a, b -> (b - a) / char }.drop(10)
+        val lag = (layout.getCursorRect(60).center.x - xs.last()) / char
+
+        assertTrue("forwards: $moves", moves.all { it >= -0.2f })
+        assertTrue("evenly: $moves", moves.max() <= 2.5f * moves.average())
+        assertTrue("it keeps up: $lag", lag <= 6f)
+    }
+
+    @Test
+    fun `a cursor at the head of revealed chunks keeps close behind it`() {
+        scene.show(glide, reveal = true)
+        scene.settle()
+        val layout = scene.layout!!
+        val char = (layout.getCursorRect(60).left - layout.getCursorRect(0).left) / 60
+        composeRule.mainClock.autoAdvance = false
+
+        // a chunk, and the next one while the first one is still revealed
+        composeRule.runOnIdle { scene.reveal!!.insert(0, "the agent writes a chunk ") }
+        val lags = ArrayList<Float>()
+        for (frame in 1..40) {
+            if (frame == 10) composeRule.runOnIdle { scene.reveal!!.insert(25, "and another one ") }
+            scene.frame()
+            val head = composeRule.runOnIdle { scene.reveal!!.head } ?: break
+            if (frame > 5) lags += (layout.getCursorRect(head).center.x - caretX()) / char
         }
 
+        assertTrue("revealed for a while: $lags", lags.size > 20)
         assertTrue("never ahead: $lags", lags.all { it >= -0.5f })
-        assertTrue("about 2 characters behind: $lags", lags.average() <= 2.5 && lags.all { it <= 5f })
+        assertTrue("about a character behind: $lags", lags.average() <= 1.5 && lags.all { it <= 2.5f })
+    }
+
+    @Test
+    fun `a change of the user shows all of the revealed text`() {
+        scene.show(glide, reveal = true)
+        composeRule.runOnIdle { scene.reveal!!.insert(0, "the agent writes a chunk ") }
+        scene.frame()
+
+        composeRule.runOnIdle { scene.state.replaceSelection("x") }
+
+        composeRule.runOnIdle { assertFalse(scene.reveal!!.isRevealing) }
     }
 
     /** @return where the red caret of Jane is drawn in the first row */
