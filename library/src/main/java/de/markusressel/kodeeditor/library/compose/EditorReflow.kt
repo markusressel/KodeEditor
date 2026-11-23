@@ -131,6 +131,9 @@ internal class ReflowTransition(
     /** how far the view scrolled because of the reflow, the text must not jump on the screen because of it */
     var scrolled = 0f
 
+    /** how far the view scrolled sideways because of the change, like [scrolled] */
+    var scrolledX = 0f
+
     /** whether the text is still the one this reflow started with */
     val valid: Boolean get() = version == state.rawVersion
 
@@ -171,10 +174,10 @@ internal class ReflowTransition(
     /** @return where the text at [offset] started this reflow, in the coordinates of the document */
     fun startOf(offset: Int): Offset {
         val position = positions.getOrPut(offset) { positionOf(offset) }
-        val before = previous ?: return Offset(position.x, position.y + scrolled)
+        val before = previous ?: return Offset(position.x + scrolledX, position.y + scrolled)
         val from = before.startOf(inserted?.toBefore(offset) ?: offset)
         return Offset(
-            x = lerp(from.x, position.x, before.progress),
+            x = lerp(from.x, position.x, before.progress) + scrolledX,
             y = lerp(from.y, position.y, before.progress) + scrolled,
         )
     }

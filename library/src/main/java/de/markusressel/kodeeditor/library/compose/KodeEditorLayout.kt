@@ -22,6 +22,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
+import kotlin.math.abs
 import kotlin.math.ceil
 
 /**
@@ -236,6 +237,22 @@ internal class EditorLineLayout(
         reflow?.let { it.scrolled += distance }
     }
 
+    /**
+     * where the user looks, the position in the text that a change of somebody else in front of it must not move on the
+     * screen, null for none
+     */
+    var remoteAnchor: () -> Int? = { null }
+
+    /** the [remoteAnchor] right before the change of somebody else that is being applied */
+    private var anchorBeforeChange: Int? = null
+
+    /** told right before a change of somebody else, while the text and the rows are still those from before */
+    val beforeRemoteChange: () -> Unit = { anchorBeforeChange = remoteAnchor() }
+
+    /** scrolls the view by a distance, and returns how far it scrolled, see [remoteAnchor] */
+    var onRemoteShift: (Offset) -> Offset = { Offset.Zero }
+
+
     private val rows: EditorRows
         get() {
             // the rows are no state of their own, whoever reads them depends on what they are made from
@@ -417,7 +434,14 @@ internal class EditorLineLayout(
 
     /** tells the rows about changes of the text */
     val rowObserver: (TextSplice) -> Unit = { splice ->
-        val slide = if (state.applyingRemote && !state.replacingText) layoutBeforeInsert(splice) else null
+        val remote = state.applyingRemote && !state.replacingText
+        // the place the user looks at, if the change is in front of it
+        val anchor = if (remote) anchorBeforeChange else null
+        anchorBeforeChange = null
+        val shifted = anchor?.takeIf { it > splice.start && it >= splice.start + splice.removedLength }
+            ?.let { mapPosition(it, splice) }
+        val before = if (shifted != null || (remote && insertSlideMs() > 0)) beforeChange(splice) else null
+        val slide = if (remote && insertSlideMs() > 0) before else null
         val removed = splice.removedLength
         val inserted = splice.inserted.length
         // a key or a backspace right behind the one before
@@ -445,14 +469,15 @@ internal class EditorLineLayout(
             lastInsert = reflow
             foldAnimations++
         }
+        if (shifted != null && before != null) keepInView(shifted, before)
     }
 
     /**
      * @return where the text was before somebody else inserted or removed text, while the rows are still those from
      * before, null if it does not move animated
      */
-    private fun layoutBeforeInsert(splice: TextSplice): LayoutBeforeInsert? {
-        if (insertSlideMs() <= 0 || (splice.removedLength == 0 && splice.inserted.isEmpty())) return null
+    private fun beforeChange(splice: TextSplice): LayoutBeforeInsert? {
+        if (splice.removedLength == 0 && splice.inserted.isEmpty()) return null
         val removed = state.lastRemoved
         val hidden = folds?.hidden
         // the lines that a fold hides are about the text after the change already
@@ -475,6 +500,26 @@ internal class EditorLineLayout(
             measure = { all, start, end -> measureBetween(start, end, ranges.takeIf { all === text }, all) },
             removed = removed,
         )
+    }
+
+    /**
+     * Scrolls the view by how far a change of somebody else moved the text at [anchor], so it stays where it is on the
+     * screen, also while the text slides. Sideways only without wrapping, where a change in its row moves it sideways.
+     *
+     * @param anchor where the text the user looks at is after the change
+     * @param before where the text was before the change
+     */
+    private fun keepInView(anchor: Int, before: LayoutBeforeInsert) {
+        val was = before.positionOf(anchor)
+        val now = getCursorRect(anchor).topLeft
+        val moved = Offset(if (wrappedRows == null) now.x - was.x else 0f, now.y - was.y)
+        if (abs(moved.x) < 0.01f && abs(moved.y) < 0.01f) return
+        val scrolled = onRemoteShift(moved)
+        // the text that slides starts where it was on the screen
+        reflow?.let {
+            it.scrolled += scrolled.y
+            it.scrolledX += scrolled.x
+        }
     }
 
     /** lines with few wide characters can be wider than the one with the most characters */

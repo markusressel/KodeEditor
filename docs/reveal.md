@@ -171,7 +171,24 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 - Apps should apply the cursor of a person together with their change of the text, in one call before the next frame,
   so the insertion and the cursor that caused it are drawn together.
 
-## Tests
+## The view stays where the user looks
+
+Text that others insert or remove in front of what the user looks at does not move it on the screen
+(`KodeEditor(keepViewOnRemoteChanges = true)`, the default):
+
+- The anchor is the cursor of the user while the editor has the focus and the cursor is in view, otherwise the start
+  of the first visible row. It is taken right before the change.
+- A change that ends at or before the anchor (and starts before it) scrolls the view by how far it moved the anchor,
+  in the same frame: up and down always, sideways only without wrapping, where only a change in the row of the anchor
+  moves it sideways. The widths come from the measured text before and after the change, with tabs, wide characters
+  and collapsed parts. A change behind the anchor moves nothing.
+- The slide of R6 starts where the text was on the screen, so the anchor does not move at all while it runs, and the
+  text in front of the change moves out of the way instead.
+- Near the end of the text the view cannot scroll further, there the anchor can move.
+- A selection that moves only because of a change of others is no move of the user: the view does not follow it to
+  keep the cursor visible.
+- The user's own scrolling, selection and edits are unchanged.
+
 
 KodeEditor tests these rules in `KodeEditorRevealTest` and `RemoteCursorsTest`, with chunks of 3 to 5 words (15 to 40
 characters) at 0.5 to 2 s, some arriving while the chunk before is revealed, ending anywhere in a line, and one over
