@@ -141,6 +141,43 @@ class RangeStylesTest {
         )
     }
 
+    @Test
+    fun `range styles win over the placeholder of a collapsed part they cover`() {
+        val state = KodeEditorState("ab[link](url)cd")
+        val collapsed = CollapsedRanges(intArrayOf(2), intArrayOf(13), arrayOf("link"))
+        val placeholder = SpanStyle(color = Color.Gray)
+        val result = lineTexts(
+            state, 0..0, collapsed = collapsed, placeholderStyle = placeholder, rangeStyles = listOf(range(1, 15)),
+        ).single()
+        assertEquals("ablinkcd", result.text)
+        assertEquals(
+            listOf(AnnotatedString.Range(placeholder, 2, 6), AnnotatedString.Range(hidden, 1, 8)),
+            result.spanStyles,
+        )
+    }
+
+    @Test
+    fun `a collapsed part is found from any position within it`() {
+        val collapsed = CollapsedRanges(intArrayOf(2, 20), intArrayOf(13, 25), arrayOf("a", "b"))
+        assertEquals(-1, collapsed.containing(1))
+        assertEquals(0, collapsed.containing(2))
+        assertEquals(0, collapsed.containing(12))
+        assertEquals(-1, collapsed.containing(13))
+        assertEquals(1, collapsed.containing(24))
+        assertEquals(-1, collapsed.containing(25))
+    }
+
+    @Test
+    fun `alphas are cut to the text and move with it like the styles`() {
+        val state = KodeEditorState("hello world")
+        state.setRangeAlphas(listOf(AnnotatedString.Range(0.5f, 6, 99), AnnotatedString.Range(0.2f, 3, 3)))
+        assertEquals(listOf(AnnotatedString.Range(0.5f, 6, 11)), state.rangeAlphas)
+        state.applyRemote(listOf(TextSplice(0, 0, ">")))
+        assertEquals(listOf(AnnotatedString.Range(0.5f, 7, 12)), state.rangeAlphas)
+        state.applyRemote(listOf(TextSplice(5, 7, "")))
+        assertEquals(emptyList<AnnotatedString.Range<Float>>(), state.rangeAlphas)
+    }
+
     private val noRules = object : LanguageRuleBook {
         override fun getRules() = emptyList<LanguageRule>()
     }
@@ -192,5 +229,18 @@ class RangeStylesTest {
         composeRule.waitForIdle()
         assertTrue("both lines are drawn", drawnPixels() > firstLine)
         assertEquals("the text is unchanged", "MMMM\nWWWW", state.text)
+
+        state.setRangeAlphas(listOf(AnnotatedString.Range(0f, 0, state.text.length)))
+        composeRule.waitForIdle()
+        assertEquals("an alpha of 0 draws nothing", empty, drawnPixels())
+
+        state.setRangeAlphas(listOf(AnnotatedString.Range(0f, 5, 9)))
+        composeRule.waitForIdle()
+        assertEquals("an alpha only hides its own range", firstLine, drawnPixels())
+
+        state.setRangeAlphas(listOf(AnnotatedString.Range(0.5f, 5, 9)))
+        composeRule.waitForIdle()
+        val half = drawnPixels()
+        assertTrue("half of the alpha draws the range lighter", half > firstLine)
     }
 }

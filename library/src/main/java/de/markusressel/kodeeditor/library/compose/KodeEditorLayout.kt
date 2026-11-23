@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
@@ -122,6 +123,15 @@ interface KodeEditorLayout {
      * @return whether the line is hidden by a fold
      */
     fun isLineHidden(line: Int): Boolean = false
+
+    /**
+     * What is folded at a position: a part of a line that a placeholder stands for, or lines a fold hides. Something
+     * that reveals text step by step can show such a part as a whole, as it shows no single characters.
+     *
+     * @param offset a position in the text
+     * @return the folded part of the text that has [offset] within it, its start included, null if it is not folded
+     */
+    fun collapsedRangeAt(offset: Int): TextRange? = null
 }
 
 /**
@@ -643,6 +653,41 @@ internal class EditorLineLayout(
 
     override fun isLineHidden(line: Int): Boolean = folds?.isHidden(line) ?: false
 
+    override fun collapsedRangeAt(offset: Int): TextRange? {
+        collapsed?.let { ranges ->
+            val index = ranges.containing(offset)
+            if (index >= 0) return TextRange(ranges.starts[index], ranges.ends[index])
+        }
+        val hidden = folds?.hidden ?: return null
+        val range = hidden.rangeOf(state.lineOf(offset))
+        if (range < 0) return null
+        return TextRange(state.lineStart(hidden.firstLines[range]), state.lineEnd(hidden.lastLines[range]))
+    }
+
+    /**
+     * @param line a row that is drawn
+     * @return the parts of the row that are drawn with an alpha of their own, null if there are none
+     */
+    fun fadingParts(line: DrawnLine): List<FadingPart>? {
+        val alphas = state.rangeAlphas
+        if (alphas.isEmpty()) return null
+        val rows = rows
+        val start = rows.start(line.row)
+        val end = rows.end(line.row)
+        var result: MutableList<FadingPart>? = null
+        for (range in alphas) {
+            if (range.item >= 1f || range.end <= start || range.start >= end) continue
+            val from = inRow(line.row, range.start.coerceAtLeast(start))
+            val to = inRow(line.row, range.end.coerceAtMost(end))
+            if (from >= to) continue
+            val left = line.layout.getHorizontalPosition(from, usePrimaryDirection = true)
+            val right = line.layout.getHorizontalPosition(to, usePrimaryDirection = true)
+            val parts = result ?: mutableListOf<FadingPart>().also { result = it }
+            parts += FadingPart(minOf(left, right), maxOf(left, right), range.item.coerceAtLeast(0f))
+        }
+        return result
+    }
+
     /** the next position from [offset] in the given direction that is not folded away */
     fun shownPosition(offset: Int, forward: Boolean): Int {
         val position = folds?.shownPosition(offset, forward) ?: offset
@@ -760,7 +805,8 @@ internal class EditorLineLayout(
             val row = shown.first + index
             val position = Offset(0f, row * lineHeight + baseline - layout.firstBaseline)
             val top = row * lineHeight
-            DrawnLine(row, layout, position, ranges?.let { placeholderBoxes(it, rows, row, layout, top) }.orEmpty())
+            val boxes = ranges?.let { placeholderBoxes(it, rows, row, layout, top, rangeStyles) }.orEmpty()
+            DrawnLine(row, layout, position, boxes)
         }
         drawnArea = shown
         drawnVersion = state.rawVersion
@@ -780,9 +826,16 @@ internal class EditorLineLayout(
         row: Int,
         layout: TextLayoutResult,
         top: Float,
+        rangeStyles: List<AnnotatedString.Range<SpanStyle>> = emptyList(),
     ): List<Rect> {
         val folds = ranges.inRow(rows.start(row), rows.end(row)) ?: return emptyList()
-        return (folds.first..folds.last).map { index ->
+        return (folds.first..folds.last).mapNotNull { index ->
+            // a placeholder takes the style of a range it ends in, and its text keeps its space when it is invisible
+            val textEnd = ranges.ends[index]
+            val invisible = rangeStyles.any {
+                it.start < textEnd && it.end >= textEnd && it.item.color.isSpecified && it.item.color.alpha == 0f
+            }
+            if (invisible) return@mapNotNull null
             val start = folds.placeholderStart(index)
             val end = start + ranges.placeholders[index].length
             // apart from what is above and below, and with a bit of room for the characters next to it
@@ -913,6 +966,13 @@ internal class EditorLineLayout(
      * @param alpha how visible the part is
      */
     class MovingPart(val left: Float, val right: Float, val distance: Offset, val alpha: Float = 1f)
+
+    /**
+     * @param left where the part starts in the row
+     * @param right where the part ends in the row
+     * @param alpha how visible the part is
+     */
+    class FadingPart(val left: Float, val right: Float, val alpha: Float)
 }
 
 /**
@@ -943,8 +1003,9 @@ internal fun lineTexts(
     val first = rows.start(lines.first)
     val last = rows.end(lines.last)
     val spans = arrayOfNulls<MutableList<AnnotatedString.Range<SpanStyle>>>(count)
+    val rangeSpans = if (rangeStyles.isEmpty()) spans else arrayOfNulls(count)
 
-    fun add(style: SpanStyle, start: Int, end: Int) {
+    fun add(style: SpanStyle, start: Int, end: Int, spans: Array<MutableList<AnnotatedString.Range<SpanStyle>>?>) {
         if (end <= first || start >= last) return
         val startLine = rows.rowOf(start.coerceAtLeast(first)) - lines.first
         val endLine = rows.rowOf((end - 1).coerceAtMost(last - 1)) - lines.first
@@ -960,9 +1021,9 @@ internal fun lineTexts(
         }
     }
 
-    styles.forEach { add(it.item, it.start, it.end) }
-    composition?.let { add(COMPOSING_STYLE, it.min, it.max) }
-    rangeStyles.forEach { add(it.item, it.start, it.end) }
+    styles.forEach { add(it.item, it.start, it.end, spans) }
+    composition?.let { add(COMPOSING_STYLE, it.min, it.max, spans) }
+    rangeStyles.forEach { add(it.item, it.start, it.end, rangeSpans) }
 
     val text = state.text
     return List(count) { index ->
@@ -970,20 +1031,25 @@ internal fun lineTexts(
         val start = rows.start(line)
         val end = rows.end(line)
         val folds = collapsed?.inRow(start, end)
+        val outside = if (rangeSpans === spans) null else rangeSpans[index]
         if (folds == null) {
-            AnnotatedString(text = text.substring(start, end), spanStyles = spans[index].orEmpty())
+            val all = if (outside == null) spans[index].orEmpty() else spans[index].orEmpty() + outside
+            AnnotatedString(text = text.substring(start, end), spanStyles = all)
         } else {
-            val shownSpans = spans[index].orEmpty().mapNotNull { span ->
+            fun shown(spans: List<AnnotatedString.Range<SpanStyle>>?) = spans.orEmpty().mapNotNull { span ->
                 val from = folds.toShown(start + span.start)
                 val to = folds.toShown(start + span.end)
                 if (from < to) AnnotatedString.Range(span.item, from, to) else null
             }
-            // these come last, so they win over the styles of the text they replace
+            // these win over the styles of the text they replace, and only the styles from outside win over them
             val placeholders = (folds.first..folds.last).map { range ->
                 val from = folds.placeholderStart(range)
                 AnnotatedString.Range(placeholderStyle, from, from + collapsed.placeholders[range].length)
             }
-            AnnotatedString(text = folds.shownText(text, end), spanStyles = shownSpans + placeholders)
+            AnnotatedString(
+                text = folds.shownText(text, end),
+                spanStyles = shown(spans[index]) + placeholders + shown(outside),
+            )
         }
     }
 }

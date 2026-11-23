@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.demo
 
 import de.markusressel.kodeeditor.library.compose.rememberLineNumberColumn
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RawRes
@@ -12,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,7 +40,6 @@ import de.markusressel.kodeeditor.library.compose.KodeEditorState
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 class ComposeMainActivity : ComponentActivity() {
@@ -86,11 +87,35 @@ class ComposeMainActivity : ComponentActivity() {
                         warnings.warnings = withContext(Dispatchers.Default) { findWarnings(text) }
                     }
 
-                    // about 30 frames per second, a few characters each
+                    var revealSteps by remember { mutableIntStateOf(2) }
+                    var fadeMs by remember { mutableIntStateOf(250) }
+                    var fadeWindow by remember { mutableIntStateOf(16) }
+                    var showOptions by remember { mutableStateOf(false) }
+                    var editorLayout by remember { mutableStateOf<KodeEditorLayout?>(null) }
+
                     // not the head itself, that would compose all of this again for each frame of the typing
                     val agentTyping by remember(agent) { derivedStateOf { agent.head != null } }
-                    LaunchedEffect(agentTyping) {
-                        while (agentTyping && agent.reveal(characters = 2)) delay(33)
+                    val agentActive by remember(agent) { derivedStateOf { agent.head != null || agent.fading } }
+                    LaunchedEffect(agentActive) {
+                        // no fading when the system turns animations off
+                        val scale = Settings.Global.getFloat(
+                            contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
+                        )
+                        agent.fadeMs = (fadeMs * scale).toInt()
+                        agent.fadeWindow = fadeWindow
+                        var lastReveal = 0L
+                        while (agentActive) {
+                            val active = withFrameMillis { now ->
+                                // about 30 steps per second, the fading runs with every frame
+                                if (now - lastReveal >= REVEAL_INTERVAL_MS) {
+                                    lastReveal = now
+                                    agent.reveal(revealSteps, now) { editorLayout?.collapsedRangeAt(it) }
+                                }
+                                agent.fade(now)
+                                agent.head != null || agent.fading
+                            }
+                            if (!active) break
+                        }
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -106,6 +131,9 @@ class ComposeMainActivity : ComponentActivity() {
                             },
                         ) {
                             Text(if (agentTyping) "Stop agent" else "Agent types")
+                        }
+                        TextButton(onClick = { showOptions = !showOptions }) {
+                            Text(if (showOptions) "Hide options" else "Options")
                         }
                         Spacer(Modifier.weight(1f))
                         Text("Read only", color = MaterialTheme.colorScheme.onSurface)
@@ -132,7 +160,14 @@ class ComposeMainActivity : ComponentActivity() {
                         lineHeight = 14.sp,
                     )
 
+                    if (showOptions) {
+                        OptionSlider("Characters per step", revealSteps, 1..10) { revealSteps = it }
+                        OptionSlider("Fade in (ms)", fadeMs, 0..1000) { fadeMs = it }
+                        OptionSlider("Fading characters at most", fadeWindow, 1..60) { fadeWindow = it }
+                    }
+
                     KodeEditor(
+                        onTextLayout = { editorLayout = it },
                         modifier = Modifier
                             .fillMaxSize()
                             .border(BorderStroke(1.dp, MaterialTheme.colorScheme.primary)),
@@ -223,11 +258,32 @@ class ComposeMainActivity : ComponentActivity() {
         )
     }
 
+    @Composable
+    private fun OptionSlider(label: String, value: Int, range: IntRange, onChange: (Int) -> Unit) {
+        Row(modifier = Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                modifier = Modifier.width(200.dp),
+                text = "$label: $value",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 12.sp,
+            )
+            Slider(
+                modifier = Modifier.weight(1f),
+                value = value.toFloat(),
+                valueRange = range.first.toFloat()..range.last.toFloat(),
+                onValueChange = { onChange(it.toInt()) },
+            )
+        }
+    }
+
     private fun readResourceFileAsText(@RawRes resourceId: Int) =
         resources.openRawResource(resourceId).bufferedReader().readText()
 
 }
 
+
+/** how often the agent of the demo types, about 30 times per second */
+private const val REVEAL_INTERVAL_MS = 33L
 
 @Preview(showBackground = true)
 @Composable

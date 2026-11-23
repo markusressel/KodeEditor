@@ -59,6 +59,7 @@ class KodeEditorState(
     private var undoState by mutableIntStateOf(0)
     private val listeners = mutableListOf<KodeEditorListener>()
     private var rangeStylesState by mutableStateOf(emptyList<AnnotatedString.Range<SpanStyle>>())
+    private var rangeAlphasState by mutableStateOf(emptyList<AnnotatedString.Range<Float>>())
 
     private var batchDepth = 0
     private var changedInBatch = false
@@ -110,6 +111,12 @@ class KodeEditorState(
      * same call that changes it.
      */
     val rangeStyles: List<AnnotatedString.Range<SpanStyle>> get() = rangeStylesState
+
+    /**
+     * How visible ranges of the text are, set with [setRangeAlphas]. They move with each change of the text, like
+     * [rangeStyles].
+     */
+    val rangeAlphas: List<AnnotatedString.Range<Float>> get() = rangeAlphasState
 
     val canUndo: Boolean
         get() {
@@ -234,16 +241,21 @@ class KodeEditorState(
      * empty ones are left out
      */
     fun setRangeStyles(ranges: List<AnnotatedString.Range<SpanStyle>>) {
-        val length = currentText.length
-        rangeStylesState = ranges.mapNotNull { range ->
-            val start = range.start.coerceIn(0, length)
-            val end = range.end.coerceIn(start, length)
-            when {
-                start == end -> null
-                start == range.start && end == range.end -> range
-                else -> AnnotatedString.Range(range.item, start, end, range.tag)
-            }
-        }
+        rangeStylesState = ranges.cutTo(currentText.length)
+    }
+
+    /**
+     * Draws ranges of the text with an alpha, e.g. to fade in text that was just revealed with [setRangeStyles]. Unlike
+     * a style, this only changes how the lines that are shown are drawn, nothing is measured or styled again, so it
+     * can change on every frame. Each range costs a layer of its own on each row it is in, so keep them few and short,
+     * like the last few characters. They move with the changes of the text like the [rangeStyles]. Ranges should
+     * not overlap.
+     *
+     * @param ranges how visible each range is, from 0 for invisible to 1, in UTF-16 characters of [text] like the
+     * [rangeStyles]. Ranges with an alpha of 1 or more are drawn as usual
+     */
+    fun setRangeAlphas(ranges: List<AnnotatedString.Range<Float>>) {
+        rangeAlphasState = ranges.cutTo(currentText.length)
     }
 
     /** selects the whole text */
@@ -371,13 +383,8 @@ class KodeEditorState(
     }
 
     private fun moveRangeStyles(splice: TextSplice) {
-        val ranges = rangeStylesState
-        if (ranges.isEmpty()) return
-        var changed = false
-        val moved = ranges.mapNotNull { range ->
-            range.movedInside(splice).also { if (it !== range) changed = true }
-        }
-        if (changed) rangeStylesState = moved
+        rangeStylesState = rangeStylesState.movedInside(splice)
+        rangeAlphasState = rangeAlphasState.movedInside(splice)
     }
 
     private companion object {
@@ -427,6 +434,25 @@ internal fun TextRange.mappedInside(splice: TextSplice): TextRange? {
     val first = if (isInsertion && min == splice.start) min + splice.inserted.length else mapPosition(min, splice)
     val last = mapPosition(max, splice)
     return if (first < last) TextRange(first, last) else null
+}
+
+/** the ranges cut to a text of [length], without the empty ones */
+private fun <T> List<AnnotatedString.Range<T>>.cutTo(length: Int) = mapNotNull { range ->
+    val start = range.start.coerceIn(0, length)
+    val end = range.end.coerceIn(start, length)
+    when {
+        start == end -> null
+        start == range.start && end == range.end -> range
+        else -> AnnotatedString.Range(range.item, start, end, range.tag)
+    }
+}
+
+/** each range moved by [movedInside], the same list if none of them moved */
+private fun <T> List<AnnotatedString.Range<T>>.movedInside(splice: TextSplice): List<AnnotatedString.Range<T>> {
+    if (isEmpty()) return this
+    var changed = false
+    val moved = mapNotNull { range -> range.movedInside(splice).also { if (it !== range) changed = true } }
+    return if (changed) moved else this
 }
 
 /** like [mappedInside], the same object if it does not move, null if it ends up empty */
