@@ -297,7 +297,6 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         return gliding
     }
 
-    /** @return how far an end is drawn away from its place */
     /**
      * @return how far an end is drawn away from its place. It goes from its distance at the start and its speed at the
      * start to its place, where it stops (a cubic Hermite curve). With the speed of the cubic ease-out, `3 × distance /

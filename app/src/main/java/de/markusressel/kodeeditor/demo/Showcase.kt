@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.demo
 
 import android.util.Log
 import androidx.compose.runtime.snapshotFlow
+import de.markusressel.kodeeditor.library.compose.KodeEditorReveal
 import de.markusressel.kodeeditor.library.compose.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.KodeEditorViewState
 import kotlinx.coroutines.coroutineScope
@@ -22,13 +23,13 @@ const val EXTRA_SHOWCASE_PLAY = "showcase_play"
  *
  * @param state the text, with the sample text of the demo in it
  * @param viewState the view of the editor that shows [state]
- * @param agent the agent, which types into [state]
+ * @param agent reveals what the agent writes into [state]
  * @param janeTypes lets Jane type her line, returns when she is done
  */
 internal suspend fun playShowcase(
     state: KodeEditorState,
     viewState: KodeEditorViewState,
-    agent: AgentTyping,
+    agent: KodeEditorReveal,
     janeTypes: suspend () -> Unit,
 ) = coroutineScope {
     // the first layout, and a moment to see the text as it is
@@ -39,9 +40,9 @@ internal suspend fun playShowcase(
 
     val jane = launch { janeTypes() }
     delay(700)
-    agent.start(AGENT_TEXT, state.text.indexOf("## Try it"))
-    // the demo reveals the text of the agent until all of it is there
-    snapshotFlow { agent.head }.first { it == null }
+    agentWrites(agent, state.text.indexOf("## Try it"), AGENT_TEXT, chunked = false)
+    // until all of it is there
+    snapshotFlow { agent.isRevealing }.first { !it }
     jane.join()
     delay(800)
 

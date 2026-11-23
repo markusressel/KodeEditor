@@ -14,7 +14,7 @@ of the library, like an app would.
 |--------|---------------------------------------------------------------------------------------------------------------|
 | 0 s    | The text as it is. Jane, another person, has "syntax highlighting" selected.                                  |
 | 1 s    | Jane types a line behind her selection, one character every 90 ms, which fades in. Her selection shrinks into her cursor, and the text behind it slides out of the way. |
-| 1.7 s  | At the same time, an agent writes a new section above "## Try it": the text is there at once but hidden, and is revealed about 30 times per second. It fades in and rises 4 dp into its place. The text below it slides down once when the hidden text is inserted, and does not move while it is typed. |
+| 1.7 s  | At the same time, an agent writes a new section above "## Try it": the text is there at once but hidden, and `KodeEditorReveal` reveals it in each frame, all of it in 4 s. It fades in and rises 4 dp into its place. The text below it slides down once when the hidden text is inserted, and does not move while it is typed. |
 | ~8 s   | Both are done. "## Folded away" folds, then the section of the agent.                                         |
 | ~10 s  | The view zooms in to 1.8 and back to 1 around its middle, and the lines wrap again while it zooms.            |
 | ~13 s  | Both sections unfold again.                                                                                   |

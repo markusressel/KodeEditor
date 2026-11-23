@@ -65,21 +65,28 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
     val labelShown: Boolean
         get() = rule.onAllNodesWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     var layout: KodeEditorLayout? = null
+    /** reveals what Jane writes, with [show] and its reveal on. Her cursor is at its head then */
+    var reveal: KodeEditorReveal? = null
 
     fun janeAt(offset: Int, selection: TextRange = TextRange(offset)) =
         KodeEditorRemoteCursor("jane", listOf(selection), Color.Red, Color.Green.copy(alpha = 0.5f))
 
-    fun show(animations: KodeEditorAnimations) {
+    fun show(animations: KodeEditorAnimations, reveal: Boolean = false) {
         rule.setContent {
+            val revealing = if (reveal) rememberKodeEditorReveal(state, "jane").also { this.reveal = it } else null
+            val jane = revealing?.head?.let { janeAt(it) } ?: cursor.value
             KodeEditor(
                 modifier = Modifier.size(400.dp).testTag("editor"),
                 state = state,
                 languageRuleBook = noRules,
                 colorScheme = noColors,
-                onTextLayout = { layout = it },
+                onTextLayout = {
+                    layout = it
+                    revealing?.layout = it
+                },
                 animations = animations,
                 gutterColumns = emptyList(),
-                remoteCursors = if (present.value) listOf(cursor.value) else emptyList(),
+                remoteCursors = if (present.value) listOf(jane) else emptyList(),
                 remoteCursorLabel = {
                     SideEffect { labelCompositions++ }
                     Box(Modifier.size(10.dp).testTag(LABEL))
@@ -491,6 +498,40 @@ class RemoteCursorsTest {
         assertTrue("forwards: $moves", moves.all { it >= -0.2f })
         assertTrue("evenly: $moves", moves.max() <= 2.5f * moves.average())
         assertTrue("it keeps up: $lag", lag <= 6f)
+    }
+
+    @Test
+    fun `a cursor at the head of revealed chunks keeps close behind it`() {
+        scene.show(glide, reveal = true)
+        scene.settle()
+        val layout = scene.layout!!
+        val char = (layout.getCursorRect(60).left - layout.getCursorRect(0).left) / 60
+        composeRule.mainClock.autoAdvance = false
+
+        // a chunk, and the next one while the first one is still revealed
+        composeRule.runOnIdle { scene.reveal!!.insert(0, "the agent writes a chunk ") }
+        val lags = ArrayList<Float>()
+        for (frame in 1..40) {
+            if (frame == 10) composeRule.runOnIdle { scene.reveal!!.insert(25, "and another one ") }
+            scene.frame()
+            val head = composeRule.runOnIdle { scene.reveal!!.head } ?: break
+            if (frame > 5) lags += (layout.getCursorRect(head).center.x - caretX()) / char
+        }
+
+        assertTrue("revealed for a while: $lags", lags.size > 20)
+        assertTrue("never ahead: $lags", lags.all { it >= -0.5f })
+        assertTrue("about a character behind: $lags", lags.average() <= 1.5 && lags.all { it <= 2.5f })
+    }
+
+    @Test
+    fun `a change of the user shows all of the revealed text`() {
+        scene.show(glide, reveal = true)
+        composeRule.runOnIdle { scene.reveal!!.insert(0, "the agent writes a chunk ") }
+        scene.frame()
+
+        composeRule.runOnIdle { scene.state.replaceSelection("x") }
+
+        composeRule.runOnIdle { assertFalse(scene.reveal!!.isRevealing) }
     }
 
     /** @return where the red caret of Jane is drawn in the first row */

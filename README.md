@@ -133,6 +133,29 @@ KodeEditor(
 
 All lines have the same height, so a style with a larger font size does not make its line taller.
 
+### Text that an agent writes
+
+`KodeEditorReveal` shows text that arrives in chunks, like the answer of an agent, as if it was typed. Each chunk is
+in the text at once and hidden until the reveal gets to it, a few characters in each frame, so the text below does not
+move. It goes at 60 characters per second, faster when more text waits, and shows each chunk within 4 s. A change of
+the user shows all of it at once. [docs/reveal.md](docs/reveal.md) has the rules.
+
+```kotlin
+val reveal = rememberKodeEditorReveal(state, tag = "agent")
+
+// for each chunk the agent sends
+reveal.insert(position, chunk)
+
+KodeEditor(
+    state = state,
+    // shows a folded part as a whole
+    onTextLayout = { reveal.layout = it },
+    // its cursor at the head of the reveal
+    remoteCursors = listOfNotNull(reveal.head?.let { agentCursor(it) }),
+    // ...
+)
+```
+
 ## The bar next to the text
 
 `gutterColumns` decides what the bar shows, from left to right. By default that is the line numbers. A column draws

@@ -37,13 +37,13 @@ import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
 import de.markusressel.kodeeditor.library.compose.KodeEditorAnimations
 import de.markusressel.kodeeditor.library.compose.KodeEditorAppearance
-import de.markusressel.kodeeditor.library.compose.KodeEditorLayout
 import de.markusressel.kodeeditor.library.compose.KodeEditorListener
 import de.markusressel.kodeeditor.library.compose.KodeEditorRemoteCursor
 import de.markusressel.kodeeditor.library.compose.KodeEditorSearch
 import de.markusressel.kodeeditor.library.compose.KodeEditorSearchQuery
 import de.markusressel.kodeeditor.library.compose.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.TextSplice
+import de.markusressel.kodeeditor.library.compose.rememberKodeEditorReveal
 import de.markusressel.kodeeditor.library.compose.rememberKodeEditorSearch
 import de.markusressel.kodeeditor.library.compose.rememberKodeEditorViewState
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
@@ -81,7 +81,7 @@ class ComposeMainActivity : ComponentActivity() {
                 ) {
                     // not saveable, a large document does not fit into the saved instance state
                     val state = remember { KodeEditorState(readResourceFileAsText(R.raw.short_sample)) }
-                    val agent = remember(state) { AgentTyping(state) }
+                    val agent = rememberKodeEditorReveal(state, "agent")
                     var readOnly by remember { mutableStateOf(showcase) }
                     val viewState = rememberKodeEditorViewState()
                     val search = rememberKodeEditorSearch(state)
@@ -104,10 +104,8 @@ class ComposeMainActivity : ComponentActivity() {
                             }
                         }
                         state.addListener(lines)
-                        state.addListener(agent)
                         onDispose {
                             state.removeListener(lines)
-                            state.removeListener(agent)
                         }
                     }
 
@@ -116,23 +114,28 @@ class ComposeMainActivity : ComponentActivity() {
                         warnings.warnings = withContext(Dispatchers.Default) { findWarnings(text) }
                     }
 
-                    var revealSteps by remember { mutableIntStateOf(2) }
                     var appearOn by remember { mutableStateOf(true) }
                     var appearMs by remember { mutableIntStateOf(250) }
                     var appearWindow by remember { mutableIntStateOf(16) }
                     var appearSlide by remember { mutableIntStateOf(if (showcase) SHOWCASE_SLIDE_DP else 0) }
                     var showOptions by remember { mutableStateOf(false) }
-                    var editorLayout by remember { mutableStateOf<KodeEditorLayout?>(null) }
                     val scope = rememberCoroutineScope()
                     var janeTyping by remember { mutableStateOf<Job?>(null) }
                     // how much Jane typed behind her phrase, null while she only has it selected
                     var janeTyped by remember { mutableStateOf<Int?>(null) }
 
+                    var agentWriting by remember { mutableStateOf<Job?>(null) }
                     // not the head itself, that would compose all of this again for each step of the typing
-                    val agentTyping by remember(agent) { derivedStateOf { agent.head != null } }
-                    LaunchedEffect(agentTyping) {
-                        while (agentTyping && agent.reveal(revealSteps) { editorLayout?.collapsedRangeAt(it) }) {
-                            delay(REVEAL_INTERVAL_MS)
+                    val agentTyping by remember(agent) { derivedStateOf { agent.isRevealing } }
+                    val agentBusy = agentTyping || agentWriting != null
+
+                    /** the agent writes at the start of the line of the cursor, the text of that line moves down */
+                    fun agentWrites(chunked: Boolean) {
+                        val cursor = state.selection.min
+                        val position = state.text.lastIndexOf('\n', cursor - 1) + 1
+                        agentWriting = scope.launch {
+                            agentWrites(agent, position, AGENT_TEXT, chunked)
+                            agentWriting = null
                         }
                     }
 
@@ -144,18 +147,23 @@ class ComposeMainActivity : ComponentActivity() {
                     }
 
                     if (!showcase) Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(
-                            onClick = {
-                                if (agentTyping) {
+                        if (agentBusy) {
+                            TextButton(
+                                onClick = {
+                                    agentWriting?.cancel()
+                                    agentWriting = null
                                     agent.stop()
-                                } else {
-                                    // at the start of the line of the cursor, the text of that line moves down
-                                    val cursor = state.selection.min
-                                    agent.start(AGENT_TEXT, state.text.lastIndexOf('\n', cursor - 1) + 1)
-                                }
-                            },
-                        ) {
-                            Text(if (agentTyping) "Stop agent" else "Agent types")
+                                },
+                            ) {
+                                Text("Stop agent")
+                            }
+                        } else {
+                            TextButton(onClick = { agentWrites(chunked = false) }) {
+                                Text("Agent types")
+                            }
+                            TextButton(onClick = { agentWrites(chunked = true) }) {
+                                Text("Agent chunks")
+                            }
                         }
                         TextButton(
                             enabled = janeTyping == null,
@@ -211,7 +219,6 @@ class ComposeMainActivity : ComponentActivity() {
                     }
 
                     if (showOptions) {
-                        OptionSlider("Characters per step", revealSteps, 1..10) { revealSteps = it }
                         Row(
                             modifier = Modifier.padding(horizontal = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -229,7 +236,7 @@ class ComposeMainActivity : ComponentActivity() {
                     }
 
                     KodeEditor(
-                        onTextLayout = { editorLayout = it },
+                        onTextLayout = { agent.layout = it },
                         modifier = Modifier
                             .fillMaxSize()
                             .border(BorderStroke(1.dp, MaterialTheme.colorScheme.primary)),
@@ -386,9 +393,6 @@ private val AGENT_COLOR = Color(0xFFFF4081)
 /** the cursor of another user, with the [name] as its id */
 private fun remoteCursor(name: String, color: Color, selection: TextRange) =
     KodeEditorRemoteCursor(name, listOf(selection), color, color.copy(alpha = 0.3f))
-
-/** how often the agent of the demo types, about 30 times per second */
-private const val REVEAL_INTERVAL_MS = 33L
 
 /** what Jane has selected, and types behind */
 private const val JANE_PHRASE = "syntax highlighting"
