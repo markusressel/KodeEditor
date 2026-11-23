@@ -117,7 +117,7 @@ class ComposeMainActivity : ComponentActivity() {
                     }
 
                     var appearOn by remember { mutableStateOf(true) }
-                    var appearMs by remember { mutableIntStateOf(250) }
+                    var appearMs by remember { mutableIntStateOf(if (showcase) SHOWCASE_APPEAR_MS else 500) }
                     var appearSlide by remember { mutableIntStateOf(if (showcase) SHOWCASE_SLIDE_DP else 0) }
                     var showOptions by remember { mutableStateOf(false) }
                     val scope = rememberCoroutineScope()
@@ -425,6 +425,9 @@ private const val JANE_INTERVAL_MS = 90L
 
 /** how far the text of the agent and Jane rises into its place in the showcase */
 private const val SHOWCASE_SLIDE_DP = 4
+
+/** the appear duration the README animation was recorded with, see docs/showcase.md */
+private const val SHOWCASE_APPEAR_MS = 250
 
 @Preview(showBackground = true)
 @Composable

@@ -89,6 +89,10 @@ class KodeEditorState(
     /** told about every change of the text too, for the wrapped rows */
     internal var rowObserver: ((TextSplice) -> Unit)? = null
 
+    /** the text the last change removed, for the observers */
+    internal var lastRemoved = ""
+        private set
+
     /** told about each change of the text, right after the range styles moved */
     private val spliceListeners = mutableListOf<(TextSplice) -> Unit>()
 
@@ -456,6 +460,7 @@ class KodeEditorState(
     private fun replace(splice: TextSplice, selection: TextRange, composition: TextRange?) {
         if (splice.removedLength != 0 || splice.inserted.isNotEmpty()) {
             val old = currentText
+            lastRemoved = old.substring(splice.start, splice.start + splice.removedLength)
             currentText = buildString(old.length - splice.removedLength + splice.inserted.length) {
                 append(old, 0, splice.start)
                 append(splice.inserted)

@@ -44,7 +44,9 @@ data class KodeEditorAnimations(
  * How text that the application marks appears, e.g. text that somebody else writes. It fades in, and can rise into its
  * place while it does. This only changes how the text is drawn, nothing is measured again. Text that somebody else
  * inserts with [KodeEditorState.applyRemote] takes its room at once, also while it is still hidden, and the text behind
- * it slides out of the way, into other rows too, like the cursors glide (see [KodeEditorCursorGlide.durationMs]). The
+ * it slides out of the way, into other rows too, like the cursors glide (see [KodeEditorCursorGlide.durationMs]). When
+ * they remove text, the text behind it slides back into the gap. Keys and backspaces one right after the other slide at
+ * an even speed, with the cursor of whoever types them. The
  * system setting that scales the duration of animations scales this too, and turns it off with a scale of 0.
  *
  * @param durationMs how long the text takes to appear. Its alpha is 1 - (1 - t)² at the part t of it, fast at first
@@ -59,7 +61,7 @@ data class KodeEditorAnimations(
  */
 @Immutable
 data class KodeEditorAppearance(
-    val durationMs: Int = 250,
+    val durationMs: Int = 500,
     val window: Int = 16,
     val maxRanges: Int = 256,
     val slide: Dp = 0.dp,

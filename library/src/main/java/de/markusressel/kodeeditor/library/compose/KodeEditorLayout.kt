@@ -397,18 +397,27 @@ internal class EditorLineLayout(
     /** how long the text behind what somebody else inserted takes to move out of the way, 0 jumps */
     var insertSlideMs: () -> Int = { 0 }
 
-    /** where the last insertion ended, a short one right there is typed on, see [STEADY_INSERT_MS] */
-    private var lastInsertEnd = -1
+    /**
+     * where the cursor was after the last change, the end of an insertion or the start of a removal. A short insertion
+     * right there, or a short removal in front of it, is typed on, see [STEADY_INSERT_MS]
+     */
+    private var lastChangeEnd = -1
 
-    /** the transition of the last insertion, also when it is done */
+    /** the transition of the last change, also when it is done */
     private var lastInsert: ReflowTransition? = null
 
     /** tells the rows about changes of the text */
     val rowObserver: (TextSplice) -> Unit = { splice ->
         val slide = if (state.applyingRemote && !state.replacingText) layoutBeforeInsert(splice) else null
-        val typedOn = splice.removedLength == 0 && splice.inserted.length <= STEADY_INSERT_CHARS &&
-            splice.start == lastInsertEnd
-        lastInsertEnd = if (splice.removedLength == 0) splice.start + splice.inserted.length else -1
+        val removed = splice.removedLength
+        val inserted = splice.inserted.length
+        // a key or a backspace right behind the one before
+        val typedOn = when {
+            removed == 0 -> inserted <= STEADY_INSERT_CHARS && splice.start == lastChangeEnd
+            inserted == 0 -> removed <= STEADY_INSERT_CHARS && splice.start + removed == lastChangeEnd
+            else -> false
+        }
+        lastChangeEnd = splice.start + inserted
         wrappedRows?.onSplice(splice, settledWidth = if (state.replacingText) wrapWidth() else null)
         if (slide != null) {
             reflow = ReflowTransition(
@@ -430,16 +439,17 @@ internal class EditorLineLayout(
     }
 
     /**
-     * @return where the text was before somebody else inserted text, while the rows are still those from before, null
-     * if it does not move animated
+     * @return where the text was before somebody else inserted or removed text, while the rows are still those from
+     * before, null if it does not move animated
      */
     private fun layoutBeforeInsert(splice: TextSplice): LayoutBeforeInsert? {
-        if (insertSlideMs() <= 0 || splice.removedLength != 0 || splice.inserted.isEmpty()) return null
+        if (insertSlideMs() <= 0 || (splice.removedLength == 0 && splice.inserted.isEmpty())) return null
+        val removed = state.lastRemoved
         val hidden = folds?.hidden
         // the lines that a fold hides are about the text after the change already
-        if (hidden != null && splice.inserted.contains('\n')) return null
+        if (hidden != null && (splice.inserted.contains('\n') || removed.contains('\n'))) return null
         val wrapped = wrappedRows
-        val linesBefore = state.lineCount - splice.inserted.count { it == '\n' }
+        val linesBefore = state.lineCount - splice.inserted.count { it == '\n' } + removed.count { it == '\n' }
         val firstRows = wrapped?.currentFirstRows ?: IntArray(linesBefore + 1) { it }
         val breaks = wrapped?.currentBreaks?.copyOf() ?: arrayOfNulls(linesBefore)
         val ranges = collapsed
@@ -452,7 +462,9 @@ internal class EditorLineLayout(
             firstRows = hidden?.shownFirstRows(firstRows) ?: firstRows,
             breaks = breaks,
             lineHeight = lineHeight,
-            measure = { all, start, end -> measureBetween(start, end, ranges, all) },
+            // the collapsed parts are those of the text, not of the removed text
+            measure = { all, start, end -> measureBetween(start, end, ranges.takeIf { all === text }, all) },
+            removed = removed,
         )
     }
 

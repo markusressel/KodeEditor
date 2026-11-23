@@ -59,7 +59,7 @@ class TypingTest {
     /** where the caret of Jane is in the text */
     private val caret = mutableIntStateOf(0)
 
-    private fun show(text: String, caretAt: Int, revealing: Boolean = false, appearMs: Int = 250) {
+    private fun show(text: String, caretAt: Int, revealing: Boolean = false, appearMs: Int = 500) {
         state = KodeEditorState(text)
         caret.intValue = caretAt
         composeRule.setContent {
@@ -120,19 +120,32 @@ class TypingTest {
      */
     private fun janeTypes(typed: String, at: Int, onFrame: (PixelMap, Long) -> Unit) {
         val gaps = humanGaps(typed.length, Random(3))
+        janePresses(typed.mapIndexed { index, char -> gaps[index] to char }, at, onFrame)
+    }
+
+    /**
+     * Jane presses [keys] at [at], each a time to wait after it and the character it types, null for backspace, and her
+     * cursor moves behind each
+     */
+    private fun janePresses(keys: List<Pair<Long, Char?>>, at: Int, onFrame: (PixelMap, Long) -> Unit) {
         var time = 0L
         var next = 0L
         var index = 0
-        while (index < typed.length || time < next + 300) {
-            if (index < typed.length && time >= next) {
-                val position = at + index
-                val char = typed[index]
+        var position = at
+        while (index < keys.size || time < next + 300) {
+            if (index < keys.size && time >= next) {
+                val (gap, char) = keys[index]
                 composeRule.runOnIdle {
-                    val splice = TextSplice(position, 0, char.toString())
-                    state.applyRemote(listOf(splice), appear = true, appearTag = "jane")
-                    caret.intValue = position + 1
+                    if (char == null) {
+                        position--
+                        state.applyRemote(listOf(TextSplice(position, 1, "")))
+                    } else {
+                        state.applyRemote(listOf(TextSplice(position, 0, char.toString())), appear = true, appearTag = "jane")
+                        position++
+                    }
+                    caret.intValue = position
                 }
-                next = time + gaps[index]
+                next = time + gap
                 index++
             }
             val image = frame()
@@ -247,8 +260,13 @@ class TypingTest {
         }
 
     @Test
-    fun `typed text that appears slowly gets visible a bit in each frame`() {
-        show("first line", 10, appearMs = 1000)
+    fun `typed text that appears slowly gets visible a bit in each frame`() = typedAppears(1000)
+
+    @Test
+    fun `typed text gets visible a bit in each frame`() = typedAppears(500)
+
+    private fun typedAppears(appearMs: Int) {
+        show("first line", 10, appearMs = appearMs)
         val jumps = ArrayList<String>()
         var before = alphas()
 
@@ -262,8 +280,14 @@ class TypingTest {
     }
 
     @Test
-    fun `revealed text that appears slowly gets visible a bit in each frame`() {
-        show("first line", 10, revealing = true, appearMs = 1000)
+    fun `revealed text that appears slowly gets visible a bit in each frame`() = revealedAppears(1000)
+
+    @Test
+    fun `revealed text gets visible a bit in each frame`() = revealedAppears(500)
+
+    private fun revealedAppears(appearMs: Int) {
+        show("first line", 10, revealing = true, appearMs = appearMs)
+        var most = 0
         val jumps = ArrayList<String>()
         var before = FloatArray(0)
 
@@ -274,6 +298,7 @@ class TypingTest {
         repeat(400) { frameIndex ->
             frame()
             val after = alphas()
+            most = maxOf(most, composeRule.runOnIdle { state.rangeAlphas.size })
             jumps += jumps(before, after, frameIndex * 16L)
             // hidden text is not counted, it shows only as it is revealed
             val hidden = composeRule.runOnIdle { reveal!!.head } ?: after.size
@@ -281,5 +306,73 @@ class TypingTest {
         }
 
         assertTrue(jumps.joinToString("\n"), jumps.isEmpty())
+        // about one piece per frame, far from the limit at which pieces become one
+        assertTrue("$most pieces", most <= appearMs / 16 + 4)
+    }
+
+    /** a person types [text], with a typo after [typoAfter] characters that they remove with backspace */
+    private fun typedWithTypo(text: String, typoAfter: Int): List<Pair<Long, Char?>> {
+        val gaps = humanGaps(text.length + 6, Random(5))
+        val keys = ArrayList<Pair<Long, Char?>>()
+        text.take(typoAfter).forEachIndexed { index, char -> keys += gaps[index] to char }
+        // two wrong keys, noticed after 350 ms, removed 120 ms apart, then on with the right ones
+        keys += gaps[typoAfter] to 'x'
+        keys += 350L to 'z'
+        keys += 120L to null
+        keys += 120L to null
+        text.drop(typoAfter).forEachIndexed { index, char -> keys += gaps[typoAfter + 1 + index] to char }
+        return keys
+    }
+
+    @Test
+    fun `the text behind somebody who removes a typo moves with their caret`() {
+        show("first line", 5)
+        val tail = ArrayList<Float>()
+
+        janePresses(typedWithTypo(" typed", 3), 5) { image, _ ->
+            val caretX = image.caretX()
+            val first = image.inkColumns().firstOrNull { it > caretX + 2 } ?: return@janePresses
+            tail += first - caretX
+        }
+
+        assertTrue("same distance: $tail", tail.max() - tail.min() <= 2f)
+    }
+
+    @Test
+    fun `the caret of somebody who removes a typo moves at an even speed`() {
+        show("first line", 10)
+        val xs = ArrayList<Float>()
+
+        janePresses(typedWithTypo(" typed by Jane, one key after the other", 12), 10) { image, _ ->
+            xs += image.caretX()
+        }
+        val speeds = xs.zipWithNext { a, b -> abs(b - a) }.dropLast(300 / 16)
+        val mean = speeds.average()
+        val p95 = speeds.sorted()[speeds.size * 95 / 100]
+
+        assertTrue("p95 $p95, mean $mean: $speeds", p95 <= 2.5 * mean)
+    }
+
+    @Test
+    fun `text removed by somebody else slides the text behind it, without a jump`() {
+        show("first line and more", 11)
+        val tail = ArrayList<Float>()
+
+        composeRule.runOnIdle {
+            // an agent removes "and " in one change, its cursor stays at the start
+            state.applyRemote(listOf(TextSplice(11, 4, "")))
+        }
+        repeat(12) {
+            val image = frame()
+            val ink = image.inkColumns()
+            // the start of "more", the last word
+            tail += ink.filter { it > ink.first() }.let { columns ->
+                columns.zipWithNext().lastOrNull { (a, b) -> b - a > 4 }?.second ?: columns.last()
+            }.toFloat()
+        }
+
+        val steps = tail.zipWithNext { a, b -> a - b }
+        assertTrue("moves left: $tail", tail.first() > tail.last() + 10)
+        assertTrue("no jump: $steps", steps.all { it < (tail.first() - tail.last()) / 2 })
     }
 }

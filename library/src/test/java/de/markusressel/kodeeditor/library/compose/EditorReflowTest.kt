@@ -103,6 +103,46 @@ class EditorReflowTest {
             measure = { _, from, to -> (to - from) * 10f },
         )
 
+    private fun beforeChange(text: String, start: Int, length: Int, removed: String, firstRows: IntArray) =
+        LayoutBeforeInsert(
+            text = text,
+            lineStarts = KodeEditorState(text).lineStarts(),
+            start = start,
+            length = length,
+            firstRows = firstRows,
+            breaks = arrayOfNulls(firstRows.size - 1),
+            lineHeight = 20f,
+            measure = { _, from, to -> (to - from) * 10f },
+            removed = removed,
+        )
+
+    @Test
+    fun `text behind a removal starts behind the removed text`() {
+        // "hello brave world" became "hello world"
+        val before = beforeChange("hello world", 6, 0, "brave ", intArrayOf(0, 1))
+        assertEquals(Offset(30f, 0f), before.positionOf(3))
+        assertEquals("the cursor where the removal was", Offset(120f, 0f), before.positionOf(6))
+        assertEquals(Offset(130f, 0f), before.positionOf(7))
+    }
+
+    @Test
+    fun `text behind a removed line break starts in the next row`() {
+        // "ab\ncd" became "abcd"
+        val before = beforeChange("abcd", 2, 0, "\n", intArrayOf(0, 1, 2))
+        assertEquals(Offset(10f, 0f), before.positionOf(1))
+        assertEquals(Offset(0f, 20f), before.positionOf(2))
+        assertEquals(Offset(10f, 20f), before.positionOf(3))
+        assertEquals("the joined line broke where the line ended", listOf(2), before.breaksOf(0)?.toList())
+    }
+
+    @Test
+    fun `text behind a replacement starts behind the replaced text`() {
+        // "hello wrold" became "hello world": "wrold" replaced by "world"
+        val before = beforeChange("hello world!", 6, 5, "wrold", intArrayOf(0, 1))
+        assertEquals("the new text starts where the old one did", Offset(60f, 0f), before.positionOf(8))
+        assertEquals(Offset(110f, 0f), before.positionOf(11))
+    }
+
     @Test
     fun `text behind an insertion starts where the insertion is`() {
         // "hello world" became "hello brave world"

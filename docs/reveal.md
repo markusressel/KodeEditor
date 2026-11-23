@@ -75,6 +75,7 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   (`KodeEditorAppearance`), if it has one.
 - A new chunk does not end the pieces that are still appearing. Only `stop()` and a change of the user end them, with
   `finishAppearing(tag)`.
+- `durationMs` is 500 ms by default.
 - The alpha of a piece is `1 - (1 - p)²` with `p = time since the piece came / durationMs` (ease-out quadratic: fast at
   first, so new text does not stay invisible for long, then slower until it is fully visible). Each piece has its own
   start, so pieces one behind the other differ by about one frame of the curve.
@@ -86,8 +87,9 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   `maxRanges` (256) appearing pieces, the two pieces one behind the other of the same writer whose alphas are the
   closest become one, with the alpha of the more visible one. So a character gets visible by that difference at once,
   which is tiny with that many pieces. Without such neighbours, the most visible piece is shown at once.
-- So at `durationMs = 1000`, no character's alpha changes by more than 0.1 from one frame to the next, for typing and
-  for reveals.
+- So at `durationMs = 500` and `1000`, no character's alpha changes by more than 0.1 from one frame to the next, for
+  typing and for reveals. A reveal has about one piece per frame alive, about 31 at 500 ms and 63 at 1000 ms, far
+  below 256.
 
 ### R5: the cursor glides with its speed
 
@@ -119,8 +121,9 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 
 ### R6: the text behind the chunk slides
 
-- With an appearance, the text behind inserted text slides to its new place in 120 ms with the cubic ease-out, into the
-  next rows too when the line breaks anew. As a chunk is hidden but keeps its space, this happens when it arrives.
+- With an appearance, the text behind text that somebody else inserted, removed or replaced slides to its new place in
+  120 ms with the cubic ease-out, into the next rows too when the line breaks anew. As a chunk is hidden but keeps its
+  space, this happens when it arrives. Removed text is gone at once, the text behind it closes the gap.
 - A slide that starts while one runs starts from where the text is drawn, so the text never jumps: the one before
   stops where it is, and the new one takes the text on from there to its new place.
 - Typing (R6b): an insertion of at most 3 characters right behind the one before, at most 250 ms after it, slides at an
@@ -128,9 +131,13 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   starts a frame (16 ms) early, so the text does not stand still for a frame at each key. A cursor at the end of the
   insertion is drawn where the text behind it is drawn on its way, so the text behind the cursor of somebody who types
   moves exactly with their cursor, at the even speed of R5b.
+- The same for backspace: a removal of at most 3 characters right in front of where the cursor was after the change
+  before (the end of an insertion, the start of a removal), at most 250 ms after it, slides at an even speed to the
+  left, with the same times. An insertion right after a removal at the same place is typed on too. So a typo that is
+  removed and typed again moves the cursor and the text behind it back and forth without a jump.
 - Chunks of an agent are no typing: each chunk slides once, in 120 ms, when it arrives, and nothing moves while it is
   revealed.
-- Removals do not slide.
+- Only the changes of others slide, those of the user are where they are at once.
 
 ### R7: nothing shows ahead of the cursor
 
@@ -158,4 +165,6 @@ the end of a line:
   [typing-pattern.md](typing-pattern.md)): the text behind the cursor of somebody who types keeps its distance to the
   caret (±2 px), no typed or revealed text shows right of the caret, and the speed of the caret while typing has a 95th
   percentile of at most 2.5 times its mean. With `durationMs = 1000`, no character's alpha changes by more than 0.1
-  between two frames, for a person typing and for a reveal of 400 characters.
+  between two frames, for a person typing and for a reveal of 400 characters, and neither at 500 ms. With a typo that
+  is removed with backspace, the text behind the cursor keeps its distance (±2 px) and the caret speed has a 95th
+  percentile of at most 2.5 times its mean. Text removed by somebody else slides the text behind it to the left.
