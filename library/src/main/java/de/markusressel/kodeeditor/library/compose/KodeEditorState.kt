@@ -80,6 +80,10 @@ class KodeEditorState(
     internal var applyingBigChange = false
         private set
 
+    /** the selection when the last change of somebody else moved it there, null after the user moved it */
+    internal var selectionMovedByOthers: TextRange? = null
+        private set
+
     /** whether the change that is being applied came from somebody else, see [applyRemote] */
     internal var applyingRemote = false
         private set
@@ -93,6 +97,9 @@ class KodeEditorState(
 
     /** told about every change of the text too, for the wrapped rows */
     internal var rowObserver: ((TextSplice) -> Unit)? = null
+
+    /** told right before each change of somebody else, see [applyRemote] */
+    internal var beforeRemoteObserver: (() -> Unit)? = null
 
     /** the text the last change removed, for the observers */
     internal var lastRemoved = ""
@@ -234,6 +241,7 @@ class KodeEditorState(
             undoState++
             // The keyboard only hears where things are now. Starting it over would end what it does at the moment, and
             // what it sends in that moment would get lost.
+            beforeRemoteObserver?.invoke()
             applyingRemote = true
             try {
                 replace(cleaned, selectionState.mapped(cleaned), compositionState?.mappedInside(cleaned))
@@ -274,6 +282,7 @@ class KodeEditorState(
         val range = selection.coercedIn(currentText.length)
         if (range != selectionState || compositionState != null) {
             selectionState = range
+            selectionMovedByOthers = null
             compositionState = null
             changedInBatch = true
         }
@@ -467,6 +476,7 @@ class KodeEditorState(
         val range = selection.coercedIn(currentText.length)
         if (range != selectionState || composition != compositionState) {
             selectionState = range
+            selectionMovedByOthers = null
             compositionState = composition
             changedInBatch = true
         }
@@ -535,6 +545,7 @@ class KodeEditorState(
             }
         }
         selectionState = selection.coercedIn(currentText.length)
+        selectionMovedByOthers = if (applyingRemote) selectionState else null
         compositionState = composition?.takeIf { !it.collapsed && it.max <= currentText.length }
         changedInBatch = true
     }

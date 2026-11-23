@@ -20,7 +20,15 @@ internal class CursorFollower {
         userMovedView = true
     }
 
-    fun shouldFollow(selection: TextRange, focused: Boolean): Boolean {
+    /**
+     * @param movedByOthers whether the selection only moved because somebody else changed the text in front of it,
+     * which is no move of the user, so the view does not follow it
+     */
+    fun shouldFollow(selection: TextRange, focused: Boolean, movedByOthers: Boolean = false): Boolean {
+        if (movedByOthers && selection != lastSelection && (!focused || wasFocused)) {
+            lastSelection = selection
+            return false
+        }
         if (selection != lastSelection || (focused && !wasFocused)) userMovedView = false
         lastSelection = selection
         wasFocused = focused

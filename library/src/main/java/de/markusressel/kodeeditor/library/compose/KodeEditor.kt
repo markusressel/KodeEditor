@@ -136,6 +136,9 @@ private val CURRENT_SEARCH_MATCH_COLOR = Color(0xAAFF8F00)
  * Content is not clipped to that box, so draw and place it at text coordinates anywhere in the document.
  * @param keepCursorVisible while the editor has the focus, scroll so the cursor stays visible when it moves or
  * the editor gets smaller (e.g. when the soft keyboard opens and the app shrinks the editor by the IME insets)
+ * @param keepViewOnRemoteChanges whether text that others insert or remove in front of the cursor, or in front of the
+ * first visible line while the cursor is not in view, scrolls the view with it, so the cursor or that line stays where
+ * it is on the screen
  * @param minZoom the smallest zoom factor the user can reach
  * @param maxZoom the largest zoom factor the user can reach
  * @param autoCorrect whether the keyboard may correct words on its own, which is rarely right for code and markup.
@@ -170,6 +173,7 @@ fun KodeEditor(
     onTextLayout: (KodeEditorLayout) -> Unit = {},
     overlay: @Composable BoxScope.(layout: KodeEditorLayout) -> Unit = {},
     keepCursorVisible: Boolean = true,
+    keepViewOnRemoteChanges: Boolean = true,
     minZoom: Float = 0.25f,
     maxZoom: Float = 10f,
     autoCorrect: Boolean = false,
@@ -204,6 +208,7 @@ fun KodeEditor(
         onTextLayout = onTextLayout,
         overlay = overlay,
         keepCursorVisible = keepCursorVisible,
+        keepViewOnRemoteChanges = keepViewOnRemoteChanges,
         minZoom = minZoom,
         maxZoom = maxZoom,
         autoCorrect = autoCorrect,
@@ -290,6 +295,9 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * Content is not clipped to that box, so draw and place it at text coordinates anywhere in the document.
  * @param keepCursorVisible while the editor has the focus, scroll so the cursor stays visible when it moves or
  * the editor gets smaller (e.g. when the soft keyboard opens and the app shrinks the editor by the IME insets)
+ * @param keepViewOnRemoteChanges whether text that others insert or remove in front of the cursor, or in front of the
+ * first visible line while the cursor is not in view, scrolls the view with it, so the cursor or that line stays where
+ * it is on the screen
  * @param minZoom the smallest zoom factor the user can reach
  * @param maxZoom the largest zoom factor the user can reach
  * @param autoCorrect whether the keyboard may correct words on its own, which is rarely right for code and markup.
@@ -329,6 +337,7 @@ fun KodeEditor(
     onTextLayout: (KodeEditorLayout) -> Unit = {},
     overlay: @Composable BoxScope.(layout: KodeEditorLayout) -> Unit = {},
     keepCursorVisible: Boolean = true,
+    keepViewOnRemoteChanges: Boolean = true,
     minZoom: Float = 0.25f,
     maxZoom: Float = 10f,
     autoCorrect: Boolean = false,
@@ -574,7 +583,11 @@ fun KodeEditor(
     }
     DisposableEffect(state, layout) {
         state.rowObserver = layout.rowObserver
-        onDispose { state.rowObserver = null }
+        state.beforeRemoteObserver = layout.beforeRemoteChange
+        onDispose {
+            state.rowObserver = null
+            state.beforeRemoteObserver = null
+        }
     }
 
     LaunchedEffect(layout) {
@@ -624,6 +637,30 @@ fun KodeEditor(
         }
     }
 
+    // text that others insert or remove in front of what the user looks at moves the view with it, in the same frame
+    val currentKeepView by rememberUpdatedState(keepViewOnRemoteChanges)
+    DisposableEffect(layout) {
+        layout.remoteAnchor = anchor@{
+            if (!currentKeepView) return@anchor null
+            val visible = settledGeometry.visibleSize
+            val caret = state.selection.end
+            val rect = layout.getCursorRect(caret).translate(textStartPadding, 0f)
+            val inView = rect.top >= offset.y && rect.bottom <= offset.y + visible.height &&
+                rect.left >= offset.x && rect.left <= offset.x + visible.width
+            // the cursor if the user sees it, otherwise the first visible line
+            if (focused && inView) caret else layout.startOfRow(layout.rowAt(offset.y))
+        }
+        layout.onRemoteShift = { distance ->
+            val before = offset
+            offset = EditorGeometry.coerce(before + distance, maxOffset)
+            offset - before
+        }
+        onDispose {
+            layout.remoteAnchor = { null }
+            layout.onRemoteShift = { Offset.Zero }
+        }
+    }
+
     // the text can get shorter and the zoom can change, the view must not stay beyond the end of the text
     LaunchedEffect(maxOffset) {
         val before = offset.y
@@ -634,9 +671,9 @@ fun KodeEditor(
     val selection = state.selection
 
     // Follow the cursor while the user edits: when the selection moves or the editor changes its size.
-    // Panning or remote changes of the text alone don't scroll.
+    // Panning or remote changes of the text alone don't scroll, also not when they move the selection.
     LaunchedEffect(keepCursorVisible, focused, selection, totalSize, zoom, wrapWidth.value) {
-        val follow = cursorFollower.shouldFollow(selection, focused)
+        val follow = cursorFollower.shouldFollow(selection, focused, selection == state.selectionMovedByOthers)
         // a dragged handle scrolls the view itself
         if (!keepCursorVisible || !follow || totalSize == IntSize.Zero || draggedHandle != null) {
             return@LaunchedEffect
