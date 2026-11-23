@@ -594,6 +594,7 @@ fun KodeEditor(
         val slideMs = animations.appearance?.let { it.cursorGlide?.durationMs ?: KodeEditorCursorGlide().durationMs }
         // the system setting is known a little later
         layout.insertSlideMs = { ((slideMs ?: 0) * glides.durationScale).toInt() }
+        layout.remoteCarets = glides::drawnCarets
         glides.update(remoteCursors)
     }
     LaunchedEffect(glides) {

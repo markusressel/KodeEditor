@@ -104,6 +104,12 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
         /** the time of the frame the last glide ended in */
         var endedAt = NONE
+
+        /** whether it glides at an even speed, see [STEADY_WINDOW_MS] */
+        var linear = false
+
+        /** whether its last move was small enough to glide at an even speed, decided at its first frame */
+        var small = false
     }
 
     private val glides = HashMap<String, Glide>()
@@ -205,6 +211,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         val config = config
         val shownAnchor = shown(glide, glide.anchor)
         val shownHead = shown(glide, glide.head)
+        val headStep = abs(head - glide.head.offset)
         glide.anchor.offset = anchor
         glide.head.offset = head
         val anchorTarget = layout.shownCursorRect(anchor).topLeft
@@ -216,18 +223,30 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         if (config == null || durationMs <= 0 || !moves || !fits(config, headMove)) {
             glide.started = NONE
             glide.movedAt = NONE
+            glide.linear = false
             return
         }
+        // a step of a few characters in the row, like a key somebody types
+        glide.small = anchor == head && headStep <= STEADY_MAX_CHARS && abs(headMove.y) < layout.lineHeight / 2
         // a cursor that gets a new place while it glides or shortly after, like at the head of text that is revealed,
         // catches up: its glide is a bit longer than the time between its places, so it stays close behind them. The
         // time of the frames stands still between glides, so a cursor at rest knows how long it rested only at its
         // next frame. Only a running glide counts, one that waits for its first frame does not know the time yet
         val gliding = glide.started >= 0
         // a glide that goes on keeps its speed, so there is no jerk at each new place
-        val anchorVelocity = if (gliding) velocityOf(glide, glide.anchor) else null
-        val headVelocity = if (gliding) velocityOf(glide, glide.head) else null
+        var anchorVelocity = if (gliding) velocityOf(glide, glide.anchor) else null
+        var headVelocity = if (gliding) velocityOf(glide, glide.head) else null
+        glide.linear = false
         if (gliding && glide.movedAt != NONE) {
-            glide.durationMs = catchUpMs(now - glide.movedAt)
+            val since = now - glide.movedAt
+            if (glide.small && since <= STEADY_WINDOW_MS) {
+                glide.linear = true
+                glide.durationMs = steadyMs(since)
+                anchorVelocity = null
+                headVelocity = null
+            } else {
+                glide.durationMs = catchUpMs(since)
+            }
             glide.movedAt = now
         } else {
             glide.durationMs = durationMs
@@ -243,6 +262,9 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         isGliding = true
         starts++
     }
+
+    /** @return how long a glide at an even speed takes, until about when the next new place is expected */
+    private fun steadyMs(since: Long): Long = since.coerceIn(minOf(MIN_CATCH_UP_MS, durationMs), STEADY_WINDOW_MS)
 
     /** @return how long a glide takes that starts [since] the last new place of the cursor */
     private fun catchUpMs(since: Long): Long =
@@ -273,10 +295,16 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
                 val ended = glide.endedAt
                 val start = if (ended != NONE && timeMs - ended <= FRAME_SLACK_MS) ended else timeMs
                 val since = start - glide.movedAt
-                val catchUp = glide.movedAt != NONE && since <= CATCH_UP_WINDOW_MS
-                if (catchUp) glide.durationMs = catchUpMs(since)
+                val steady = glide.small && glide.movedAt != NONE && since <= STEADY_WINDOW_MS
+                val catchUp = !steady && glide.movedAt != NONE && since <= CATCH_UP_WINDOW_MS
+                if (steady) {
+                    glide.linear = true
+                    glide.durationMs = steadyMs(since)
+                } else if (catchUp) {
+                    glide.durationMs = catchUpMs(since)
+                }
                 // one that catches up moves in its first frame already
-                glide.started = if (catchUp && start == timeMs) timeMs - FRAME_MS else start
+                glide.started = if ((catchUp || steady) && start == timeMs) timeMs - FRAME_MS else start
                 glide.movedAt = glide.started
             }
             if (glide.started == NONE) return@forEach
@@ -308,6 +336,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         val duration = glide.durationMs
         val t = if (started == NOT_STARTED || duration <= 0) 0f else ((now - started).toFloat() / duration).coerceIn(0f, 1f)
         val start = Offset(end.startX, end.startY)
+        if (glide.linear) return start * (1f - t)
         val velocity = end.velocity ?: return start * (1f - t).let { it * it * it }
         val h00 = 2 * t * t * t - 3 * t * t + 1
         val h10 = t * t * t - 2 * t * t + t
@@ -321,6 +350,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         if (started < 0 || duration <= 0) return Offset.Zero
         val t = ((now - started).toFloat() / duration).coerceIn(0f, 1f)
         val start = Offset(end.startX, end.startY)
+        if (glide.linear) return start * (-1f / duration)
         val velocity = end.velocity ?: (start * (-3f / duration))
         val dh00 = 6 * t * t - 6 * t
         val dh10 = 3 * t * t - 4 * t + 1
@@ -343,6 +373,17 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         layout.shownCursorRect(end.offset).topLeft + distanceOf(glide, end)
 
     /** @return where the cursor of a selection is drawn, its rect moved by the glide */
+    /**
+     * @return the place in the text of each cursor of the users, and the top left of where its caret is drawn now.
+     * Reading it draws again for each frame of a glide
+     */
+    fun drawnCarets(): List<Pair<Int, Offset>> {
+        now
+        return glides.values.filter { it.anchor.offset == it.head.offset }.map { glide ->
+            glide.head.offset to shown(glide, glide.head)
+        }
+    }
+
     fun caretRect(cursor: KodeEditorRemoteCursor, index: Int): Rect {
         val head = cursor.selections[index].end.coerceIn(0, layout.text.length)
         val rect = layout.shownCursorRect(head)
@@ -417,6 +458,16 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
         /** the shortest glide, about two frames */
         const val MIN_CATCH_UP_MS = 32L
+
+        /**
+         * A step of at most [STEADY_MAX_CHARS] in the row this soon after the last new place, like a key somebody
+         * types, glides at an even speed for the time since then, so typing does not pump: it would start fast and
+         * slow down at each key otherwise
+         */
+        const val STEADY_WINDOW_MS = 250L
+
+        /** characters, see [STEADY_WINDOW_MS] */
+        const val STEADY_MAX_CHARS = 3
     }
 }
 

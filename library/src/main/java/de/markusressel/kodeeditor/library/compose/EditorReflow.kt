@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.util.lerp
@@ -10,6 +11,18 @@ internal const val REFLOW_ANIMATION_MS = 150
 
 /** slows down towards the end like the cursors of other users, `1 - (1 - t)^3` */
 internal val CubicEaseOut = Easing { 1f - (1f - it).let { rest -> rest * rest * rest } }
+
+/**
+ * An insertion right behind the one before this soon after it moves the text at an even speed for the time between the
+ * two, like the cursor of whoever types it
+ */
+internal const val STEADY_INSERT_MS = 250L
+
+/** characters, a longer insertion is no key somebody types */
+internal const val STEADY_INSERT_CHARS = 3
+
+/** the shortest move of such an insertion, about two frames */
+private const val MIN_STEADY_INSERT_MS = 32
 
 /** A change of the wrap width follows the zoom, so a lot of them can be on the way at once */
 private const val MAX_RUNNING_REFLOWS = 12
@@ -29,6 +42,9 @@ private const val MAX_RUNNING_REFLOWS = 12
  * @param easing how the text speeds up and slows down on its way
  * @param inserted where the text was before an insertion, instead of [firstRows], [breaks] and [measure]. Such a
  * transition knows its places without the state, so the next insertion can start from where the text is on its way
+ * @param typedOn the insertion this one is right behind, like the key before of somebody who types, also when it is
+ * done. Soon after it, see [STEADY_INSERT_MS], the text moves at an even speed for the time between the two, so typing
+ * does not pump
  */
 internal class ReflowTransition(
     private val state: KodeEditorState,
@@ -38,9 +54,10 @@ internal class ReflowTransition(
     private val lineHeight: Float,
     private val measure: (start: Int, end: Int) -> Float,
     private val changedFolds: List<TextRange> = emptyList(),
-    private val durationMs: Int = REFLOW_ANIMATION_MS,
-    private val easing: Easing = FastOutSlowInEasing,
+    private var durationMs: Int = REFLOW_ANIMATION_MS,
+    private var easing: Easing = FastOutSlowInEasing,
     private val inserted: LayoutBeforeInsert? = null,
+    private var typedOn: ReflowTransition? = null,
 ) {
     // the places of a transition from before a change of the text are about a text that is gone, unless it kept them
     private var previous: ReflowTransition? =
@@ -49,6 +66,9 @@ internal class ReflowTransition(
     private val version = state.rawVersion
     private var startMs = -1L
     private var depth: Int = (previous?.depth ?: 0) + 1
+
+    /** stays where it is, an insertion that follows takes the text on from there */
+    private var frozen = false
 
     /** where text was before the change, which is the same on each frame */
     private val positions = HashMap<Int, Offset>()
@@ -68,9 +88,24 @@ internal class ReflowTransition(
 
     /** @param nowMs the time of the frame */
     fun onFrame(nowMs: Long) {
+        if (frozen) return
+        val first = startMs < 0
         previous?.let {
             it.onFrame(nowMs)
+            // an insertion takes the text on from where it is drawn, instead of adding its move to the one before
+            if (first && inserted != null && it.inserted != null) it.frozen = true
             if (it.progress >= 1f || depth > MAX_RUNNING_REFLOWS) previous = null
+        }
+        val before = typedOn
+        // only its time is needed, the transitions do not keep each other
+        typedOn = null
+        if (first && before != null && before.startMs >= 0 && durationMs > 0) {
+            val since = nowMs - before.startMs
+            if (since <= STEADY_INSERT_MS) {
+                val shortest = minOf(MIN_STEADY_INSERT_MS, durationMs)
+                durationMs = since.toInt().coerceIn(shortest, STEADY_INSERT_MS.toInt())
+                easing = LinearEasing
+            }
         }
         if (startMs < 0) startMs = nowMs
         val time = ((nowMs - startMs) / durationMs.toFloat()).coerceAtMost(1f)

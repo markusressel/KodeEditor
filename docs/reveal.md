@@ -90,6 +90,12 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   A cursor that gets a new place within 90 ms after its glide ended catches up the same way. If that glide ended at
   most 20 ms before the frame, the new one starts in that frame, otherwise one frame (16 ms) earlier, so it moves in
   its first frame already. A jump forgets the time of the last new place.
+- R5b, typing: a step of at most 3 characters in the same row, at most 250 ms after the last new place of the cursor,
+  glides at an even speed (linear) from where the cursor is drawn, for `clamp(time since the last new place, 32, 250)`
+  ms. So the cursor of somebody who types keeps moving between their keys instead of starting fast and stopping at
+  each one ("pumping"). It ends about one key interval behind. The first step after a rest, and every larger move,
+  keep the rules above. For a reveal at about one character per frame this is a glide of 32 ms, about 1 character
+  behind the head.
 - R3 and R5 go together: revealed per frame at about one character, the cursor stays about 1 to 1.5 characters behind
   the head with an even speed. Revealed in steps of several characters, the Hermite glide is smooth but lags more, about
   6 characters at 8 characters every 32 ms.
@@ -98,7 +104,26 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 
 - With an appearance, the text behind inserted text slides to its new place in 120 ms with the cubic ease-out, into the
   next rows too when the line breaks anew. As a chunk is hidden but keeps its space, this happens when it arrives.
-- A slide that starts while one runs starts from where the text is drawn, so the text never jumps.
+- A slide that starts while one runs starts from where the text is drawn, so the text never jumps: the one before
+  stops where it is, and the new one takes the text on from there to its new place.
+- Typing (R6b): an insertion of at most 3 characters right behind the one before, at most 250 ms after it, slides at an
+  even speed (linear) for `clamp(time since the one before started, 32, 250)` ms. A cursor at the end of the insertion
+  is drawn where the text behind it is drawn on its way, so the text behind the cursor of somebody who types moves
+  exactly with their cursor, at the even speed of R5b.
+- Chunks of an agent are no typing: each chunk slides once, in 120 ms, when it arrives, and nothing moves while it is
+  revealed.
+- Removals do not slide.
+
+### R7: nothing shows ahead of the cursor
+
+- Appearing text that ends at the place of a remote cursor (several pieces one behind the other, and pieces right
+  behind that place, whose cursor update comes a frame later) is drawn only left of where that cursor's caret is drawn
+  in its row, and not at all in later rows. So a character shows exactly when the caret has passed it, also while the
+  caret lags behind the head of a reveal, and the fade only sets the alpha of what the caret has passed.
+- Where no shown text follows in the row (the end of the row, or hidden text), the cut reaches half a line height
+  further, so the part of a letter that reaches beyond its place is cut too.
+- Apps should apply the cursor of a person together with their change of the text, in one call before the next frame,
+  so the insertion and the cursor that caused it are drawn together.
 
 ## Tests
 
@@ -111,3 +136,7 @@ the end of a line:
 - No character stays hidden longer than 4 s.
 - 2,000 characters at once are shown within 4 s, at an even speed.
 - The cursor at the head stays at most 2.5 and on average 1.5 characters behind it, and never ahead.
+- `TypingTest`, on the pixels of each frame, with keys at the times of a person (log-normal around 150 ms, see
+  [typing-pattern.md](typing-pattern.md)): the text behind the cursor of somebody who types keeps its distance to the
+  caret (±2 px), no typed or revealed text shows right of the caret, and the speed of the caret while typing has a 95th
+  percentile of at most 2.5 times its mean.
