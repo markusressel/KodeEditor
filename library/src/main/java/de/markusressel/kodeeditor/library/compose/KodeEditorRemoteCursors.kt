@@ -83,6 +83,9 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
     private class End(var offset: Int) {
         var startX = 0f
         var startY = 0f
+
+        /** how fast it moves at the start, in pixels per millisecond, null for the cubic ease-out */
+        var velocity: Offset? = null
     }
 
     /** a selection whose ends glide together, a cursor is a selection with both ends at one place */
@@ -220,6 +223,9 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         // time of the frames stands still between glides, so a cursor at rest knows how long it rested only at its
         // next frame. Only a running glide counts, one that waits for its first frame does not know the time yet
         val gliding = glide.started >= 0
+        // a glide that goes on keeps its speed, so there is no jerk at each new place
+        val anchorVelocity = if (gliding) velocityOf(glide, glide.anchor) else null
+        val headVelocity = if (gliding) velocityOf(glide, glide.head) else null
         if (gliding && glide.movedAt != NONE) {
             glide.durationMs = catchUpMs(now - glide.movedAt)
             glide.movedAt = now
@@ -228,8 +234,10 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         }
         glide.anchor.startX = -anchorMove.x
         glide.anchor.startY = -anchorMove.y
+        glide.anchor.velocity = anchorVelocity?.let { keptVelocity(it, anchorMove, glide.durationMs) }
         glide.head.startX = -headMove.x
         glide.head.startY = -headMove.y
+        glide.head.velocity = headVelocity?.let { keptVelocity(it, headMove, glide.durationMs) }
         // during a glide the frames run, so it goes on from the current one instead of losing a frame
         glide.started = if (gliding) now else NOT_STARTED
         isGliding = true
@@ -290,13 +298,46 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
     }
 
     /** @return how far an end is drawn away from its place */
+    /**
+     * @return how far an end is drawn away from its place. It goes from its distance at the start and its speed at the
+     * start to its place, where it stops (a cubic Hermite curve). With the speed of the cubic ease-out, `3 × distance /
+     * duration` towards its place, the curve is that ease-out: `distance × (1 - t)^3`
+     */
     private fun distanceOf(glide: Glide, end: End): Offset {
         val started = glide.started
         if (started == NONE) return Offset.Zero
         val duration = glide.durationMs
-        val progress = if (started == NOT_STARTED || duration <= 0) 0f else (now - started).toFloat() / duration
-        val remaining = (1f - progress.coerceIn(0f, 1f)).let { it * it * it }
-        return Offset(end.startX * remaining, end.startY * remaining)
+        val t = if (started == NOT_STARTED || duration <= 0) 0f else ((now - started).toFloat() / duration).coerceIn(0f, 1f)
+        val start = Offset(end.startX, end.startY)
+        val velocity = end.velocity ?: return start * (1f - t).let { it * it * it }
+        val h00 = 2 * t * t * t - 3 * t * t + 1
+        val h10 = t * t * t - 2 * t * t + t
+        return start * h00 + velocity * (h10 * duration)
+    }
+
+    /** @return how fast an end moves now, in pixels per millisecond */
+    private fun velocityOf(glide: Glide, end: End): Offset {
+        val started = glide.started
+        val duration = glide.durationMs
+        if (started < 0 || duration <= 0) return Offset.Zero
+        val t = ((now - started).toFloat() / duration).coerceIn(0f, 1f)
+        val start = Offset(end.startX, end.startY)
+        val velocity = end.velocity ?: (start * (-3f / duration))
+        val dh00 = 6 * t * t - 6 * t
+        val dh10 = 3 * t * t - 4 * t + 1
+        return start * (dh00 / duration) + velocity * dh10
+    }
+
+    /**
+     * @return the part of the [velocity] towards the end of a [move], at most the speed of the ease-out at its start, so
+     * the end does not shoot past its place or swing sideways. Moving away from it, it starts from rest
+     */
+    private fun keptVelocity(velocity: Offset, move: Offset, durationMs: Long): Offset {
+        val length = move.getDistance()
+        if (length < MIN_GLIDE || durationMs <= 0) return Offset.Zero
+        val direction = move / length
+        val along = (velocity.x * direction.x + velocity.y * direction.y).coerceIn(0f, 3f * length / durationMs)
+        return direction * along
     }
 
     private fun shown(glide: Glide, end: End): Offset =
