@@ -88,7 +88,8 @@ internal class HandleMenu(
 
     fun paste() {
         if (readOnly) return
-        state.replaceSelection(clipboardText()?.text ?: return)
+        val text = clipboardText()?.text ?: return
+        state.bigChange { state.replaceSelection(text) }
     }
 
     fun selectAll() = state.selectAll()

@@ -287,6 +287,8 @@ class RangeStylesTest {
                 readOnly = true,
                 gutterColumns = emptyList(),
                 scrollbars = false,
+                // the alphas are set by hand here, nothing makes them appear
+                animations = KodeEditorAnimations(appearance = null),
             )
         }
         composeRule.waitForIdle()

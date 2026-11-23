@@ -39,6 +39,7 @@ import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
 import de.markusressel.kodeeditor.library.compose.KodeEditorAnimations
 import de.markusressel.kodeeditor.library.compose.KodeEditorAppearance
+import de.markusressel.kodeeditor.library.compose.KodeEditorLocalAnimations
 import de.markusressel.kodeeditor.library.compose.KodeEditorListener
 import de.markusressel.kodeeditor.library.compose.KodeEditorRemoteCursor
 import de.markusressel.kodeeditor.library.compose.KodeEditorSearch
@@ -117,6 +118,7 @@ class ComposeMainActivity : ComponentActivity() {
                     }
 
                     var appearOn by remember { mutableStateOf(true) }
+                    var bigChangesOn by remember { mutableStateOf(true) }
                     var appearMs by remember { mutableIntStateOf(if (showcase) SHOWCASE_APPEAR_MS else 320) }
                     var appearMaxMs by remember { mutableIntStateOf(if (showcase) SHOWCASE_APPEAR_MS else 1000) }
                     var appearSlide by remember { mutableIntStateOf(if (showcase) SHOWCASE_SLIDE_DP else 0) }
@@ -234,6 +236,12 @@ class ComposeMainActivity : ComponentActivity() {
                                 checked = appearOn,
                                 onCheckedChange = { appearOn = it },
                             )
+                            Text("Animate paste and undo", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                            Switch(
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                                checked = bigChangesOn,
+                                onCheckedChange = { bigChangesOn = it },
+                            )
                         }
                         OptionSlider("Fade of slow text (ms)", appearMs, 0..1000) { appearMs = it }
                         OptionSlider("Fade of fast text (ms)", appearMaxMs, 0..2000) { appearMaxMs = it }
@@ -258,6 +266,7 @@ class ComposeMainActivity : ComponentActivity() {
                                     durationMs = appearMs,
                                     maxDurationMs = appearMaxMs,
                                     slide = appearSlide.dp,
+                                    local = KodeEditorLocalAnimations().takeIf { bigChangesOn },
                                 )
                             } else {
                                 null
