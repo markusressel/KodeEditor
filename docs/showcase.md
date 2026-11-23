@@ -35,8 +35,8 @@ The library features it shows:
 | File         | `screenshot/KodeEditor.webp`, an animated WebP that loops                                 |
 | Size         | 480 x 1066 px, the whole screen of the device scaled down                                 |
 | Frame rate   | 15 fps, identical frames are merged                                                       |
-| Duration     | about 15 to 18 s                                                                          |
-| File size    | at most 2 MB, it is 1.4 MB now. GitHub shows it on the README page, and a phone loads it |
+| Duration     | about 15 s                                                                                |
+| File size    | at most 2 MB, it is 1.5 MB now, small enough for the README page on a phone              |
 
 Why animated WebP: GitHub shows it in a README like any image and plays it. It is much smaller than a GIF of the same
 quality, and has more than 256 colors. An MP4 can only be embedded as a file uploaded to an issue or PR, not from the
