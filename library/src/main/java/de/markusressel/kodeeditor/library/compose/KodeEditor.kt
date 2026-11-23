@@ -311,7 +311,7 @@ internal class ControlledValue(private val state: KodeEditorState) : KodeEditorL
  * @param scrollbarStyle the size of the scrollbars and when they show and hide
  * @param search highlights the matches of a search, and unfolds what hides its current match
  * @param remoteCursors the cursors and selections of other users, drawn on top of the text. They glide to their new
- * place with `cursorGlide` of [KodeEditorAppearance], and jump without an appearance
+ * place with `cursorGlide` of [KodeEditorAppearance], and jump without an appearance. A user who leaves fades out
  * @param remoteCursorLabel shows the name of another user at its first cursor, above it or below it on the first row.
  * It is placed by the editor, and only composed again when its [KodeEditorRemoteCursor] changes
  */
@@ -1200,7 +1200,7 @@ fun KodeEditor(
                     selection = { state.selection.takeIf { focused } },
                     window = drawWindow,
                 )
-                if (remoteCursors.isNotEmpty()) {
+                if (remoteCursors.isNotEmpty() || glides.hasCursors) {
                     RemoteSelectionLayer(layout, currentRemoteCursors, glides, drawWindow)
                 }
                 VisibleLines(
@@ -1218,7 +1218,7 @@ fun KodeEditor(
                         blinking = windowInfo.isWindowFocused,
                     )
                 }
-                if (remoteCursors.isNotEmpty()) {
+                if (remoteCursors.isNotEmpty() || glides.hasCursors) {
                     RemoteCaretLayer(currentRemoteCursors, glides, drawWindow)
                     if (remoteCursorLabel != null) {
                         Box(modifier = Modifier.placedAt { IntRect(0, 0, totalSize.width, totalSize.height) }) {

@@ -17,6 +17,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
@@ -27,6 +28,7 @@ import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -53,10 +55,15 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
         "long ".repeat(60) + "\n" + (1 until 40).joinToString("\n") { "line number $it with some text" },
     )
     val cursor: MutableState<KodeEditorRemoteCursor> = mutableStateOf(janeAt(0))
+    /** whether Jane is there, she leaves with false */
+    val present = mutableStateOf(true)
     /** where the label is drawn now */
     val labelPosition: Offset
         get() = rule.onNodeWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNode().positionInRoot
     var labelCompositions = 0
+    /** whether the label of Jane is there, also while it fades out */
+    val labelShown: Boolean
+        get() = rule.onAllNodesWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     var layout: KodeEditorLayout? = null
 
     fun janeAt(offset: Int, selection: TextRange = TextRange(offset)) =
@@ -72,7 +79,7 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
                 onTextLayout = { layout = it },
                 animations = animations,
                 gutterColumns = emptyList(),
-                remoteCursors = listOf(cursor.value),
+                remoteCursors = if (present.value) listOf(cursor.value) else emptyList(),
                 remoteCursorLabel = {
                     SideEffect { labelCompositions++ }
                     Box(Modifier.size(10.dp).testTag(LABEL))
@@ -97,11 +104,22 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
         rule.mainClock.advanceTimeByFrame()
     }
 
-    /** where the label is once nothing moves anymore */
-    fun settledPosition(): Offset {
+    /** Jane leaves, and one frame passes */
+    fun leave() {
+        rule.runOnIdle { present.value = false }
+        frame()
+    }
+
+    /** lets the frames pass until nothing moves anymore */
+    fun settle() {
         repeat(5) { frame() }
         rule.mainClock.advanceTimeBy(1000)
         rule.waitForIdle()
+    }
+
+    /** where the label is once nothing moves anymore */
+    fun settledPosition(): Offset {
+        settle()
         return labelPosition
     }
 }
@@ -312,6 +330,72 @@ class RemoteCursorsTest {
     }
 
     @Test
+    fun `a long selection shrinks into the cursor too`() {
+        // the start moves farther than a cursor may, only the cursor counts
+        scene.cursor.value = scene.janeAt(100, TextRange(0, 100))
+        scene.show(glide)
+        val selected = selectionIn()!!
+        composeRule.mainClock.autoAdvance = false
+
+        scene.moveTo(100)
+        glideStarted()
+        val shrinking = selectionIn()!!
+        scene.settledPosition()
+
+        assertTrue("on its way: $shrinking $selected", shrinking.start > selected.start + 2)
+        assertEquals(selected.endInclusive, shrinking.endInclusive, 2f)
+        assertEquals("gone", null, selectionIn())
+    }
+
+    @Test
+    fun `a user who leaves fades out`() {
+        scene.cursor.value = scene.janeAt(6, TextRange(2, 6))
+        scene.show(glide)
+        val selected = selectionIn()!!
+        composeRule.mainClock.autoAdvance = false
+
+        scene.leave()
+        glideStarted()
+        val fading = selectionIn()
+        val labelWhileFading = scene.labelShown
+        scene.settle()
+
+        assertEquals("the selection fades where it was", selected, fading)
+        assertTrue("the label fades too", labelWhileFading)
+        assertEquals("gone", null, selectionIn())
+        assertFalse("the label is gone", scene.labelShown)
+    }
+
+    @Test
+    fun `a user who comes back while fading out stays`() {
+        scene.cursor.value = scene.janeAt(6, TextRange(2, 6))
+        scene.show(glide)
+        val selected = selectionIn()!!
+        composeRule.mainClock.autoAdvance = false
+
+        scene.leave()
+        scene.frame()
+        composeRule.runOnIdle { scene.present.value = true }
+        scene.settle()
+
+        assertEquals(selected, selectionIn())
+        assertTrue(scene.labelShown)
+    }
+
+    @Test
+    fun `without an appearance a user who leaves is gone at once`() {
+        scene.cursor.value = scene.janeAt(6, TextRange(2, 6))
+        scene.show(KodeEditorAnimations())
+        composeRule.mainClock.autoAdvance = false
+
+        scene.leave()
+        scene.frame()
+
+        assertEquals(null, selectionIn())
+        assertFalse(scene.labelShown)
+    }
+
+    @Test
     fun `both ends of a selection glide to the new one`() {
         scene.cursor.value = scene.janeAt(4, TextRange(0, 4))
         scene.show(glide)
@@ -393,5 +477,16 @@ class RemoteCursorsWithoutAnimationsTest {
         val first = scene.labelPosition
 
         assertEquals(scene.settledPosition(), first)
+    }
+
+    @Test
+    fun `a user who leaves is gone at once when the system turns animations off`() {
+        scene.show(KodeEditorAnimations(appearance = KodeEditorAppearance()))
+        composeRule.mainClock.autoAdvance = false
+
+        scene.leave()
+        scene.frame()
+
+        assertFalse(scene.labelShown)
     }
 }
