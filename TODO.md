@@ -10,7 +10,7 @@ in its code. "App" is whether the MkDocsEditor Android app would use it.
 
 ### Likely useful
 
-- [ ] **Search and replace**: highlight all matches, go to the next and previous one, replace one or all. The matches
+- [x] **Search and replace** (9.4.0, `KodeEditorSearch`): highlight all matches, go to the next and previous one, replace one or all. The matches
   can be drawn with range styles, it needs an API to search and to scroll to a match. M, app: yes. An API proposal goes to
   Markus before it is built
 - [ ] **Sticky headings**: the headings of the section at the top of the view stay there while scrolling. The fold
