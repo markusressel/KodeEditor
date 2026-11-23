@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -70,11 +71,18 @@ data class KodeEditorCursorGlide(
  */
 internal class RemoteCursorGlides(private val layout: EditorLineLayout, private val textWidth: () -> Float) {
 
-    private class Glide(var head: Int) {
+    /** one end of a selection, the distance is where it starts to glide from, relative to its place */
+    private class End(var offset: Int) {
         var startX = 0f
         var startY = 0f
+    }
 
-        /** when the glide started, [NOT_STARTED] until the next frame, [NONE] while the cursor is at its place */
+    /** a selection whose ends glide together, a cursor is a selection with both ends at one place */
+    private class Glide(anchor: Int, head: Int) {
+        val anchor = End(anchor)
+        val head = End(head)
+
+        /** when the glide started, [NOT_STARTED] until the next frame, [NONE] while the selection is at its place */
         var started = NONE
     }
 
@@ -98,7 +106,10 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
     /** the text changed, a cursor that moves with it does not glide */
     val spliceListener: (TextSplice) -> Unit = { splice ->
-        glides.values.forEach { it.head = mapPosition(it.head, splice) }
+        glides.values.forEach {
+            it.anchor.offset = mapPosition(it.anchor.offset, splice)
+            it.head.offset = mapPosition(it.head.offset, splice)
+        }
     }
 
     /** takes the cursors of the users, after each composition that may have changed them */
@@ -109,40 +120,55 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
             cursor.selections.forEachIndexed { index, selection ->
                 val key = keyOf(cursor, index)
                 seen += key
+                val anchor = selection.start.coerceIn(0, length)
                 val head = selection.end.coerceIn(0, length)
                 val glide = glides[key]
                 if (glide == null) {
-                    glides[key] = Glide(head)
-                } else if (glide.head != head) {
-                    moveTo(glide, head)
+                    glides[key] = Glide(anchor, head)
+                } else if (glide.anchor.offset != anchor || glide.head.offset != head) {
+                    moveTo(glide, anchor, head)
                 }
             }
         }
         glides.keys.retainAll(seen)
     }
 
-    private fun moveTo(glide: Glide, head: Int) {
+    /**
+     * Both ends glide from where they are drawn now, when each of them moves a little or stays. A cursor that becomes a
+     * selection grows from it, a selection that becomes a cursor shrinks into it.
+     */
+    private fun moveTo(glide: Glide, anchor: Int, head: Int) {
         val config = config
-        val shown = shownCaret(glide)
-        glide.head = head
-        val target = layout.shownCursorRect(head).topLeft
-        if (config == null || durationMs <= 0 || !glides(config, target - shown)) {
+        val shownAnchor = shown(glide, glide.anchor)
+        val shownHead = shown(glide, glide.head)
+        glide.anchor.offset = anchor
+        glide.head.offset = head
+        val anchorTarget = layout.shownCursorRect(anchor).topLeft
+        val headTarget = layout.shownCursorRect(head).topLeft
+        val anchorMove = anchorTarget - shownAnchor
+        val headMove = headTarget - shownHead
+        val moves = !anchorMove.isTiny() || !headMove.isTiny()
+        if (config == null || durationMs <= 0 || !moves || !fits(config, anchorMove) || !fits(config, headMove)) {
             glide.started = NONE
             return
         }
-        glide.startX = shown.x - target.x
-        glide.startY = shown.y - target.y
+        glide.anchor.startX = -anchorMove.x
+        glide.anchor.startY = -anchorMove.y
+        glide.head.startX = -headMove.x
+        glide.head.startY = -headMove.y
         glide.started = NOT_STARTED
         isGliding = true
     }
 
-    /** @return whether a move by [distance] glides, like in the web client */
-    private fun glides(config: KodeEditorCursorGlide, distance: Offset): Boolean {
+    private fun Offset.isTiny() = abs(x) < MIN_GLIDE && abs(y) < MIN_GLIDE
+
+    /** @return whether a move by [distance] may glide, like in the web client. Staying is fine too */
+    private fun fits(config: KodeEditorCursorGlide, distance: Offset): Boolean {
         val dx = abs(distance.x)
         val dy = abs(distance.y)
         val line = layout.lineHeight
         return when {
-            dx < MIN_GLIDE && dy < MIN_GLIDE -> false
+            distance.isTiny() -> true
             dy < line / 2 -> dx <= config.sameRowWidthFraction * textWidth()
             dy < line * NEXT_ROW_HEIGHTS -> dx <= config.nextRowLines * line
             else -> false
@@ -162,16 +188,17 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         return gliding
     }
 
-    /** @return how far the cursor is drawn away from its place */
-    private fun distanceOf(glide: Glide): Offset {
+    /** @return how far an end is drawn away from its place */
+    private fun distanceOf(glide: Glide, end: End): Offset {
         val started = glide.started
         if (started == NONE) return Offset.Zero
         val progress = if (started == NOT_STARTED || durationMs <= 0) 0f else (now - started).toFloat() / durationMs
         val remaining = (1f - progress.coerceIn(0f, 1f)).let { it * it * it }
-        return Offset(glide.startX * remaining, glide.startY * remaining)
+        return Offset(end.startX * remaining, end.startY * remaining)
     }
 
-    private fun shownCaret(glide: Glide): Offset = layout.shownCursorRect(glide.head).topLeft + distanceOf(glide)
+    private fun shown(glide: Glide, end: End): Offset =
+        layout.shownCursorRect(end.offset).topLeft + distanceOf(glide, end)
 
     /** @return where the cursor of a selection is drawn, its rect moved by the glide */
     fun caretRect(cursor: KodeEditorRemoteCursor, index: Int): Rect {
@@ -180,7 +207,19 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         val glide = glides[keyOf(cursor, index)] ?: return rect
         // reading the time here draws again for each frame
         now
-        return rect.translate(distanceOf(glide))
+        return rect.translate(distanceOf(glide, glide.head))
+    }
+
+    /**
+     * @return where both ends of a selection are drawn while it glides, the top left of their cursor rects, null while
+     * it is at its place
+     */
+    fun glidingEnds(cursor: KodeEditorRemoteCursor, index: Int): Pair<Offset, Offset>? {
+        val glide = glides[keyOf(cursor, index)] ?: return null
+        // reading the time here draws again for each frame
+        now
+        if (glide.started == NONE) return null
+        return shown(glide, glide.anchor) to shown(glide, glide.head)
     }
 
     private fun keyOf(cursor: KodeEditorRemoteCursor, index: Int) = "$index/${cursor.id}"
@@ -198,8 +237,8 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 }
 
 /**
- * Draws the selections of other users in a layer of its own, below the text. The end of a selection at the cursor
- * follows the gliding cursor within its row.
+ * Draws the selections of other users in a layer of its own, below the text. While a selection glides, its ends are
+ * where they are drawn on their way, and the rows between them are covered like by a selection.
  */
 @Composable
 internal fun RemoteSelectionLayer(
@@ -219,7 +258,15 @@ internal fun RemoteSelectionLayer(
                 translate(-area.left.toFloat(), -area.top.toFloat()) {
                     all.forEach { cursor ->
                         cursor.selections.forEachIndexed { index, selection ->
-                            if (!selection.collapsed) drawSelection(layout, cursor, index, selection, glides)
+                            val ends = glides.glidingEnds(cursor, index)
+                            if (ends != null) {
+                                drawGlidingSelection(layout, ends.first, ends.second, cursor.selectionColor)
+                            } else if (!selection.collapsed) {
+                                val length = layout.text.length
+                                val min = selection.min.coerceIn(0, length)
+                                val max = selection.max.coerceIn(0, length)
+                                if (min < max) drawPath(layout.shownPathForRange(min, max), cursor.selectionColor)
+                            }
                         }
                     }
                 }
@@ -227,37 +274,40 @@ internal fun RemoteSelectionLayer(
     )
 }
 
-private fun DrawScope.drawSelection(
-    layout: EditorLineLayout,
-    cursor: KodeEditorRemoteCursor,
-    index: Int,
-    selection: TextRange,
-    glides: RemoteCursorGlides,
-) {
-    val length = layout.text.length
-    val min = selection.min.coerceIn(0, length)
-    val max = selection.max.coerceIn(0, length)
-    if (min >= max) return
-    val color = cursor.selectionColor
-    val target = layout.shownCursorRect(selection.end.coerceIn(0, length))
-    val caret = glides.caretRect(cursor, index)
-    // a caret on its way between rows: the whole selection is drawn at its place
-    if (caret == target || abs(caret.top - target.top) > 0.5f) {
-        drawPath(layout.shownPathForRange(min, max), color)
+/**
+ * Draws a selection between two places on their way, given as the top left of their cursor rects: the rows of both
+ * ends from and to these places, and the rows between them like a selection.
+ */
+private fun DrawScope.drawGlidingSelection(layout: EditorLineLayout, one: Offset, other: Offset, color: Color) {
+    val height = layout.lineHeight
+    if (abs(one.x - other.x) < 0.5f && abs(one.y - other.y) < 0.5f) return
+    val firstRow = layout.rowAt(one.y + height / 2)
+    val lastRow = layout.rowAt(other.y + height / 2)
+    val ordered = firstRow < lastRow || (firstRow == lastRow && one.x <= other.x)
+    val (first, last) = if (ordered) one to other else other to one
+    val top = layout.rowAt(first.y + height / 2)
+    val bottom = layout.rowAt(last.y + height / 2)
+    if (top == bottom) {
+        drawRect(color, Offset(first.x, first.y), Size(last.x - first.x, height))
         return
     }
-    val row = layout.rowAt(target.center.y)
-    if (selection.end >= selection.start) {
-        // the end at the cursor, the rest of the row up to it follows the caret
-        val rowStart = maxOf(min, layout.startOfRow(row))
-        if (rowStart > min) drawPath(layout.shownPathForRange(min, rowStart), color)
-        val left = layout.shownCursorRect(rowStart).left
-        if (caret.left > left) drawRect(color, Offset(left, target.top), Size(caret.left - left, target.height))
-    } else {
-        val rowEnd = minOf(max, layout.endOfRow(row))
-        if (max > rowEnd) drawPath(layout.shownPathForRange(rowEnd, max), color)
-        val right = layout.shownCursorRect(rowEnd).left
-        if (right > caret.left) drawRect(color, Offset(caret.left, target.top), Size(right - caret.left, target.height))
+    // an end on its way between two rows is drawn up to the row next to it, so no part is covered twice
+    val topEnd = layout.shownCursorRect(layout.endOfRow(top)).left
+    val topHeight = min(first.y + height, layout.shownCursorRect(layout.startOfRow(top + 1)).top) - first.y
+    if (topEnd > first.x && topHeight > 0f) {
+        drawRect(color, Offset(first.x, first.y), Size(topEnd - first.x, topHeight))
+    }
+    if (bottom - top > 1) {
+        val start = layout.startOfRow(top + 1)
+        val end = layout.endOfRow(bottom - 1)
+        if (end > start) drawPath(layout.shownPathForRange(start, end), color)
+    }
+    val above = layout.shownCursorRect(layout.endOfRow(bottom - 1)).bottom
+    val bottomTop = maxOf(last.y, first.y + height, above)
+    val bottomHeight = last.y + height - bottomTop
+    val bottomStart = layout.shownCursorRect(layout.startOfRow(bottom)).left
+    if (last.x > bottomStart && bottomHeight > 0f) {
+        drawRect(color, Offset(bottomStart, bottomTop), Size(last.x - bottomStart, bottomHeight))
     }
 }
 
