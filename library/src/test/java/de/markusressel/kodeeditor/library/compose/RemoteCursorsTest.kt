@@ -448,6 +448,61 @@ class RemoteCursorsTest {
     }
 
     @Test
+    fun `a cursor that gets new places quickly keeps close behind them`() {
+        scene.show(glide)
+        composeRule.runOnIdle { scene.cursor.value = scene.janeAt(0) }
+        scene.settledPosition()
+        val layout = scene.layout!!
+        val char = layout.getCursorRect(1).left - layout.getCursorRect(0).left
+        composeRule.mainClock.autoAdvance = false
+
+        // like the head of revealed text: 3 characters about every 32 ms. A cursor that starts a new glide of 120 ms
+        // each time stays far behind, about 16 characters here
+        val lags = ArrayList<Float>()
+        for (step in 1..20) {
+            scene.moveTo(step * 3)
+            // a frame after its new place
+            scene.frame()
+            if (step > 10) lags += (layout.getCursorRect(step * 3).center.x - caretX()) / char
+        }
+
+        assertTrue("never ahead: $lags", lags.all { it >= -0.5f })
+        assertTrue("about a character behind: $lags", lags.average() <= 1.0 && lags.all { it <= 1.5f })
+    }
+
+    @Test
+    fun `a cursor that gets new places at uneven times keeps close behind them`() {
+        scene.show(glide)
+        composeRule.runOnIdle { scene.cursor.value = scene.janeAt(0) }
+        scene.settledPosition()
+        val layout = scene.layout!!
+        val char = layout.getCursorRect(1).left - layout.getCursorRect(0).left
+        composeRule.mainClock.autoAdvance = false
+
+        // 32 and 64 ms between the places, the glide after a short one is over before the next place
+        val lags = ArrayList<Float>()
+        for (step in 1..20) {
+            scene.moveTo(step * 3)
+            scene.frame()
+            if (step > 10) lags += (layout.getCursorRect(step * 3).center.x - caretX()) / char
+            if (step % 2 == 0) repeat(2) { scene.frame() }
+        }
+
+        assertTrue("never ahead: $lags", lags.all { it >= -0.5f })
+        assertTrue("about 2 characters behind: $lags", lags.average() <= 2.5 && lags.all { it <= 5f })
+    }
+
+    /** @return where the red caret of Jane is drawn in the first row */
+    private fun caretX(): Float {
+        val image = composeRule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        val y = (scene.layout!!.lineHeight / 2).toInt()
+        val xs = (0 until image.width).filter { x ->
+            image[x, y].let { c -> c.red > 0.6f && c.green < 0.4f && c.blue < 0.4f }
+        }
+        return (xs.first() + xs.last()) / 2f + 0.5f
+    }
+
+    @Test
     fun `a label at the start of a wrapped row is below the cursor`() {
         scene.show(KodeEditorAnimations.None, lineWrapping = true)
         val layout = scene.layout as EditorLineLayout

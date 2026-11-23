@@ -6,6 +6,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -56,7 +57,9 @@ data class KodeEditorRemoteCursor(
  * that scales the duration of animations scales this too, and turns it off with a scale of 0. The defaults are those of
  * the MkDocsEditor web client.
  *
- * @param durationMs how long a cursor takes to its new place, it slows down towards the end (cubic ease-out)
+ * @param durationMs how long a cursor takes to its new place, it slows down towards the end (cubic ease-out). A cursor
+ * that gets a new place while it still glides, or within 90 ms of its last one, takes 1.5 times the time since that
+ * one, at most this, so it keeps close behind a fast series of places, like the head of revealed text
  * @param sameRowWidthFraction how far a cursor may move within its row and still glide, as a part of the width of
  * the text area
  * @param nextRowLines how far sideways a cursor may move to the row above or below and still glide, in line heights
@@ -89,6 +92,15 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
         /** when the glide started, [NOT_STARTED] until the next frame, [NONE] while the selection is at its place */
         var started = NONE
+
+        /** how long this glide takes, shorter when the cursor gets new places quickly */
+        var durationMs = 0L
+
+        /** the time of the frame of the last new place, the frame it started gliding in when it was at rest */
+        var movedAt = NONE
+
+        /** the time of the frame the last glide ended in */
+        var endedAt = NONE
     }
 
     private val glides = HashMap<String, Glide>()
@@ -114,6 +126,13 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
     /** whether a cursor glides or fades out, frames run only then */
     var isGliding by mutableStateOf(false)
+        private set
+
+    /**
+     * changes with each glide or fade that starts. A glide can end in the frame another one starts in, then
+     * [isGliding] is the same afterwards, while the frames have stopped
+     */
+    var starts by mutableIntStateOf(0)
         private set
 
     /** how cursors glide, null jumps */
@@ -166,7 +185,10 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         leaving.removeAll { it.cursor.id in now }
         if (fadeOutMs > 0) {
             present.values.filter { it.id !in now }.forEach { leaving += Leaving(it) }
-            if (leaving.isNotEmpty()) isGliding = true
+            if (leaving.isNotEmpty()) {
+                isGliding = true
+                starts++
+            }
         }
         present = now
         hasCursors = cursors.isNotEmpty() || leaving.isNotEmpty()
@@ -190,15 +212,33 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         // the rules are those of the caret, the other end grows or shrinks with it
         if (config == null || durationMs <= 0 || !moves || !fits(config, headMove)) {
             glide.started = NONE
+            glide.movedAt = NONE
             return
+        }
+        // a cursor that gets a new place while it glides or shortly after, like at the head of text that is revealed,
+        // catches up: its glide is a bit longer than the time between its places, so it stays close behind them. The
+        // time of the frames stands still between glides, so a cursor at rest knows how long it rested only at its
+        // next frame. Only a running glide counts, one that waits for its first frame does not know the time yet
+        val gliding = glide.started >= 0
+        if (gliding && glide.movedAt != NONE) {
+            glide.durationMs = catchUpMs(now - glide.movedAt)
+            glide.movedAt = now
+        } else {
+            glide.durationMs = durationMs
         }
         glide.anchor.startX = -anchorMove.x
         glide.anchor.startY = -anchorMove.y
         glide.head.startX = -headMove.x
         glide.head.startY = -headMove.y
-        glide.started = NOT_STARTED
+        // during a glide the frames run, so it goes on from the current one instead of losing a frame
+        glide.started = if (gliding) now else NOT_STARTED
         isGliding = true
+        starts++
     }
+
+    /** @return how long a glide takes that starts [since] the last new place of the cursor */
+    private fun catchUpMs(since: Long): Long =
+        (since * CATCH_UP_FACTOR).toLong().coerceIn(minOf(MIN_CATCH_UP_MS, durationMs), durationMs)
 
     private fun Offset.isTiny() = abs(x) < MIN_GLIDE && abs(y) < MIN_GLIDE
 
@@ -220,9 +260,25 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         now = timeMs
         var gliding = false
         glides.values.forEach { glide ->
-            if (glide.started == NOT_STARTED) glide.started = timeMs
+            if (glide.started == NOT_STARTED) {
+                // a glide that ended a frame ago ended in the frame this one got its place in, it goes on from there
+                val ended = glide.endedAt
+                val start = if (ended != NONE && timeMs - ended <= FRAME_SLACK_MS) ended else timeMs
+                val since = start - glide.movedAt
+                val catchUp = glide.movedAt != NONE && since <= CATCH_UP_WINDOW_MS
+                if (catchUp) glide.durationMs = catchUpMs(since)
+                // one that catches up moves in its first frame already
+                glide.started = if (catchUp && start == timeMs) timeMs - FRAME_MS else start
+                glide.movedAt = glide.started
+            }
             if (glide.started == NONE) return@forEach
-            if (timeMs - glide.started >= durationMs) glide.started = NONE else gliding = true
+            if (timeMs - glide.started >= glide.durationMs) {
+                // the time of its last place stays, a new one shortly after still catches up
+                glide.started = NONE
+                glide.endedAt = timeMs
+            } else {
+                gliding = true
+            }
         }
         leaving.forEach { if (it.started == NOT_STARTED) it.started = timeMs }
         if (leaving.removeAll { timeMs - it.started >= fadeOutMs }) {
@@ -237,7 +293,8 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
     private fun distanceOf(glide: Glide, end: End): Offset {
         val started = glide.started
         if (started == NONE) return Offset.Zero
-        val progress = if (started == NOT_STARTED || durationMs <= 0) 0f else (now - started).toFloat() / durationMs
+        val duration = glide.durationMs
+        val progress = if (started == NOT_STARTED || duration <= 0) 0f else (now - started).toFloat() / duration
         val remaining = (1f - progress.coerceIn(0f, 1f)).let { it * it * it }
         return Offset(end.startX * remaining, end.startY * remaining)
     }
@@ -305,6 +362,21 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
         /** in line heights, a move to the row above or below is less than this */
         const val NEXT_ROW_HEIGHTS = 1.5f
+
+        /** a glide that starts during another one takes this times the time since that one started */
+        const val CATCH_UP_FACTOR = 1.5f
+
+        /** a new place this soon after the last one catches up, also when the glide just ended */
+        const val CATCH_UP_WINDOW_MS = 90L
+
+        /** at most the time between two frames */
+        const val FRAME_SLACK_MS = 20L
+
+        /** the time between two frames at 60 Hz */
+        const val FRAME_MS = 16L
+
+        /** the shortest glide, about two frames */
+        const val MIN_CATCH_UP_MS = 32L
     }
 }
 
@@ -449,7 +521,9 @@ internal fun RemoteCursorLabels(
                             val x = if (rect.left > right) {
                                 rect.left
                             } else {
-                                rect.left.coerceAtMost(right - placeable.width).coerceAtLeast(rect.left - placeable.width)
+                                rect.left
+                                    .coerceAtMost(right - placeable.width)
+                                    .coerceAtLeast(rect.left - placeable.width)
                             }
                             placeable.place(x.roundToInt(), y.roundToInt())
                         }
