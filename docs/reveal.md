@@ -75,6 +75,19 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   (`KodeEditorAppearance`), if it has one.
 - A new chunk does not end the pieces that are still appearing. Only `stop()` and a change of the user end them, with
   `finishAppearing(tag)`.
+- The alpha of a piece is `1 - (1 - p)²` with `p = time since the piece came / durationMs` (ease-out quadratic: fast at
+  first, so new text does not stay invisible for long, then slower until it is fully visible). Each piece has its own
+  start, so pieces one behind the other differ by about one frame of the curve.
+- Per character, not per piece: the pieces one behind the other in a row are drawn in one layer, with an alpha that
+  goes in a straight line from the middle of one piece to the middle of the next (a horizontal gradient). As a piece is
+  one or two characters at about one per frame, each character gets about the alpha of its own arrival, and there is no
+  edge between pieces. With a slide (`KodeEditorAppearance.slide`), each piece is drawn in a layer of its own instead.
+- No piece is shown at once before it appeared, however long the text that appears is. Only with more than
+  `maxRanges` (256) appearing pieces, the two pieces one behind the other of the same writer whose alphas are the
+  closest become one, with the alpha of the more visible one. So a character gets visible by that difference at once,
+  which is tiny with that many pieces. Without such neighbours, the most visible piece is shown at once.
+- So at `durationMs = 1000`, no character's alpha changes by more than 0.1 from one frame to the next, for typing and
+  for reveals.
 
 ### R5: the cursor glides with its speed
 
@@ -144,4 +157,5 @@ the end of a line:
 - `TypingTest`, on the pixels of each frame, with keys at the times of a person (log-normal around 150 ms, see
   [typing-pattern.md](typing-pattern.md)): the text behind the cursor of somebody who types keeps its distance to the
   caret (±2 px), no typed or revealed text shows right of the caret, and the speed of the caret while typing has a 95th
-  percentile of at most 2.5 times its mean.
+  percentile of at most 2.5 times its mean. With `durationMs = 1000`, no character's alpha changes by more than 0.1
+  between two frames, for a person typing and for a reveal of 400 characters.

@@ -11,6 +11,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import kotlin.math.abs
 
 /**
  * One change of the text.
@@ -528,28 +529,46 @@ internal fun TextRange.mappedInside(splice: TextSplice): TextRange? {
 }
 
 /**
- * The appearing ranges with [added], without those that have to be shown at once now: of text that appears piece after
- * piece with the same tag, only the last [KodeEditorAppearance.window] characters appear, and there are at most
- * [KodeEditorAppearance.maxRanges].
+ * The appearing ranges with [added], at most [KodeEditorAppearance.maxRanges] of them. Nothing is shown at once that
+ * is still far from visible: with too many, the two pieces one behind the other of the same writer whose alphas are
+ * the closest become one, which goes on with the alpha of the more visible one. So a piece only gets a bit more visible
+ * at once. Only without such pieces the most visible range is shown at once.
  */
 internal fun limitAppearing(
     ranges: List<AnnotatedString.Range<Float>>,
     added: AnnotatedString.Range<Float>,
     config: KodeEditorAppearance,
 ): List<AnnotatedString.Range<Float>> {
-    val finished = HashSet<AnnotatedString.Range<Float>>()
-    // the pieces of the same writer in front of the new one, the newest first
-    val tag = added.tag.appearTag()
-    var chainStart = added.start
-    var length = added.end - added.start
-    for (range in ranges.asReversed()) {
-        if (range.end != chainStart || range.tag.appearTag() != tag) continue
-        length += range.end - range.start
-        chainStart = range.start
-        if (length > config.window) finished += range
+    val all = (ranges + added).toMutableList()
+    val max = config.maxRanges.coerceAtLeast(1)
+    while (all.size > max) {
+        var best = -1
+        var bestOther = -1
+        var bestDifference = Float.MAX_VALUE
+        all.forEachIndexed { index, range ->
+            val tag = range.tag.appearTag()
+            val other = all.indexOfFirst { it.start == range.end && it.tag.appearTag() == tag }
+            if (other < 0) return@forEachIndexed
+            val difference = abs(all[other].item - range.item)
+            if (difference < bestDifference) {
+                best = index
+                bestOther = other
+                bestDifference = difference
+            }
+        }
+        if (best < 0) {
+            all.removeAt(all.indices.maxBy { all[it].item })
+            continue
+        }
+        val first = all[best]
+        val second = all[bestOther]
+        // the tag keeps the time the more visible one started at, the other one does not get less visible
+        val kept = if (first.item >= second.item) first else second
+        val merged = AnnotatedString.Range(kept.item, first.start, second.end, kept.tag)
+        all[minOf(best, bestOther)] = merged
+        all.removeAt(maxOf(best, bestOther))
     }
-    val kept = ranges.filter { it !in finished } + added
-    return kept.takeLast(config.maxRanges.coerceAtLeast(1))
+    return all
 }
 
 private const val APPEAR_TAG_SEPARATOR = '/'

@@ -15,6 +15,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.toRect
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
@@ -125,6 +127,32 @@ internal fun VisibleLines(
                     val rects = parts.map { Rect(line.position.x + it.left, top, line.position.x + it.right, bottom) }
                     val fadingArea = Path().apply { rects.forEach { addRect(it) } }
                     clipPath(fadingArea, ClipOp.Difference) { drawRowContent(line) }
+                    if (appearSlide == 0f) {
+                        // pieces one behind the other in one layer, with a gradient of their alphas from the middle of
+                        // one to the middle of the next, so there is no edge between them
+                        gradientRuns(parts).forEach { run ->
+                            val rect = Rect(line.position.x + run.left, top, line.position.x + run.right, bottom)
+                            layerPaint.alpha = if (run.stops == null) run.alpha else 1f
+                            drawContext.canvas.saveLayer(rect, layerPaint)
+                            clipRect(rect.left, rect.top, rect.right, rect.bottom) {
+                                drawRowContent(line)
+                                val stops = run.stops ?: return@clipRect
+                                val startX = line.position.x + stops.first().first
+                                val endX = line.position.x + stops.last().first
+                                val colorStops = stops.map { (x, alpha) ->
+                                    (line.position.x + x - startX) / (endX - startX) to Color.Black.copy(alpha = alpha)
+                                }.toTypedArray()
+                                drawRect(
+                                    brush = Brush.horizontalGradient(*colorStops, startX = startX, endX = endX),
+                                    topLeft = rect.topLeft,
+                                    size = rect.size,
+                                    blendMode = BlendMode.DstIn,
+                                )
+                            }
+                            drawContext.canvas.restore()
+                        }
+                        return
+                    }
                     parts.forEachIndexed { index, part ->
                         if (part.alpha <= 0f) return@forEachIndexed
                         val rect = rects[index]
@@ -323,3 +351,46 @@ internal fun SearchLayer(
 
 /** how wide the mark of a match in folded lines is */
 private val FOLDED_MATCH_MARK_WIDTH = 3.dp
+
+/**
+ * A part of a row drawn with an alpha of its own.
+ *
+ * @param left where it starts in the row
+ * @param right where it ends in the row
+ * @param alpha how visible it is, without [stops]
+ * @param stops how visible it is along the row, from left to right: where in the row and the alpha there
+ */
+internal class FadingRun(val left: Float, val right: Float, val alpha: Float, val stops: List<Pair<Float, Float>>?)
+
+/**
+ * Joins the parts of [parts] that are one behind the other in the row. Each has its alpha in its middle, and the alpha
+ * goes from one to the next in a straight line, so neighbours that appear a bit apart have no edge between them. Parts
+ * that are not drawn (alpha 0) are not joined.
+ */
+internal fun gradientRuns(parts: List<EditorLineLayout.FadingPart>): List<FadingRun> {
+    val sorted = parts.filter { it.alpha > 0f && it.right > it.left }.sortedBy { it.left }
+    val runs = ArrayList<FadingRun>()
+    var index = 0
+    while (index < sorted.size) {
+        var last = index
+        while (last + 1 < sorted.size && sorted[last + 1].left <= sorted[last].right + GRADIENT_GAP) last++
+        val first = sorted[index]
+        if (last == index) {
+            runs += FadingRun(first.left, first.right, first.alpha, null)
+        } else {
+            val stops = ArrayList<Pair<Float, Float>>(last - index + 3)
+            stops += first.left to first.alpha
+            for (part in index..last) {
+                val piece = sorted[part]
+                stops += (piece.left + piece.right) / 2 to piece.alpha
+            }
+            stops += sorted[last].right to sorted[last].alpha
+            runs += FadingRun(first.left, sorted[last].right, first.alpha, stops)
+        }
+        index = last + 1
+    }
+    return runs
+}
+
+/** how far apart two parts can be and still be one behind the other, in px */
+private const val GRADIENT_GAP = 0.5f

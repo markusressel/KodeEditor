@@ -59,7 +59,7 @@ class TypingTest {
     /** where the caret of Jane is in the text */
     private val caret = mutableIntStateOf(0)
 
-    private fun show(text: String, caretAt: Int, revealing: Boolean = false) {
+    private fun show(text: String, caretAt: Int, revealing: Boolean = false, appearMs: Int = 250) {
         state = KodeEditorState(text)
         caret.intValue = caretAt
         composeRule.setContent {
@@ -74,7 +74,7 @@ class TypingTest {
                     layout = it
                     reveal?.layout = it
                 },
-                animations = KodeEditorAnimations(appearance = KodeEditorAppearance()),
+                animations = KodeEditorAnimations(appearance = KodeEditorAppearance(durationMs = appearMs)),
                 gutterColumns = emptyList(),
                 remoteCursors = listOf(
                     KodeEditorRemoteCursor("jane", listOf(TextRange(at)), Color.Red, Color.Red.copy(alpha = 0.3f)),
@@ -230,5 +230,56 @@ class TypingTest {
         }
 
         assertTrue("stops at the keys at $stops ms", stops.isEmpty())
+    }
+
+    /** @return how visible each character of the text is, by the appearing ranges */
+    private fun alphas(): FloatArray = composeRule.runOnIdle {
+        val result = FloatArray(state.text.length) { 1f }
+        state.rangeAlphas.forEach { range -> (range.start until range.end).forEach { result[it] = range.item } }
+        result
+    }
+
+    /** the characters whose alpha changed by more than 0.1 from [before] to [after], which have the same start */
+    private fun jumps(before: FloatArray, after: FloatArray, time: Long): List<String> =
+        (0 until minOf(before.size, after.size)).mapNotNull { index ->
+            val jump = abs(after[index] - before[index])
+            if (jump > 0.1f) "$time ms: char $index from ${before[index]} to ${after[index]}" else null
+        }
+
+    @Test
+    fun `typed text that appears slowly gets visible a bit in each frame`() {
+        show("first line", 10, appearMs = 1000)
+        val jumps = ArrayList<String>()
+        var before = alphas()
+
+        janeTypes(" typed by Jane, one key after the other, a long line that goes on", 10) { _, time ->
+            val after = alphas()
+            jumps += jumps(before, after, time)
+            before = after
+        }
+
+        assertTrue(jumps.joinToString("\n"), jumps.isEmpty())
+    }
+
+    @Test
+    fun `revealed text that appears slowly gets visible a bit in each frame`() {
+        show("first line", 10, revealing = true, appearMs = 1000)
+        val jumps = ArrayList<String>()
+        var before = FloatArray(0)
+
+        composeRule.runOnIdle {
+            reveal!!.insert(10, " revealed for Jane, ".repeat(20))
+            caret.intValue = state.text.length
+        }
+        repeat(400) { frameIndex ->
+            frame()
+            val after = alphas()
+            jumps += jumps(before, after, frameIndex * 16L)
+            // hidden text is not counted, it shows only as it is revealed
+            val hidden = composeRule.runOnIdle { reveal!!.head } ?: after.size
+            before = after.copyOf(hidden)
+        }
+
+        assertTrue(jumps.joinToString("\n"), jumps.isEmpty())
     }
 }

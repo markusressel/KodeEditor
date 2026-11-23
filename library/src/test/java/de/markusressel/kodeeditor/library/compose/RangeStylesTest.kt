@@ -191,25 +191,40 @@ class RangeStylesTest {
     }
 
     @Test
-    fun `only the last characters of text that appears piece after piece appear, per tag`() {
-        val state = KodeEditorState("abcdefghij")
-        state.appearance = KodeEditorAppearance(window = 4)
-        state.appear(0, 2, "agent")
-        state.appear(2, 4, "agent")
-        state.appear(8, 10, "jane")
-        assertEquals(listOf(0 to 2, 2 to 4, 8 to 10), state.appearingRanges())
-        state.appear(4, 6, "agent")
-        assertEquals("the first piece left the window", listOf(2 to 4, 8 to 10, 4 to 6), state.appearingRanges())
+    fun `text that appears piece after piece keeps appearing however long it is`() {
+        val state = KodeEditorState("a".repeat(200))
+        state.appearance = KodeEditorAppearance()
+        (0 until 100).forEach { state.appear(it, it + 1, "agent") }
+        assertEquals(100, state.appearingRanges().size)
     }
 
     @Test
-    fun `there are never more appearing ranges than allowed, the oldest is shown at once`() {
-        val state = KodeEditorState("abcdefghij")
-        state.appearance = KodeEditorAppearance(maxRanges = 2)
-        state.appear(0, 1)
-        state.appear(3, 4)
-        state.appear(6, 7)
-        assertEquals(listOf(3 to 4, 6 to 7), state.appearingRanges())
+    fun `with too many appearing ranges, the neighbours with the closest alphas become one`() {
+        val config = KodeEditorAppearance(maxRanges = 3)
+        val ranges = listOf(
+            AnnotatedString.Range(0.9f, 0, 1, "0/agent"),
+            AnnotatedString.Range(0.5f, 1, 2, "1/agent"),
+            AnnotatedString.Range(0.45f, 2, 3, "2/agent"),
+        )
+        val added = AnnotatedString.Range(0f, 3, 4, "3/agent")
+        val result = limitAppearing(ranges, added, config)
+        assertEquals(
+            "the one at 0.45 goes on with 0.5, nothing gets visible at once",
+            listOf(
+                AnnotatedString.Range(0.9f, 0, 1, "0/agent"),
+                AnnotatedString.Range(0.5f, 1, 3, "1/agent"),
+                added,
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `with too many appearing ranges and none one behind the other, the most visible is shown`() {
+        val config = KodeEditorAppearance(maxRanges = 2)
+        val ranges = listOf(AnnotatedString.Range(0.3f, 0, 1, "a"), AnnotatedString.Range(0.8f, 3, 4, "b"))
+        val result = limitAppearing(ranges, AnnotatedString.Range(0f, 6, 7, "c"), config)
+        assertEquals(listOf(0 to 1, 6 to 7), result.map { it.start to it.end })
     }
 
     @Test

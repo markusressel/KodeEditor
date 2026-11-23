@@ -47,11 +47,12 @@ data class KodeEditorAnimations(
  * it slides out of the way, into other rows too, like the cursors glide (see [KodeEditorCursorGlide.durationMs]). The
  * system setting that scales the duration of animations scales this too, and turns it off with a scale of 0.
  *
- * @param durationMs how long the text takes to appear
- * @param window of text that appears piece after piece, like typing, how many of the last characters can still be
- * appearing. Older pieces are shown at once
- * @param maxRanges how many ranges can be appearing at once, the oldest is shown at once when there would be more.
- * Each costs a small layer on each row it is in
+ * @param durationMs how long the text takes to appear. Its alpha is 1 - (1 - t)² at the part t of it, fast at first
+ * @param window not used anymore: text that appears piece after piece, like typing or a reveal, is never shown at once
+ * before it appeared, however long it is
+ * @param maxRanges how many ranges can be appearing at once. With more, two pieces one behind the other whose alphas
+ * are the closest become one, so nothing jumps to visible. The pieces one behind the other in a row are drawn in one
+ * small layer, with a soft gradient of their alphas, so there is no edge between them
  * @param slide how far below its place the text starts, 0 only fades
  * @param cursorGlide how the cursors of other users move to their new place, see [KodeEditorRemoteCursor], null
  * makes them jump
@@ -60,7 +61,7 @@ data class KodeEditorAnimations(
 data class KodeEditorAppearance(
     val durationMs: Int = 250,
     val window: Int = 16,
-    val maxRanges: Int = 24,
+    val maxRanges: Int = 256,
     val slide: Dp = 0.dp,
     val cursorGlide: KodeEditorCursorGlide? = KodeEditorCursorGlide(),
 )

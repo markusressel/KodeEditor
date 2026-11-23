@@ -118,7 +118,6 @@ class ComposeMainActivity : ComponentActivity() {
 
                     var appearOn by remember { mutableStateOf(true) }
                     var appearMs by remember { mutableIntStateOf(250) }
-                    var appearWindow by remember { mutableIntStateOf(16) }
                     var appearSlide by remember { mutableIntStateOf(if (showcase) SHOWCASE_SLIDE_DP else 0) }
                     var showOptions by remember { mutableStateOf(false) }
                     val scope = rememberCoroutineScope()
@@ -236,7 +235,6 @@ class ComposeMainActivity : ComponentActivity() {
                             )
                         }
                         OptionSlider("Appear duration (ms)", appearMs, 0..1000) { appearMs = it }
-                        OptionSlider("Appearing characters", appearWindow, 1..60) { appearWindow = it }
                         OptionSlider("Slide (dp)", appearSlide, 0..20) { appearSlide = it }
                     }
 
@@ -256,7 +254,6 @@ class ComposeMainActivity : ComponentActivity() {
                             appearance = if (appearOn) {
                                 KodeEditorAppearance(
                                     durationMs = appearMs,
-                                    window = appearWindow,
                                     slide = appearSlide.dp,
                                 )
                             } else {
