@@ -50,6 +50,15 @@ internal interface EditorViewport {
     /** how much larger the text is on the screen than in text coordinates */
     val zoom: Float
 
+    /** the zoom the user can reach, the zoom of [zoomTo] stays within it */
+    val zoomRange: ClosedFloatingPointRange<Float>
+
+    /** zooms without the user, the middle of the view stays in its place */
+    fun zoomTo(zoom: Float)
+
+    /** what can be folded, null if the editor has no fold provider */
+    val folds: EditorFolds?
+
     /** @return the offset that has the place [fraction] of the way down the [line] at the height [y] of the view */
     fun offsetPutting(line: Int, fraction: Float, y: Float): Offset
 
@@ -60,9 +69,9 @@ internal interface EditorViewport {
 }
 
 /**
- * The view of a [KodeEditor] on its text: scrolling to a place in the text without touching the cursor, the selection
- * or the focus, also in a read-only editor. This lets an app follow the cursor of another user, or open a text at a
- * position without opening the keyboard.
+ * The view of a [KodeEditor] on its text: scrolling to a place in the text, zooming and folding without touching the
+ * cursor, the selection or the focus, also in a read-only editor. This lets an app follow the cursor of another user,
+ * or open a text at a position without opening the keyboard.
  *
  * A scroll ends early when a finger or a mouse goes down on the editor, when something else moves the view, and when a
  * newer scroll starts, which takes over the speed of a running one. While following, pass `keepCursorVisible = false`
@@ -198,6 +207,61 @@ class KodeEditorViewState {
      */
     fun isPositionVisible(position: Int): Boolean = viewport?.isVisible(position) ?: false
 
+    /**
+     * How much larger the text is on the screen than at the zoom 1, null before the first layout. Reading this in a
+     * composition or a draw updates it when the zoom changes.
+     */
+    val zoom: Float? get() = viewport?.zoom
+
+    /**
+     * Zooms the editor without the user, around the middle of the editor: the text there stays in its place. Like the
+     * scrolls of this class, it does not call `onUserMovedView`, it waits for the first layout, and it ends early when
+     * a finger or a mouse goes down on the editor, when the user zooms, and when a newer scroll or zoom starts.
+     *
+     * @param zoom the new zoom, it stays within the `minZoom` and `maxZoom` of the editor
+     * @param animate whether the zoom changes smoothly, instead of at once. [KodeEditorAnimations.scrolling] can turn
+     * this off
+     * @return true if the editor got to the zoom, false if something ended it, at once while [isUserMovingView]
+     */
+    suspend fun zoomTo(zoom: Float, animate: Boolean = true): Boolean = move(
+        animate = animate,
+        animated = { animateZoom(it, zoom.coerceIn(it.zoomRange)) },
+        jump = { it.zoomTo(zoom.coerceIn(it.zoomRange)) },
+    )
+
+    /**
+     * Reading this in a composition or a draw updates it when the text or the folds change.
+     *
+     * @param line the line of the text, 0 for the first one
+     * @return whether the line starts a part that can be folded, false before the first layout and without a
+     * `foldProvider`
+     */
+    fun canFold(line: Int): Boolean = viewport?.folds?.canFold(line) ?: false
+
+    /**
+     * Reading this in a composition or a draw updates it when the folds change.
+     *
+     * @param line the line of the text, 0 for the first one
+     * @return whether the line is folded, so the lines of its part are hidden
+     */
+    fun isFolded(line: Int): Boolean = viewport?.folds?.isFolded(line) ?: false
+
+    /**
+     * Folds or unfolds a line like a tap on its arrow, animated by [KodeEditorAnimations.folding]. A cursor or a
+     * selection that would end up hidden moves to the end of the line. It does not move the view.
+     *
+     * @param line the line of the text, 0 for the first one
+     * @param folded whether the lines of its part are hidden
+     * @return false if the line can not be folded, see [canFold]. True if it is folded or unfolded now, also when it
+     * was already
+     */
+    fun setFolded(line: Int, folded: Boolean): Boolean {
+        val folds = viewport?.folds ?: return false
+        if (!folds.canFold(line)) return false
+        if (folds.isFolded(line) != folded) folds.toggle(line)
+        return true
+    }
+
     /** ends a running scroll, because the user or the editor moves the view now */
     internal fun interrupt() {
         velocity = Offset.Zero
@@ -206,7 +270,26 @@ class KodeEditorViewState {
         running?.cancel()
     }
 
-    private suspend fun scroll(animate: Boolean, target: (EditorViewport) -> Offset): Boolean {
+    private suspend fun scroll(animate: Boolean, target: (EditorViewport) -> Offset): Boolean = move(
+        animate = animate,
+        animated = { animateTo(it, target(it)) },
+        jump = {
+            velocity = Offset.Zero
+            it.moveTo(target(it))
+        },
+    )
+
+    /**
+     * Runs one scroll or zoom, which ends the one before it.
+     *
+     * @param animated moves there smoothly, false if something else moved the view on the way
+     * @param jump moves there at once
+     */
+    private suspend fun move(
+        animate: Boolean,
+        animated: suspend (EditorViewport) -> Boolean,
+        jump: (EditorViewport) -> Unit,
+    ): Boolean {
         if (isUserMovingView) return false
         val keptVelocity = velocity
         interrupt()
@@ -223,10 +306,9 @@ class KodeEditorViewState {
             var arrived = false
             val job = current.scope.launch {
                 if (animate && current.animates) {
-                    arrived = animateTo(current, target(current))
+                    arrived = animated(current)
                 } else {
-                    velocity = Offset.Zero
-                    current.moveTo(target(current))
+                    jump(current)
                     // the new offset reaches the screen with the next frame, which then also shows the text again
                     if (jumpsOnOpen) withFrameNanos { }
                     arrived = true
@@ -275,7 +357,30 @@ class KodeEditorViewState {
         return undisturbed
     }
 
+    /** @return false if something else zoomed on the way */
+    private suspend fun animateZoom(viewport: EditorViewport, target: Float): Boolean {
+        // a zoom does not take over the speed of a scroll
+        velocity = Offset.Zero
+        var last = viewport.zoom
+        if (target == last) return true
+        var undisturbed = true
+        AnimationState(last).animateTo(
+            targetValue = target,
+            animationSpec = spring(stiffness = Spring.StiffnessLow, visibilityThreshold = ZOOM_THRESHOLD),
+        ) {
+            if (viewport.zoom != last) {
+                undisturbed = false
+                cancelAnimation()
+                return@animateTo
+            }
+            viewport.zoomTo(value)
+            last = viewport.zoom
+        }
+        return undisturbed
+    }
+
     private companion object {
+        const val ZOOM_THRESHOLD = 0.001f
         const val LONGEST_ANIMATION_SCREENS = 3f
     }
 }

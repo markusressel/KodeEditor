@@ -724,4 +724,156 @@ class KodeEditorViewStateTest {
 
         assertEquals(emptyList<Boolean>(), changes)
     }
+
+    @Test
+    fun `there is no zoom and nothing to fold before the first layout`() {
+        assertNull(viewState.zoom)
+        assertFalse(viewState.canFold(0))
+        assertFalse(viewState.isFolded(0))
+        assertFalse(viewState.setFolded(0, true))
+    }
+
+    @Test
+    fun `a zoom keeps the middle of the view in its place`() {
+        val state = KodeEditorState(longText)
+        state.setSelection(TextRange(3))
+        show(state, readOnly = true)
+        jumpToLine(400)
+        val middle = viewState.lineAt(0.5f)!!
+
+        val result = scroll { zoomTo(2f, animate = false) }
+        composeRule.waitForIdle()
+
+        assertEquals(true, result())
+        assertEquals(2f, viewState.zoom!!, 0.0001f)
+        val after = viewState.lineAt(0.5f)!!
+        assertEquals(middle.line + middle.fraction, after.line + after.fraction, 0.01f)
+        assertEquals(TextRange(3), state.selection)
+        assertEquals("nothing moved the view by hand", 0, movedView)
+    }
+
+    @Test
+    fun `an animated zoom gets there smoothly`() {
+        show(KodeEditorState(longText))
+        composeRule.mainClock.autoAdvance = false
+
+        val result = scroll { zoomTo(3f) }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        val between = viewState.zoom!!
+        composeRule.mainClock.autoAdvance = true
+        composeRule.mainClock.advanceTimeBy(5000)
+        composeRule.waitForIdle()
+
+        assertTrue("on the way: $between", between > 1f && between < 3f)
+        assertEquals(true, result())
+        assertEquals(3f, viewState.zoom!!, 0.0001f)
+        assertEquals(0, movedView)
+    }
+
+    @Test
+    fun `the zoom stays within the zoom the user can reach`() {
+        show(KodeEditorState(longText))
+
+        scroll { zoomTo(100f, animate = false) }
+        composeRule.waitForIdle()
+        assertEquals(10f, viewState.zoom!!, 0.0001f)
+
+        scroll { zoomTo(0f, animate = false) }
+        composeRule.waitForIdle()
+        assertEquals(0.25f, viewState.zoom!!, 0.0001f)
+    }
+
+    @Test
+    fun `without the scrolling animation a zoom jumps`() {
+        show(KodeEditorState(longText), animations = KodeEditorAnimations.None)
+        composeRule.mainClock.autoAdvance = false
+
+        scroll { zoomTo(2f) }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.waitForIdle()
+
+        assertEquals(2f, viewState.zoom!!, 0.0001f)
+    }
+
+    @Test
+    fun `a finger going down ends a zoom`() {
+        show(KodeEditorState(longText))
+        composeRule.mainClock.autoAdvance = false
+
+        val result = scroll { zoomTo(3f) }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.onNodeWithTag("editor").performTouchInput { down(center) }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.waitForIdle()
+        val stopped = viewState.zoom!!
+        composeRule.mainClock.advanceTimeBy(1000)
+        composeRule.waitForIdle()
+
+        assertEquals(false, result())
+        assertEquals(stopped, viewState.zoom!!, 0.0001f)
+        assertTrue(stopped < 3f)
+        composeRule.onNodeWithTag("editor").performTouchInput { up() }
+    }
+
+    @Test
+    fun `a newer scroll ends a running zoom`() {
+        val state = KodeEditorState(longText)
+        show(state)
+        composeRule.mainClock.autoAdvance = false
+
+        val zoom = scroll { zoomTo(3f) }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        val position = scroll { scrollToPosition(state.lineStart(300)) }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.mainClock.advanceTimeBy(5000)
+        composeRule.waitForIdle()
+
+        assertEquals(false, zoom())
+        assertEquals(true, position())
+        assertTrue(viewState.isPositionVisible(state.lineStart(300)))
+    }
+
+    @Test
+    fun `a line folds and unfolds without a tap`() {
+        val text = "# a\n" + (0 until 40).joinToString("\n") { "a $it" } + "\n# b\nb"
+        val state = KodeEditorState(text)
+        state.setSelection(TextRange(state.lineStart(5)))
+        show(state, foldProvider = MarkdownFoldProvider)
+        val layout = layout!!
+
+        assertTrue(viewState.canFold(0))
+        assertFalse(viewState.canFold(1))
+        assertFalse(viewState.isFolded(0))
+
+        assertTrue(viewState.setFolded(0, true))
+        composeRule.mainClock.advanceTimeBy(1000)
+        composeRule.waitForIdle()
+        assertTrue(viewState.isFolded(0))
+        assertTrue("hidden", layout.isLineHidden(20))
+        assertEquals("the cursor left the fold", TextRange(state.lineEnd(0)), state.selection)
+        assertTrue("already folded", viewState.setFolded(0, true))
+        assertTrue(viewState.isFolded(0))
+
+        assertTrue(viewState.setFolded(0, false))
+        composeRule.mainClock.advanceTimeBy(1000)
+        composeRule.waitForIdle()
+        assertFalse(viewState.isFolded(0))
+        assertFalse(layout.isLineHidden(20))
+
+        assertFalse("not a heading", viewState.setFolded(1, true))
+        assertEquals(0, movedView)
+    }
+
+    @Test
+    fun `nothing folds without a fold provider`() {
+        show(KodeEditorState("# a\nb\n# c\nd"))
+
+        assertFalse(viewState.canFold(0))
+        assertFalse(viewState.setFolded(0, true))
+        assertFalse(viewState.isFolded(0))
+    }
 }
