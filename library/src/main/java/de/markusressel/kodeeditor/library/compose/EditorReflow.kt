@@ -1,11 +1,15 @@
 package de.markusressel.kodeeditor.library.compose
 
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.util.lerp
 
 internal const val REFLOW_ANIMATION_MS = 150
+
+/** slows down towards the end like the cursors of other users, `1 - (1 - t)^3` */
+internal val CubicEaseOut = Easing { 1f - (1f - it).let { rest -> rest * rest * rest } }
 
 /** A change of the wrap width follows the zoom, so a lot of them can be on the way at once */
 private const val MAX_RUNNING_REFLOWS = 12
@@ -21,16 +25,27 @@ private const val MAX_RUNNING_REFLOWS = 12
  * @param lineHeight the height of a row
  * @param measure the width of the text between two positions of the same row
  * @param changedFolds the parts of the text that are shown differently now, what follows them moves on its own
+ * @param durationMs how long the text takes to its new place
+ * @param easing how the text speeds up and slows down on its way
+ * @param inserted where the text was before an insertion, instead of [firstRows], [breaks] and [measure]. Such a
+ * transition knows its places without the state, so the next insertion can start from where the text is on its way
  */
 internal class ReflowTransition(
     private val state: KodeEditorState,
     private val firstRows: IntArray,
     private val breaks: Array<IntArray?>,
-    private var previous: ReflowTransition?,
+    previous: ReflowTransition?,
     private val lineHeight: Float,
     private val measure: (start: Int, end: Int) -> Float,
     private val changedFolds: List<TextRange> = emptyList(),
+    private val durationMs: Int = REFLOW_ANIMATION_MS,
+    private val easing: Easing = FastOutSlowInEasing,
+    private val inserted: LayoutBeforeInsert? = null,
 ) {
+    // the places of a transition from before a change of the text are about a text that is gone, unless it kept them
+    private var previous: ReflowTransition? =
+        previous?.takeIf { it.version == state.rawVersion || (inserted != null && it.inserted != null) }
+
     private val version = state.rawVersion
     private var startMs = -1L
     private var depth: Int = (previous?.depth ?: 0) + 1
@@ -58,15 +73,15 @@ internal class ReflowTransition(
             if (it.progress >= 1f || depth > MAX_RUNNING_REFLOWS) previous = null
         }
         if (startMs < 0) startMs = nowMs
-        val time = ((nowMs - startMs) / REFLOW_ANIMATION_MS.toFloat()).coerceAtMost(1f)
-        progress = FastOutSlowInEasing.transform(time)
+        val time = ((nowMs - startMs) / durationMs.toFloat()).coerceAtMost(1f)
+        progress = easing.transform(time)
     }
 
     /** @return where the text at [offset] started this reflow, in the coordinates of the document */
     fun startOf(offset: Int): Offset {
         val position = positions.getOrPut(offset) { positionOf(offset) }
         val before = previous ?: return Offset(position.x, position.y + scrolled)
-        val from = before.startOf(offset)
+        val from = before.startOf(inserted?.toBefore(offset) ?: offset)
         return Offset(
             x = lerp(from.x, position.x, before.progress),
             y = lerp(from.y, position.y, before.progress) + scrolled,
@@ -74,6 +89,7 @@ internal class ReflowTransition(
     }
 
     private fun positionOf(offset: Int): Offset {
+        inserted?.let { return it.positionOf(offset) }
         val line = state.lineOf(offset)
         val lineStart = state.lineStart(line)
         val lineBreaks = breaks[line]
@@ -105,5 +121,98 @@ internal class ReflowTransition(
         changedFolds.flatMap { listOf(it.min, it.max) }.filter { it in start until end }
 
     /** @return the positions in the [line] where the text starts to move differently */
-    fun breaksOf(line: Int): IntArray? = breaks[line]
+    fun breaksOf(line: Int): IntArray? = inserted?.breaksOf(line) ?: breaks.getOrNull(line)
+}
+
+/**
+ * Where the text was before an insertion, as seen from the text after it, which is all it uses. Before the insertion,
+ * the text behind it was where the inserted text starts now.
+ *
+ * @param text the text after the insertion
+ * @param lineStarts where the lines of [text] start
+ * @param start where the text was inserted
+ * @param length how long the inserted text is
+ * @param firstRows the first row of each line before, as shown, and the number of rows at the end
+ * @param breaks the positions where each line broke before, relative to its start
+ * @param lineHeight the height of a row
+ * @param measure the width of a part of [text] in a row
+ */
+internal class LayoutBeforeInsert(
+    private val text: String,
+    private val lineStarts: IntArray,
+    private val start: Int,
+    private val length: Int,
+    private val firstRows: IntArray,
+    private val breaks: Array<IntArray?>,
+    private val lineHeight: Float,
+    private val measure: (text: String, start: Int, end: Int) -> Float,
+) {
+    private val end = start + length
+    private val firstLine = lineOf(start)
+    private val insertedLines = text.substring(start, end).count { it == '\n' }
+
+    private fun lineOf(offset: Int): Int {
+        var low = 0
+        var high = lineStarts.size - 1
+        while (low < high) {
+            val middle = (low + high + 1) ushr 1
+            if (lineStarts[middle] <= offset) low = middle else high = middle - 1
+        }
+        return low
+    }
+
+    /** @return the position in the text before the insertion, the inserted text is where it was inserted */
+    fun toBefore(offset: Int): Int = when {
+        offset < start -> offset
+        offset < end -> start
+        else -> offset - length
+    }
+
+    /** @return the position in [text] of a position before the insertion, text behind it is behind the inserted text */
+    private fun fromBefore(offset: Int): Int = if (offset < start) offset else offset + length
+
+    /** @return the line before the insertion of a line after it */
+    private fun lineBefore(line: Int): Int = when {
+        line <= firstLine -> line
+        line <= firstLine + insertedLines -> firstLine
+        else -> line - insertedLines
+    }
+
+    /** @return where a line before the insertion started, in the text before it */
+    private fun startBefore(line: Int): Int =
+        if (line <= firstLine) lineStarts[line] else toBefore(lineStarts[line + insertedLines])
+
+    /** @return the width of a part of the text before the insertion, measured in [text] around the inserted text */
+    private fun measureBefore(from: Int, to: Int): Float {
+        return when {
+            from >= to -> 0f
+            to <= start -> measure(text, from, to)
+            from >= start -> measure(text, from + length, to + length)
+            else -> measure(text, from, start) + measure(text, end, to + length)
+        }
+    }
+
+    /** @return where the text at [offset] of [text] was before the insertion, in the coordinates of the document */
+    fun positionOf(offset: Int): Offset {
+        val before = toBefore(offset)
+        val line = lineBefore(lineOf(if (offset in start until end) start else offset))
+        val lineStart = startBefore(line)
+        val lineBreaks = breaks.getOrNull(line)
+        val index = lineBreaks?.count { it <= before - lineStart } ?: 0
+        val rowStart = lineStart + if (index == 0) 0 else lineBreaks!![index - 1]
+        val row = firstRows[line.coerceAtMost(firstRows.size - 1)] + index
+        return Offset(measureBefore(rowStart, before), row * lineHeight)
+    }
+
+    /** @return where the [line] of [text] broke before the insertion, relative to its start */
+    fun breaksOf(line: Int): IntArray? {
+        val before = lineBefore(line)
+        val lineBreaks = breaks.getOrNull(before) ?: return null
+        if (before != firstLine) return lineBreaks
+        val lineStart = lineStarts[line]
+        val lineEnd = lineStarts.getOrNull(line + 1) ?: (text.length + 1)
+        val beforeStart = startBefore(before)
+        return lineBreaks.map { fromBefore(beforeStart + it) }.filter { it in lineStart until lineEnd }
+            .map { it - lineStart }.toIntArray().takeIf { it.isNotEmpty() }
+    }
 }

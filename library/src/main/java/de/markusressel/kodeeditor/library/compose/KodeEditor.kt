@@ -589,6 +589,10 @@ fun KodeEditor(
     }
     SideEffect {
         glides.config = animations.appearance?.cursorGlide
+        // the text behind what others insert moves out of the way like their cursors move
+        val slideMs = animations.appearance?.let { it.cursorGlide?.durationMs ?: KodeEditorCursorGlide().durationMs }
+        // the system setting is known a little later
+        layout.insertSlideMs = { ((slideMs ?: 0) * glides.durationScale).toInt() }
         glides.update(remoteCursors)
     }
     LaunchedEffect(glides) {

@@ -248,15 +248,21 @@ class RemoteCursorsTest {
         scene.settledPosition()
         composeRule.mainClock.autoAdvance = false
 
-        // the text in front of it grows, the cursor moves with its character
+        // the text in front of it grows, the cursor moves with its character, which slides out of the way
         composeRule.runOnIdle {
             scene.state.applyRemote(listOf(TextSplice(0, 0, "abc")))
             scene.cursor.value = scene.janeAt(13)
         }
         scene.frame()
+        scene.frame()
         val first = scene.labelPosition
+        val layout = scene.layout as EditorLineLayout
+        val sliding = layout.shownCursorRect(13).topLeft - layout.getCursorRect(13).topLeft
+        val settled = scene.settledPosition()
 
-        assertEquals(scene.settledPosition(), first)
+        assertTrue("the text slides: $sliding", sliding.x < -1f)
+        assertEquals(settled.x + sliding.x, first.x, 1f)
+        assertEquals(settled.y, first.y, 1f)
     }
 
     @Test
