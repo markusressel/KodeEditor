@@ -97,7 +97,7 @@ private const val MENU_DELAY_MS = 250L
 internal const val GUTTER_ANIMATION_MS = 150
 private val HANDLE_EDGE_SIZE = 48.dp
 private val HANDLE_EDGE_SPEED = 12.dp
-private val TEXT_START_PADDING = 4.dp
+internal val TEXT_START_PADDING = 4.dp
 private val FOLD_COLUMN_WIDTH = 24.dp
 private const val FOLDED_LINE_SELECTION_ALPHA = 0.5f
 
@@ -402,10 +402,9 @@ fun KodeEditor(
         LaunchedEffect(state, appearance) {
             // the system setting that scales animations, 0 when they are off
             val scale = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
-            val duration = (appearance.durationMs * scale).toLong()
             snapshotFlow { state.rangeAlphas.isNotEmpty() }.collectLatest { appearing ->
                 // no frames while nothing appears
-                while (appearing && withFrameMillis { state.onAppearFrame(it, duration) }) Unit
+                while (appearing && withFrameMillis { state.onAppearFrame(it, scale) }) Unit
             }
         }
     }
@@ -594,6 +593,7 @@ fun KodeEditor(
         val slideMs = animations.appearance?.let { it.cursorGlide?.durationMs ?: KodeEditorCursorGlide().durationMs }
         // the system setting is known a little later
         layout.insertSlideMs = { ((slideMs ?: 0) * glides.durationScale).toInt() }
+        layout.remoteCarets = glides::drawnCarets
         glides.update(remoteCursors)
     }
     LaunchedEffect(glides) {

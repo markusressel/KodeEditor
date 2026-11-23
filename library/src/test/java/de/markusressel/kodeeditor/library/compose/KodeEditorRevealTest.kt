@@ -94,7 +94,9 @@ class KodeEditorRevealTest {
         steps += hidden
 
         assertTrue("within 4 s: ${steps.size} frames", steps.size * 16 <= 4000 + 16)
-        assertTrue("evenly: $steps", steps.max() - steps.min() <= 1)
+        // the last frame shows what is left
+        val even = steps.dropLast(1)
+        assertTrue("evenly: $steps", even.max() - even.min() <= 1)
     }
 
     @Test

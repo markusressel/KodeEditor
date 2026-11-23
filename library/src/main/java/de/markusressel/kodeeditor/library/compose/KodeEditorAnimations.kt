@@ -3,6 +3,7 @@ package de.markusressel.kodeeditor.library.compose
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 
 /**
  * What the [KodeEditor] animates.
@@ -44,23 +45,51 @@ data class KodeEditorAnimations(
  * How text that the application marks appears, e.g. text that somebody else writes. It fades in, and can rise into its
  * place while it does. This only changes how the text is drawn, nothing is measured again. Text that somebody else
  * inserts with [KodeEditorState.applyRemote] takes its room at once, also while it is still hidden, and the text behind
- * it slides out of the way, into other rows too, like the cursors glide (see [KodeEditorCursorGlide.durationMs]). The
+ * it slides out of the way, into other rows too, like the cursors glide (see [KodeEditorCursorGlide.durationMs]). When
+ * they remove text, the text behind it slides back into the gap. Keys and backspaces one right after the other slide at
+ * an even speed, with the cursor of whoever types them. The
  * system setting that scales the duration of animations scales this too, and turns it off with a scale of 0.
  *
- * @param durationMs how long the text takes to appear
- * @param window of text that appears piece after piece, like typing, how many of the last characters can still be
- * appearing. Older pieces are shown at once
- * @param maxRanges how many ranges can be appearing at once, the oldest is shown at once when there would be more.
- * Each costs a small layer on each row it is in
+ * How long a piece takes to appear depends on how fast its writer writes: each writer has a smoothed rate of the
+ * characters that appear for them, an exponential average over about a second. A piece gets its duration when it starts
+ * to appear and keeps it, from [durationMs] for text that comes at [slowCharsPerSecond] or slower, like typing, to
+ * [maxDurationMs] at [fastCharsPerSecond] or faster, like an agent that writes a lot at once, in a straight line in
+ * between. So a lot of text at once is smoothed more, and slow text still shows soon.
+ *
+ * @param durationMs how long text takes to appear that comes slowly. Its alpha is 1 - (1 - t)² at the part t of it,
+ * fast at first
+ * @param window not used anymore: text that appears piece after piece, like typing or a reveal, is never shown at once
+ * before it appeared, however long it is
+ * @param maxRanges how many ranges can be appearing at once. With more, two pieces one behind the other whose alphas
+ * are the closest become one, so nothing jumps to visible. The pieces one behind the other in a row are drawn in one
+ * small layer, with a soft gradient of their alphas, so there is no edge between them
  * @param slide how far below its place the text starts, 0 only fades
  * @param cursorGlide how the cursors of other users move to their new place, see [KodeEditorRemoteCursor], null
  * makes them jump
+ * @param maxDurationMs how long text takes to appear that comes fast, [durationMs] if it is shorter
+ * @param slowCharsPerSecond up to this rate of a writer, their text appears in [durationMs]
+ * @param fastCharsPerSecond from this rate of a writer on, their text appears in [maxDurationMs]
  */
 @Immutable
 data class KodeEditorAppearance(
-    val durationMs: Int = 250,
+    val durationMs: Int = 320,
     val window: Int = 16,
-    val maxRanges: Int = 24,
+    val maxRanges: Int = 256,
     val slide: Dp = 0.dp,
     val cursorGlide: KodeEditorCursorGlide? = KodeEditorCursorGlide(),
-)
+    val maxDurationMs: Int = 1000,
+    val slowCharsPerSecond: Float = 10f,
+    val fastCharsPerSecond: Float = 120f,
+) {
+    /** @return how long a piece takes to appear, for a writer who writes [charsPerSecond] */
+    internal fun durationFor(charsPerSecond: Float): Int {
+        val longest = maxOf(maxDurationMs, durationMs)
+        val span = fastCharsPerSecond - slowCharsPerSecond
+        if (span <= 0f) return if (charsPerSecond >= fastCharsPerSecond) longest else durationMs
+        val part = ((charsPerSecond - slowCharsPerSecond) / span).coerceIn(0f, 1f)
+        return (durationMs + (longest - durationMs) * part).roundToInt()
+    }
+}
+
+/** how long the rate of a writer is averaged over, see [KodeEditorAppearance] */
+internal const val APPEAR_RATE_MS = 1000f

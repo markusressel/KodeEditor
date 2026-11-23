@@ -11,6 +11,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import kotlin.math.abs
+import kotlin.math.exp
 
 /**
  * One change of the text.
@@ -88,6 +90,10 @@ class KodeEditorState(
     /** told about every change of the text too, for the wrapped rows */
     internal var rowObserver: ((TextSplice) -> Unit)? = null
 
+    /** the text the last change removed, for the observers */
+    internal var lastRemoved = ""
+        private set
+
     /** told about each change of the text, right after the range styles moved */
     private val spliceListeners = mutableListOf<(TextSplice) -> Unit>()
 
@@ -140,8 +146,11 @@ class KodeEditorState(
             if (value == null) finishAppearing()
         }
 
-    /** the time of the frame each appearing range started in, by its tag */
-    private val appearStarts = HashMap<String, Long>()
+    /** the time of the frame each appearing range started in and how long it takes, by its tag */
+    private val appearStarts = HashMap<String, AppearTiming>()
+
+    /** how many characters per second appear for each writer, smoothed, by their tag */
+    private val appearRates = HashMap<String, AppearRate>()
     private var nextAppearId = 0
 
     val canUndo: Boolean
@@ -325,19 +334,38 @@ class KodeEditorState(
         setRangeAlphas(if (tag == null) emptyList() else ranges.filter { it.tag.appearTag() != tag })
     }
 
+    /** @return how long the appearing range with [tag] takes, null if it did not start yet */
+    internal fun appearDurationOf(tag: String): Long? = appearStarts[tag]?.durationMs
+
     /**
-     * Moves the appearing text on by a frame.
+     * Moves the appearing text on by a frame. A range that is new gets its duration from the rate of its writer, see
+     * [KodeEditorAppearance], and keeps it.
      *
      * @param nowMs the time of the frame
-     * @param durationMs how long text takes to appear, 0 shows it at once
+     * @param scale scales the durations, 0 shows all of it at once
      * @return whether text is still appearing
      */
-    internal fun onAppearFrame(nowMs: Long, durationMs: Long): Boolean {
+    internal fun onAppearFrame(nowMs: Long, scale: Float = 1f): Boolean {
         val ranges = rangeAlphasState
         if (ranges.isEmpty()) return false
+        val config = appearance ?: KodeEditorAppearance()
+        // the rates first, with all that arrived in this frame
+        ranges.forEach { range ->
+            if (range.tag in appearStarts) return@forEach
+            val writer = range.tag.appearTag()
+            val rate = appearRates.getOrPut(writer) { AppearRate(0f, nowMs) }
+            rate.add(range.end - range.start, nowMs)
+        }
+        ranges.forEach { range ->
+            if (range.tag in appearStarts) return@forEach
+            val rate = appearRates.getValue(range.tag.appearTag()).charsPerSecond
+            appearStarts[range.tag] = AppearTiming(nowMs, (config.durationFor(rate) * scale).toLong())
+        }
         setRangeAlphas(
             ranges.mapNotNull { range ->
-                val started = appearStarts.getOrPut(range.tag) { nowMs }
+                val timing = appearStarts.getValue(range.tag)
+                val started = timing.startMs
+                val durationMs = timing.durationMs
                 val progress = if (durationMs > 0) (nowMs - started).toFloat() / durationMs else 1f
                 if (progress >= 1f) return@mapNotNull null
                 // fast at first, so new text does not stay invisible for long
@@ -455,6 +483,7 @@ class KodeEditorState(
     private fun replace(splice: TextSplice, selection: TextRange, composition: TextRange?) {
         if (splice.removedLength != 0 || splice.inserted.isNotEmpty()) {
             val old = currentText
+            lastRemoved = old.substring(splice.start, splice.start + splice.removedLength)
             currentText = buildString(old.length - splice.removedLength + splice.inserted.length) {
                 append(old, 0, splice.start)
                 append(splice.inserted)
@@ -528,34 +557,72 @@ internal fun TextRange.mappedInside(splice: TextSplice): TextRange? {
 }
 
 /**
- * The appearing ranges with [added], without those that have to be shown at once now: of text that appears piece after
- * piece with the same tag, only the last [KodeEditorAppearance.window] characters appear, and there are at most
- * [KodeEditorAppearance.maxRanges].
+ * The appearing ranges with [added], at most [KodeEditorAppearance.maxRanges] of them. Nothing is shown at once that
+ * is still far from visible: with too many, the two pieces one behind the other of the same writer whose alphas are
+ * the closest become one, which goes on with the alpha of the more visible one. So a piece only gets a bit more visible
+ * at once. Only without such pieces the most visible range is shown at once.
  */
 internal fun limitAppearing(
     ranges: List<AnnotatedString.Range<Float>>,
     added: AnnotatedString.Range<Float>,
     config: KodeEditorAppearance,
 ): List<AnnotatedString.Range<Float>> {
-    val finished = HashSet<AnnotatedString.Range<Float>>()
-    // the pieces of the same writer in front of the new one, the newest first
-    val tag = added.tag.appearTag()
-    var chainStart = added.start
-    var length = added.end - added.start
-    for (range in ranges.asReversed()) {
-        if (range.end != chainStart || range.tag.appearTag() != tag) continue
-        length += range.end - range.start
-        chainStart = range.start
-        if (length > config.window) finished += range
+    val all = (ranges + added).toMutableList()
+    val max = config.maxRanges.coerceAtLeast(1)
+    while (all.size > max) {
+        var best = -1
+        var bestOther = -1
+        var bestDifference = Float.MAX_VALUE
+        all.forEachIndexed { index, range ->
+            val tag = range.tag.appearTag()
+            val other = all.indexOfFirst { it.start == range.end && it.tag.appearTag() == tag }
+            if (other < 0) return@forEachIndexed
+            val difference = abs(all[other].item - range.item)
+            if (difference < bestDifference) {
+                best = index
+                bestOther = other
+                bestDifference = difference
+            }
+        }
+        if (best < 0) {
+            all.removeAt(all.indices.maxBy { all[it].item })
+            continue
+        }
+        val first = all[best]
+        val second = all[bestOther]
+        // the tag keeps the time the more visible one started at, the other one does not get less visible
+        val kept = if (first.item >= second.item) first else second
+        val merged = AnnotatedString.Range(kept.item, first.start, second.end, kept.tag)
+        all[minOf(best, bestOther)] = merged
+        all.removeAt(maxOf(best, bestOther))
     }
-    val kept = ranges.filter { it !in finished } + added
-    return kept.takeLast(config.maxRanges.coerceAtLeast(1))
+    return all
 }
 
 private const val APPEAR_TAG_SEPARATOR = '/'
 
 /** the tag the application gave to [KodeEditorState.appear], behind the id that makes each range unique */
 internal fun String.appearTag() = substringAfter(APPEAR_TAG_SEPARATOR)
+
+/**
+ * @param startMs the time of the frame a range started to appear in
+ * @param durationMs how long it takes
+ */
+private class AppearTiming(val startMs: Long, val durationMs: Long)
+
+/**
+ * The characters per second that appear for a writer, an exponential average over [APPEAR_RATE_MS]: n characters add
+ * n × 1000 / [APPEAR_RATE_MS], and the rate decays by e^(-elapsed / [APPEAR_RATE_MS]). So text that comes at r
+ * characters per second for a while has a rate of r.
+ */
+internal class AppearRate(var charsPerSecond: Float, private var lastMs: Long) {
+    /** @param chars how many characters arrived at [nowMs] */
+    fun add(chars: Int, nowMs: Long) {
+        val elapsed = (nowMs - lastMs).coerceAtLeast(0L)
+        charsPerSecond = charsPerSecond * exp(-elapsed / APPEAR_RATE_MS) + chars * 1000f / APPEAR_RATE_MS
+        lastMs = nowMs
+    }
+}
 
 /** the ranges cut to a text of [length], without the empty ones */
 private fun <T> List<AnnotatedString.Range<T>>.cutTo(length: Int) = mapNotNull { range ->
