@@ -1,6 +1,7 @@
 package de.markusressel.kodeeditor.demo
 
 import de.markusressel.kodeeditor.library.compose.rememberLineNumberColumn
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,6 +28,8 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.markusressel.kodeeditor.demo.ui.theme.KodeEditorTheme
@@ -39,17 +42,32 @@ import de.markusressel.kodeeditor.library.compose.KodeEditorLayout
 import de.markusressel.kodeeditor.library.compose.KodeEditorListener
 import de.markusressel.kodeeditor.library.compose.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.TextSplice
+import de.markusressel.kodeeditor.library.compose.rememberKodeEditorViewState
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class ComposeMainActivity : ComponentActivity() {
+
+    /** whether the scenario of the showcase mode plays, see [EXTRA_SHOWCASE_PLAY] */
+    private var playShowcase by mutableStateOf(false)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_SHOWCASE_PLAY, false)) playShowcase = true
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // plays the scenario of the README animation, without the controls of the demo
+        val showcase = intent.getBooleanExtra(EXTRA_SHOWCASE, false)
+        if (showcase) {
+            WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.systemBars())
+        }
         setContent {
             KodeEditorTheme {
                 val ruleBook = remember { MarkdownRuleBook() }
@@ -61,7 +79,8 @@ class ComposeMainActivity : ComponentActivity() {
                     // not saveable, a large document does not fit into the saved instance state
                     val state = remember { KodeEditorState(readResourceFileAsText(R.raw.short_sample)) }
                     val agent = remember(state) { AgentTyping(state) }
-                    var readOnly by remember { mutableStateOf(false) }
+                    var readOnly by remember { mutableStateOf(showcase) }
+                    val viewState = rememberKodeEditorViewState()
 
                     val columnWidth = with(LocalDensity.current) { 20.dp.roundToPx() }
                     val warnings = remember(columnWidth) { WarningColumn(columnWidth, Color(0xFFFFC107)) }
@@ -96,7 +115,7 @@ class ComposeMainActivity : ComponentActivity() {
                     var appearOn by remember { mutableStateOf(true) }
                     var appearMs by remember { mutableIntStateOf(250) }
                     var appearWindow by remember { mutableIntStateOf(16) }
-                    var appearSlide by remember { mutableIntStateOf(0) }
+                    var appearSlide by remember { mutableIntStateOf(if (showcase) SHOWCASE_SLIDE_DP else 0) }
                     var showOptions by remember { mutableStateOf(false) }
                     var editorLayout by remember { mutableStateOf<KodeEditorLayout?>(null) }
                     val scope = rememberCoroutineScope()
@@ -112,7 +131,14 @@ class ComposeMainActivity : ComponentActivity() {
                         }
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (showcase) {
+                        LaunchedEffect(Unit) {
+                            snapshotFlow { playShowcase }.first { it }
+                            playShowcase(state, viewState, agent) { janeTypes(state) { janeTyped = it } }
+                        }
+                    }
+
+                    if (!showcase) Row(verticalAlignment = Alignment.CenterVertically) {
                         TextButton(
                             onClick = {
                                 if (agentTyping) {
@@ -192,6 +218,7 @@ class ComposeMainActivity : ComponentActivity() {
                         colorScheme = colorScheme,
                         state = state,
                         readOnly = readOnly,
+                        viewState = viewState,
                         // only what the agent and Jane write appears animated, typed text is there at once
                         animations = KodeEditorAnimations(
                             appearance = if (appearOn) {
@@ -338,6 +365,9 @@ private const val REVEAL_INTERVAL_MS = 33L
 private const val JANE_PHRASE = "syntax highlighting"
 private const val JANE_TEXT = " (Jane: this line appears as I type it)"
 private const val JANE_INTERVAL_MS = 90L
+
+/** how far the text of the agent and Jane rises into its place in the showcase */
+private const val SHOWCASE_SLIDE_DP = 4
 
 @Preview(showBackground = true)
 @Composable
