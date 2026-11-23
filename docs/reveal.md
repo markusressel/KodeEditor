@@ -176,8 +176,8 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 The user's own typing never animates: no cursor glide, no slide, no fade, also not with the keyboard (IME) or while
 dragging a selection. The cursor and the text at it are where they belong in the same frame.
 
-With `KodeEditorAppearance(local = KodeEditorLocalAnimations(bigChanges = true))` (off by default), big changes of the
-user animate, so it is easy to see what they changed:
+Big changes of the user animate, so it is easy to see what they changed. This is on by default
+(`KodeEditorAppearance(local = KodeEditorLocalAnimations())`), `local = null` or `bigChanges = false` turns it off:
 
 - Paste (the text menu and Ctrl+V), undo, redo, and replacing with `KodeEditorSearch.replaceCurrent` and `replaceAll`.
 - The text behind the change slides to its new place like with the changes of others (R6), in 120 ms with the cubic

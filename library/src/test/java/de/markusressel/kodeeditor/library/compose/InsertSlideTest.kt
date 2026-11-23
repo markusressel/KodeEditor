@@ -153,7 +153,7 @@ class InsertSlideTest {
     @Test
     fun `without an appearance the text behind an insertion jumps`() {
         val scene = InsertScene(composeRule, "hello world")
-        scene.show(KodeEditorAnimations())
+        scene.show(KodeEditorAnimations(appearance = null))
 
         composeRule.runOnIdle { scene.state.applyRemote(listOf(TextSplice(6, 0, "brave ")), appear = true) }
         scene.frame()

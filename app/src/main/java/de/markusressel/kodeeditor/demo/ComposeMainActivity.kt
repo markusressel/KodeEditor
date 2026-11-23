@@ -118,7 +118,7 @@ class ComposeMainActivity : ComponentActivity() {
                     }
 
                     var appearOn by remember { mutableStateOf(true) }
-                    var bigChangesOn by remember { mutableStateOf(false) }
+                    var bigChangesOn by remember { mutableStateOf(true) }
                     var appearMs by remember { mutableIntStateOf(if (showcase) SHOWCASE_APPEAR_MS else 320) }
                     var appearMaxMs by remember { mutableIntStateOf(if (showcase) SHOWCASE_APPEAR_MS else 1000) }
                     var appearSlide by remember { mutableIntStateOf(if (showcase) SHOWCASE_SLIDE_DP else 0) }
@@ -266,7 +266,7 @@ class ComposeMainActivity : ComponentActivity() {
                                     durationMs = appearMs,
                                     maxDurationMs = appearMaxMs,
                                     slide = appearSlide.dp,
-                                    local = KodeEditorLocalAnimations(bigChanges = true).takeIf { bigChangesOn },
+                                    local = KodeEditorLocalAnimations().takeIf { bigChangesOn },
                                 )
                             } else {
                                 null

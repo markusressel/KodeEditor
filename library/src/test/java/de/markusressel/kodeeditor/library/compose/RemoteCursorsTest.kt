@@ -147,7 +147,7 @@ class RemoteCursorsTest {
 
     @Test
     fun `without an appearance the cursor jumps`() {
-        scene.show(KodeEditorAnimations())
+        scene.show(KodeEditorAnimations(appearance = null))
         val start = scene.labelPosition
         composeRule.mainClock.autoAdvance = false
 
@@ -399,7 +399,7 @@ class RemoteCursorsTest {
     @Test
     fun `without an appearance a user who leaves is gone at once`() {
         scene.cursor.value = scene.janeAt(6, TextRange(2, 6))
-        scene.show(KodeEditorAnimations())
+        scene.show(KodeEditorAnimations(appearance = null))
         composeRule.mainClock.autoAdvance = false
 
         scene.leave()

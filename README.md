@@ -260,7 +260,17 @@ KodeEditor(
 ```
 
 Folding moves what is below a fold to its new place and fades the lines of the fold, `folding = false` turns that off.
-`KodeEditorAnimations.None` turns off all of them.
+
+`appearance` (`KodeEditorAppearance`) is about the changes of others and big changes of the user:
+
+- Text from `applyRemote(appear = true)`, `appear()` and `KodeEditorReveal` fades in, faster for text that comes
+  slowly, like typing, and slower for a lot of text at once.
+- The text behind what others insert or remove slides to its new place, and their cursors glide.
+- Paste, undo, redo and replacing with the search slide the text behind the change and fade in the inserted text
+  (`local`). The user's own typing never animates.
+
+`appearance = null` shows all of it at once, `local = null` only turns off the part about the user's changes.
+`KodeEditorAnimations.None` turns off all of them, and so does a system setting without animations.
 
 ## Folding
 
