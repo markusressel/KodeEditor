@@ -75,6 +75,20 @@ interface KodeEditorColors {
     @Composable
     fun scrollbarColor(): State<Color> = rememberUpdatedState(Color.Unspecified)
 
+    /**
+     * Represents the color behind the matches of a [KodeEditorSearch], which should not be opaque. Unspecified uses a
+     * light amber.
+     */
+    @Composable
+    fun searchMatchBackgroundColor(): State<Color> = rememberUpdatedState(Color.Unspecified)
+
+    /**
+     * Represents the color behind the current match of a [KodeEditorSearch], which should not be opaque. Unspecified
+     * uses a stronger amber.
+     */
+    @Composable
+    fun currentSearchMatchBackgroundColor(): State<Color> = rememberUpdatedState(Color.Unspecified)
+
 }
 
 
@@ -105,6 +119,8 @@ object KodeEditorDefaults {
         inlineFoldBackgroundColor: Color = Color.Unspecified,
         inlineFoldTextColor: Color = Color.Unspecified,
         scrollbarColor: Color = Color.Unspecified,
+        searchMatchBackgroundColor: Color = Color.Unspecified,
+        currentSearchMatchBackgroundColor: Color = Color.Unspecified,
     ): KodeEditorColors =
         DefaultKodeEditorColors(
             textFieldColors = textFieldColors,
@@ -116,6 +132,8 @@ object KodeEditorDefaults {
             inlineFoldBackgroundColor = inlineFoldBackgroundColor,
             inlineFoldTextColor = inlineFoldTextColor,
             scrollbarColor = scrollbarColor,
+            searchMatchBackgroundColor = searchMatchBackgroundColor,
+            currentSearchMatchBackgroundColor = currentSearchMatchBackgroundColor,
         )
 }
 
@@ -130,6 +148,8 @@ private data class DefaultKodeEditorColors(
     private val inlineFoldBackgroundColor: Color,
     private val inlineFoldTextColor: Color,
     private val scrollbarColor: Color,
+    private val searchMatchBackgroundColor: Color,
+    private val currentSearchMatchBackgroundColor: Color,
 ) : KodeEditorColors {
 
     @Composable
@@ -175,6 +195,16 @@ private data class DefaultKodeEditorColors(
     @Composable
     override fun scrollbarColor(): State<Color> {
         return rememberUpdatedState(scrollbarColor)
+    }
+
+    @Composable
+    override fun searchMatchBackgroundColor(): State<Color> {
+        return rememberUpdatedState(searchMatchBackgroundColor)
+    }
+
+    @Composable
+    override fun currentSearchMatchBackgroundColor(): State<Color> {
+        return rememberUpdatedState(currentSearchMatchBackgroundColor)
     }
 
 }

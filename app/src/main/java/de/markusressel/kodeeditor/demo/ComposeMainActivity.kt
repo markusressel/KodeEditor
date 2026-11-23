@@ -13,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -40,8 +41,11 @@ import de.markusressel.kodeeditor.library.compose.KodeEditorAnimations
 import de.markusressel.kodeeditor.library.compose.KodeEditorAppearance
 import de.markusressel.kodeeditor.library.compose.KodeEditorLayout
 import de.markusressel.kodeeditor.library.compose.KodeEditorListener
+import de.markusressel.kodeeditor.library.compose.KodeEditorSearch
+import de.markusressel.kodeeditor.library.compose.KodeEditorSearchQuery
 import de.markusressel.kodeeditor.library.compose.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.TextSplice
+import de.markusressel.kodeeditor.library.compose.rememberKodeEditorSearch
 import de.markusressel.kodeeditor.library.compose.rememberKodeEditorViewState
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
@@ -81,6 +85,8 @@ class ComposeMainActivity : ComponentActivity() {
                     val agent = remember(state) { AgentTyping(state) }
                     var readOnly by remember { mutableStateOf(showcase) }
                     val viewState = rememberKodeEditorViewState()
+                    val search = rememberKodeEditorSearch(state)
+                    var showSearch by remember { mutableStateOf(false) }
 
                     val columnWidth = with(LocalDensity.current) { 20.dp.roundToPx() }
                     val warnings = remember(columnWidth) { WarningColumn(columnWidth, Color(0xFFFFC107)) }
@@ -166,6 +172,14 @@ class ComposeMainActivity : ComponentActivity() {
                         TextButton(onClick = { showOptions = !showOptions }) {
                             Text(if (showOptions) "Hide options" else "Options")
                         }
+                        TextButton(
+                            onClick = {
+                                showSearch = !showSearch
+                                if (!showSearch) search.query = null
+                            },
+                        ) {
+                            Text("Search")
+                        }
                         Spacer(Modifier.weight(1f))
                         Text("Read only", color = MaterialTheme.colorScheme.onSurface)
                         Switch(
@@ -190,6 +204,12 @@ class ComposeMainActivity : ComponentActivity() {
                         fontSize = 14.sp,
                         lineHeight = 14.sp,
                     )
+
+                    if (showSearch) {
+                        SearchBar(search) { match ->
+                            scope.launch { viewState.scrollToRange(match.min, match.max) }
+                        }
+                    }
 
                     if (showOptions) {
                         OptionSlider("Characters per step", revealSteps, 1..10) { revealSteps = it }
@@ -219,6 +239,7 @@ class ComposeMainActivity : ComponentActivity() {
                         state = state,
                         readOnly = readOnly,
                         viewState = viewState,
+                        search = search,
                         // only what the agent and Jane write appears animated, typed text is there at once
                         animations = KodeEditorAnimations(
                             appearance = if (appearOn) {
@@ -319,6 +340,57 @@ class ComposeMainActivity : ComponentActivity() {
             color = Color.Black,
             fontSize = 10.sp,
         )
+    }
+
+    /**
+     * A simple search bar, an app styles its own
+     *
+     * @param search what it controls
+     * @param onGoTo called with the match that next or previous went to
+     */
+    @Composable
+    private fun SearchBar(search: KodeEditorSearch, onGoTo: (TextRange) -> Unit) {
+        var find by remember { mutableStateOf("") }
+        var replacement by remember { mutableStateOf("") }
+        var regex by remember { mutableStateOf(false) }
+        LaunchedEffect(find, regex) { search.query = KodeEditorSearchQuery(find, regex = regex) }
+        val small = LocalTextStyle.current.copy(fontSize = 12.sp)
+        Row(modifier = Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                modifier = Modifier.weight(1f),
+                value = find,
+                onValueChange = { find = it },
+                textStyle = small,
+                singleLine = true,
+                placeholder = { Text("Find", style = small) },
+            )
+            val position = search.currentIndex?.plus(1) ?: 0
+            val count = "${search.matches.size}" + if (search.isLimited) "+" else ""
+            Text(
+                modifier = Modifier.padding(horizontal = 4.dp),
+                text = search.error ?: "$position/$count",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 12.sp,
+            )
+            TextButton(onClick = { search.previous()?.let(onGoTo) }) { Text("↑") }
+            TextButton(onClick = { search.next()?.let(onGoTo) }) { Text("↓") }
+            Text(".*", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+            Switch(checked = regex, onCheckedChange = { regex = it })
+        }
+        Row(modifier = Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                modifier = Modifier.weight(1f),
+                value = replacement,
+                onValueChange = { replacement = it },
+                textStyle = small,
+                singleLine = true,
+                placeholder = { Text("Replace", style = small) },
+            )
+            TextButton(onClick = { if (search.replaceCurrent(replacement)) search.current?.let(onGoTo) }) {
+                Text("Replace")
+            }
+            TextButton(onClick = { search.replaceAll(replacement) }) { Text("All") }
+        }
     }
 
     @Composable

@@ -250,6 +250,17 @@ internal class EditorInlineFolds(
     /** the folds that stay open until the cursor leaves their line */
     private val heldOpen = ArrayList<TextRange>()
 
+    private var match: TextRange? = null
+
+    /** the current match of a search, a fold that overlaps it is open */
+    var shownMatch: TextRange?
+        get() = match
+        set(value) {
+            if (match == value) return
+            match = value
+            update(animate = true)
+        }
+
     /** whether the text changed since the state was looked at the last time */
     private var edited = false
 
@@ -325,6 +336,7 @@ internal class EditorInlineFolds(
         // a handle has to be shown, while a selection can cover a whole fold
         if (first in fold.start + 1 until fold.end || last in fold.start + 1 until fold.end) return true
         if (heldOpen.any { fold.overlaps(it) }) return true
+        if (match?.let { it.min < fold.end && it.max > fold.start } == true) return true
         val atFold = first in fold.start..fold.end || last in fold.start..fold.end
         return atFold && opened.any { fold.overlaps(it) }
     }
@@ -335,6 +347,7 @@ internal class EditorInlineFolds(
         found = found.mapNotNull { it.movedBy(splice) }
         opened = opened.map { it.mappedBy(splice) }
         heldOpen.replaceAll { it.mappedBy(splice) }
+        match = match?.mappedBy(splice)
         val current = collapsed ?: return
         val moved = ArrayList<InlineFold>(current.size)
         for (index in 0 until current.size) {
