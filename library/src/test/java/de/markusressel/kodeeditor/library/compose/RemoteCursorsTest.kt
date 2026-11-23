@@ -257,6 +257,105 @@ class RemoteCursorsTest {
         assertTrue("no jump back to the old place: $between $after $end", after.x >= between.x && after.x < end.x)
     }
 
+    /** @return the left and right edge of the selection of Jane in the row of a [line], null without one */
+    private fun selectionIn(line: Int = 0): ClosedFloatingPointRange<Float>? {
+        val image = composeRule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        val layout = scene.layout!!
+        val top = layout.getLineTop(line).toInt()
+        val rows = top until (top + layout.lineHeight).toInt()
+        val xs = (0 until image.width).filter { x ->
+            rows.any { y -> image[x, y].let { c -> c.green > c.red + 0.2f && c.green > c.blue + 0.2f } }
+        }
+        return if (xs.isEmpty()) null else xs.first().toFloat()..xs.last().toFloat()
+    }
+
+    /** lets a glide start and move a little */
+    private fun glideStarted() {
+        scene.frame()
+        scene.frame()
+        scene.frame()
+    }
+
+    @Test
+    fun `a selection grows from the cursor`() {
+        scene.show(glide)
+        composeRule.runOnIdle { scene.cursor.value = scene.janeAt(2) }
+        scene.settledPosition()
+        assertEquals(null, selectionIn())
+        composeRule.mainClock.autoAdvance = false
+
+        scene.moveTo(6, TextRange(2, 6))
+        glideStarted()
+        val growing = selectionIn()!!
+        scene.settledPosition()
+        val selected = selectionIn()!!
+
+        assertEquals("it starts at the cursor", selected.start, growing.start, 2f)
+        assertTrue("on its way: $growing $selected", growing.endInclusive < selected.endInclusive - 2)
+    }
+
+    @Test
+    fun `a selection shrinks into the cursor`() {
+        scene.cursor.value = scene.janeAt(6, TextRange(2, 6))
+        scene.show(glide)
+        val selected = selectionIn()!!
+        composeRule.mainClock.autoAdvance = false
+
+        scene.moveTo(6)
+        glideStarted()
+        val shrinking = selectionIn()!!
+        scene.settledPosition()
+
+        assertTrue("on its way: $shrinking $selected", shrinking.start > selected.start + 2)
+        assertEquals(selected.endInclusive, shrinking.endInclusive, 2f)
+        assertEquals("gone", null, selectionIn())
+    }
+
+    @Test
+    fun `both ends of a selection glide to the new one`() {
+        scene.cursor.value = scene.janeAt(4, TextRange(0, 4))
+        scene.show(glide)
+        val before = selectionIn()!!
+        composeRule.mainClock.autoAdvance = false
+
+        scene.moveTo(7, TextRange(3, 7))
+        glideStarted()
+        val moving = selectionIn()!!
+        scene.settledPosition()
+        val after = selectionIn()!!
+
+        val values = "$before $moving $after"
+        assertTrue("start on its way: $values", moving.start > before.start && moving.start < after.start)
+        assertTrue("end on its way: $values", moving.endInclusive > before.endInclusive)
+        assertTrue("end on its way: $values", moving.endInclusive < after.endInclusive)
+    }
+
+    @Test
+    fun `a selection glides without composing the label again`() {
+        scene.show(glide)
+        composeRule.mainClock.autoAdvance = false
+
+        scene.moveTo(4, TextRange(0, 4))
+        val compositions = scene.labelCompositions
+        repeat(5) { scene.frame() }
+        scene.settledPosition()
+
+        assertEquals(compositions, scene.labelCompositions)
+    }
+
+    @Test
+    fun `a selection far away appears at once`() {
+        scene.show(glide)
+        composeRule.mainClock.autoAdvance = false
+        val start = scene.state.lineStart(10)
+
+        scene.moveTo(start + 4, TextRange(start, start + 4))
+        glideStarted()
+        val first = selectionIn(10)
+
+        assertEquals(scene.run { settledPosition(); selectionIn(10) }, first)
+    }
+
     @Test
     fun `the caret and the selection are drawn`() {
         scene.cursor.value = scene.janeAt(4, TextRange(0, 4))
