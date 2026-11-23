@@ -144,7 +144,7 @@ class ComposeMainActivity : ComponentActivity() {
                     if (showcase) {
                         LaunchedEffect(Unit) {
                             snapshotFlow { playShowcase }.first { it }
-                            playShowcase(state, viewState, agent) { janeTypes(state) { janeTyped = it } }
+                            playShowcase(state, viewState, agent) { janeTypes(state, human = false) { janeTyped = it } }
                         }
                     }
 
@@ -175,7 +175,7 @@ class ComposeMainActivity : ComponentActivity() {
                             enabled = janeTyping == null,
                             onClick = {
                                 janeTyping = scope.launch {
-                                    janeTypes(state) { janeTyped = it }
+                                    janeTypes(state, human = true) { janeTyped = it }
                                     janeTyping = null
                                 }
                             },
@@ -374,16 +374,38 @@ class ComposeMainActivity : ComponentActivity() {
         }
     }
 
-    /** another person, who types a line behind the phrase "Jane" selected, as remote changes that appear animated */
-    /** @param onTyped told how many characters Jane typed so far */
-    private suspend fun janeTypes(state: KodeEditorState, onTyped: (Int) -> Unit) {
-        JANE_TEXT.forEachIndexed { typed, char ->
-            delay(JANE_INTERVAL_MS)
+    /**
+     * another person, who types a line behind the phrase "Jane" selected, as remote changes that appear animated
+     *
+     * @param human whether she types like a person, see [TypingPace], or one key each [JANE_INTERVAL_MS] like in the
+     * showcase
+     * @param onTyped told how many characters Jane typed so far
+     */
+    private suspend fun janeTypes(state: KodeEditorState, human: Boolean, onTyped: (Int) -> Unit) {
+        val keys = if (human) {
+            humanKeystrokes(JANE_TEXT)
+        } else {
+            JANE_TEXT.map { TimedKeystroke(JANE_INTERVAL_MS, Keystroke.Type(it)) }
+        }
+        var typed = 0
+        keys.forEach { (delayMs, key) ->
+            delay(delayMs)
             // found again each time, the user may have changed the text in front of it meanwhile
             val anchor = state.text.indexOf(JANE_PHRASE).takeIf { it >= 0 } ?: return
-            val position = anchor + JANE_PHRASE.length + typed
-            state.applyRemote(listOf(TextSplice(position, 0, char.toString())), appear = true, appearTag = "jane")
-            onTyped(typed + 1)
+            val cursor = anchor + JANE_PHRASE.length + typed
+            when (key) {
+                is Keystroke.Type -> {
+                    val splice = TextSplice(cursor, 0, key.char.toString())
+                    state.applyRemote(listOf(splice), appear = true, appearTag = "jane")
+                    typed++
+                }
+
+                Keystroke.Backspace -> if (typed > 0) {
+                    state.applyRemote(listOf(TextSplice(cursor - 1, 1, "")))
+                    typed--
+                }
+            }
+            onTyped(typed)
         }
     }
 
@@ -401,7 +423,7 @@ private fun remoteCursor(name: String, color: Color, selection: TextRange) =
 
 /** what Jane has selected, and types behind */
 private const val JANE_PHRASE = "syntax highlighting"
-private const val JANE_TEXT = " (Jane: this line appears as I type it)"
+internal const val JANE_TEXT = " (Jane: this line appears as I type it)"
 private const val JANE_INTERVAL_MS = 90L
 
 /** how far the text of the agent and Jane rises into its place in the showcase */
