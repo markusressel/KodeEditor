@@ -385,6 +385,11 @@ The View based editor (`CodeEditorLayout`, `CodeEditorView`) was removed in 8.0.
 it, and its XML attributes and APIs are described in the
 [README of 7.0.0](https://github.com/markusressel/KodeEditor/blob/7.0.0/README.md#add-to-your-layout).
 
+# Related projects
+
+* [sora-editor](https://github.com/Rosemoe/sora-editor): a View based code editor library for Android, with TextMate and
+  tree-sitter highlighting, auto-completion and an LSP module (LGPL-2.1)
+
 # Contributing
 
 GitHub is for social coding: if you want to write code, I encourage contributions through pull requests from forks
