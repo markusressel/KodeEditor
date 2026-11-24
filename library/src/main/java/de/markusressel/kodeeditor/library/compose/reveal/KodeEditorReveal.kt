@@ -106,8 +106,9 @@ class KodeEditorReveal(
     val head: Int? get() = queue.firstOrNull()?.start
 
     /**
-     * where the text that was revealed last ends, moved with the text, null before the first one and after [stop]. The
-     * cursor of the writer can stay there between their chunks while nothing is hidden, instead of going away
+     * where the text that was revealed last ends, null before any was shown. [stop] moves it to the end of what it
+     * shows. It moves with the text while the reveal runs. The cursor of the writer can stay there between their chunks
+     * while nothing is hidden, instead of going away
      */
     var end: Int? by mutableStateOf(null)
         private set
@@ -174,9 +175,10 @@ class KodeEditorReveal(
 
     /** shows all hidden text at once, and ends its appearing */
     fun stop() {
+        // what is shown now ends where the newest hidden text ended
+        queue.lastOrNull()?.let { end = it.end }
         state.setRangeStyles(state.rangeStyles.filterNot { it.tag.startsWith(prefix) })
         state.finishAppearing(tag)
-        end = null
         rested()
     }
 

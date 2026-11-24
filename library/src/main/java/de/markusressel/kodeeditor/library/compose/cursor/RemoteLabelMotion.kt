@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.util.lerp
@@ -21,10 +22,13 @@ import de.markusressel.kodeeditor.library.compose.animation.CubicEaseOut
  * - A label that covers the cursor of the user fades down too, a mouse over a label or its cursor shows it.
  * - The app can show or hide a label always, and show it fully for [SIGNAL_MS] with a signal.
  *
- * Without animations, a label is placed anew at each place of its cursor and always shown.
+ * Without animations, a label is placed anew at each place of its cursor and shown, unless the app hides it.
+ *
+ * Frames are only needed while a label moves or fades. In between, [waitMs] tells when the next one changes, e.g. when
+ * its writer rests, so nothing is drawn while a label only waits.
  *
  * @param animates whether cursors glide, otherwise nothing of this moves
- * @param wake asks for frames, [onFrame] is called with each of them until it returns false
+ * @param wake asks for frames, [onFrame] is called with each of them until it returns false and [waitMs] is null
  */
 internal class RemoteLabelMotion(private val animates: () -> Boolean, private val wake: () -> Unit) {
 
@@ -32,8 +36,10 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
         /** whether the label is below its cursor, or goes there */
         var below = false
 
-        /** whether it was placed before, the first place and a jump decide the side at once */
+        /** whether it was placed before, the first place and a jump decide the side and the alpha at once */
         var placed = false
+
+        /** a jump that the next place takes its side from */
         var jumped = false
 
         /** where the label was between above (0) and below (1) when the side changed */
@@ -82,11 +88,15 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
     fun moved(id: String, jumped: Boolean) {
         val label = labels.getOrPut(id) { Label() }
         label.moved = true
-        label.jumped = label.jumped || jumped
+        if (jumped) {
+            // the place takes the side from it, the run of writing starts anew with the next frame
+            label.jumped = true
+            label.runStartedAt = NOT_STARTED
+        }
         if (animates()) wake()
     }
 
-    /** @return whether a label still changes, frames are needed then */
+    /** @return whether a label moves or fades, frames are needed then */
     fun onFrame(timeMs: Long): Boolean {
         now = timeMs
         var busy = false
@@ -94,13 +104,12 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
             if (label.moved) {
                 label.moved = false
                 val rested = label.movedAt == NONE || timeMs - label.movedAt >= REST_MS
-                if (rested || label.jumped || label.runStartedAt == NONE) label.runStartedAt = timeMs
+                if (rested || label.runStartedAt == NONE) label.runStartedAt = timeMs
                 label.movedAt = timeMs
             }
             if (label.runStartedAt == NOT_STARTED) label.runStartedAt = timeMs
             if (label.signaledUntil == NOT_STARTED) label.signaledUntil = timeMs + SIGNAL_MS
-            // one frame after it ended, so the label is faded for it
-            if (label.signaledUntil >= 0 && timeMs > label.signaledUntil + REST_FRAME_MS) label.signaledUntil = NONE
+            if (label.signaledUntil >= 0 && timeMs > label.signaledUntil) label.signaledUntil = NONE
             if (label.sideStartedAt == NOT_STARTED) label.sideStartedAt = timeMs
             if (label.sideStartedAt >= 0 && timeMs - label.sideStartedAt >= SIDE_MS) label.sideStartedAt = NONE
             if (label.alphaStartedAt == NOT_STARTED) label.alphaStartedAt = timeMs
@@ -108,12 +117,30 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
                 label.alphaStartedAt = NONE
                 label.alphaFrom = label.alphaTarget
             }
-            // one frame after the rest, so the label is placed and faded for it
-            val writing = label.movedAt != NONE && timeMs - label.movedAt <= REST_MS + REST_FRAME_MS
-            val moving = label.sideStartedAt != NONE || label.alphaStartedAt != NONE || label.signaledUntil != NONE
-            if (writing || moving) busy = true
+            if (label.sideStartedAt != NONE || label.alphaStartedAt != NONE) busy = true
         }
         return busy
+    }
+
+    /**
+     * @return how long after the last frame a label changes next without anything else happening, e.g. when its
+     * writer rests or has written steadily for long enough, null if none waits for that
+     */
+    fun waitMs(): Long? {
+        val now = Snapshot.withoutReadObservation { now }
+        var next = Long.MAX_VALUE
+        labels.values.forEach { label ->
+            if (label.moved || label.runStartedAt == NOT_STARTED || label.signaledUntil == NOT_STARTED) next = now
+            val moved = label.movedAt
+            val writing = moved >= 0 && now - moved < REST_MS
+            if (writing) {
+                next = minOf(next, moved + REST_MS)
+                val run = label.runStartedAt
+                if (run >= 0 && now - run < STEADY_MS) next = minOf(next, run + STEADY_MS)
+            }
+            if (label.signaledUntil >= 0) next = minOf(next, label.signaledUntil + 1)
+        }
+        return if (next == Long.MAX_VALUE) null else (next - now).coerceAtLeast(0)
     }
 
     /**
@@ -160,7 +187,8 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
         // reading the time places the label again with each frame
         val now = now
         val rested = label.movedAt == NONE || now - label.movedAt >= REST_MS
-        if (!label.placed || label.jumped) {
+        val first = !label.placed
+        if (first || label.jumped) {
             label.placed = true
             label.jumped = false
             label.below = below
@@ -192,7 +220,12 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
             steady || localCaret != null && box.overlaps(localCaret) -> DIM_ALPHA
             else -> 1f
         }
-        if (target != label.alphaTarget) {
+        if (first) {
+            // a label that is new shows as it should at once, the fade in of a user who comes is the one of its cursor
+            label.alphaFrom = target
+            label.alphaTarget = target
+            label.alphaStartedAt = NONE
+        } else if (target != label.alphaTarget) {
             label.alphaFrom = alphaOf(label, now)
             label.alphaTarget = target
             label.alphaStartedAt = NOT_STARTED
@@ -250,9 +283,6 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
 
         /** how visible the label of a writer who writes steadily is */
         const val DIM_ALPHA = 0.35f
-
-        /** one frame more, so the label is placed for the rest */
-        private const val REST_FRAME_MS = 16L
 
         /** pixels around a label and its cursor where a mouse still shows it */
         private const val HOVER_SLACK = 8f

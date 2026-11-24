@@ -70,7 +70,14 @@ internal class WrapCarries(
     /** each frame of a slide, whoever draws a carried word reads it */
     private var frame by mutableLongStateOf(0L)
 
-    private var cacheKey: List<Any?>? = null
+    // what the last result was computed for, compared one by one, it is asked for each drawn row and cursor
+    private var cachedFrame = -1L
+    private var cachedVersion = -1
+    private var cachedStyles: Any? = null
+    private var cachedAlphas: Any? = null
+    private var cachedWidth: Float? = null
+    private var cachedRows: EditorRows? = null
+    private var cachedSlideMs = -1
     private var cached: List<Carried> = emptyList()
 
     /** whether a word slides to its place */
@@ -79,10 +86,26 @@ internal class WrapCarries(
     /** @return the words that are drawn away from their place now */
     fun current(): List<Carried> {
         val width = wrapWidth()
+        val slideMs = slideMs()
+        if (width == null || slideMs <= 0) {
+            if (entries.isNotEmpty()) entries.clear()
+            return emptyList()
+        }
         val rows = rows()
-        val key = listOf(frame, state.version, state.rangeStyles, state.rangeAlphas, width, rows, slideMs())
-        if (key == cacheKey) return cached
-        cacheKey = key
+        val frame = frame
+        val version = state.version
+        val styles = state.rangeStyles
+        val alphas = state.rangeAlphas
+        val same = frame == cachedFrame && version == cachedVersion && styles === cachedStyles &&
+            alphas === cachedAlphas && width == cachedWidth && rows === cachedRows && slideMs == cachedSlideMs
+        if (same) return cached
+        cachedFrame = frame
+        cachedVersion = version
+        cachedStyles = styles
+        cachedAlphas = alphas
+        cachedWidth = width
+        cachedRows = rows
+        cachedSlideMs = slideMs
         cached = update(width, rows)
         return cached
     }
@@ -119,11 +142,7 @@ internal class WrapCarries(
         entries = moved
     }
 
-    private fun update(width: Float?, rows: EditorRows): List<Carried> {
-        if (width == null || slideMs() <= 0) {
-            entries.clear()
-            return emptyList()
-        }
+    private fun update(width: Float, rows: EditorRows): List<Carried> {
         val alphas = state.rangeAlphas
         val text = state.rawText
         val seen = HashSet<Int>()
@@ -156,15 +175,20 @@ internal class WrapCarries(
         entries.values.removeAll { entry ->
             // the head left the word, which goes to its place now
             if (entry.start !in seen) entry.released = true
-            entry.done
+            // one that is at its place stays while its text still appears, so a head that is still in the word, or
+            // comes back to it with the next chunk, does not carry it up again
+            entry.done && (entry.start > text.length || !alphas.appearing(entry.appearsFrom(), entry.start))
         }
         entries.values.forEach { entry ->
-            if (entry.start > text.length) return@forEach
+            if (entry.start > text.length || entry.done) return@forEach
             val remaining = 1f - entry.progress
             result += Carried(rows.rowOf(entry.start), entry.start, entry.end, entry.delta * remaining, entry.caretOnly)
         }
         return result
     }
+
+    /** where the text starts whose appearing keeps the entry: the line break before a new line, or its word */
+    private fun Entry.appearsFrom() = if (caretOnly) start - 1 else start
 
     /** @return whether all of the text from [start] to [end] appears, or the character at [start] if they are equal */
     private fun List<AnnotatedString.Range<Float>>.appearing(start: Int, end: Int): Boolean {

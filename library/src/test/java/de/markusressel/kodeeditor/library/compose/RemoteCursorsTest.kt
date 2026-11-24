@@ -37,6 +37,7 @@ import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -678,6 +679,32 @@ class RemoteCursorsTest {
 
         assertEquals("below the cursor", caret.bottom, atStart, 1f)
         assertTrue("above the cursor within the row: $inRow ${caret.top}", inRow < caret.top)
+    }
+
+    @Test
+    fun `a long word that is revealed slowly over the wrap goes to its row once`() {
+        scene.show(glide, lineWrapping = true, reveal = true)
+        composeRule.mainClock.autoAdvance = false
+        val layout = scene.layout as EditorLineLayout
+        val reveal = scene.reveal!!
+        // a word longer than what is left of the row, revealed at the slow speed
+        composeRule.runOnIdle { reveal.insert(0, "word ".repeat(11) + "extraordinarilylongwordsthatgoon more\n") }
+        val distances = HashMap<Int, ArrayList<Float>>()
+        repeat(150) {
+            scene.frame()
+            composeRule.runOnIdle {
+                layout.wrapCarries.current().forEach { distances.getOrPut(it.start) { ArrayList() } += it.distance.y }
+            }
+        }
+        // per word: carried, then at its place, never carried again
+        val again = distances.filter { (_, ys) ->
+            // -0 too
+            val atPlace = ys.indexOfFirst { abs(it) < 0.5f }.takeIf { it >= 0 } ?: ys.size
+            ys.drop(atPlace).any { abs(it) >= 0.5f }
+        }
+
+        assertTrue("carried: ${distances.keys}", distances.isNotEmpty())
+        assertTrue("carried again: $again", again.isEmpty())
     }
 
     @Test

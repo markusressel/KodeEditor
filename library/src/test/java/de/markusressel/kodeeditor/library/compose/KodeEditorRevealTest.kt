@@ -86,7 +86,7 @@ class KodeEditorRevealTest {
     }
 
     @Test
-    fun `the end of the text revealed last stays between chunks, until stop`() {
+    fun `the end of the text revealed last stays between chunks, and stop moves it to the end of what it shows`() {
         assertEquals("nothing revealed yet", null, reveal.end)
         reveal.insert(before.length, "hello ")
         while (reveal.advance(16)) Unit
@@ -94,11 +94,13 @@ class KodeEditorRevealTest {
         reveal.insert(before.length + 6, "world ")
         while (reveal.advance(16)) Unit
         val after = reveal.end
+        reveal.insert(before.length + 12, "again ")
+        reveal.advance(16)
         reveal.stop()
 
         assertEquals("behind the first chunk", before.length + 6, between)
         assertEquals("behind the second chunk", before.length + 12, after)
-        assertEquals("forgotten", null, reveal.end)
+        assertEquals("behind what stop showed", before.length + 18, reveal.end)
     }
 
     @Test

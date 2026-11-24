@@ -12,7 +12,7 @@ val reveal = rememberKodeEditorReveal(state, tag = "agent")
 
 reveal.insert(position, chunk) // inserts the chunk hidden, with applyRemote
 reveal.head                    // where the text is revealed, null when nothing is hidden
-reveal.end                     // where the text revealed last ends, for the cursor between chunks, null after stop()
+reveal.end                     // where the text revealed last ends, for the cursor between chunks
 reveal.isRevealing             // whether text is hidden
 reveal.hiddenLength            // how many characters are hidden
 reveal.stop()                  // shows all hidden text at once
@@ -61,7 +61,8 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 - The cursor of the writer is at the head. It is a remote cursor like any other, so it glides (cursor glide, R5).
 - Between chunks, while nothing is hidden, the cursor of a writer who still writes stays at the end of the text that was
   revealed last (`end`), instead of going away and coming back with the next chunk. The app knows when the writer is
-  done and removes the cursor then. `stop()` forgets the end.
+  done and removes the cursor then. `stop()` moves the end to the end of what it shows, so a change of the user does
+  not take the cursor away either.
 
 ### Speed (R3): how much is shown per frame
 
@@ -203,8 +204,8 @@ does the same:
 - Only text that appears is carried: the word from the start of its row to the head, or the line break, must still be
   fading in. Text that was there before never moves. Without wrapping, without an appearance or with animations off,
   nothing is carried.
-- Hit tests, the selection and the cursor of the user use the place of the text in its row, only the drawing and the
-  cursors of others use where it is drawn. The caret cut (R7) cuts the carried word in its own row, at where the caret
+- Hit tests use the place of the text in its row. What is drawn uses where it is drawn, also the cursors, so a cursor
+  in the carried word is drawn with it. The caret cut (R7) cuts the carried word in its own row, at where the caret
   would be there.
 
 ### Calm label (R9): the name of a writer does not get in the way
@@ -231,8 +232,8 @@ flip around or cover what they write.
   of the app shows it fully for 1500 ms, e.g. when the user picks the writer in a list. Each change fades in 200 ms.
 - A writer who comes fades in, with their cursor and label, in 200 ms, and fades out in 200 ms when they leave. One who
   comes back while fading out fades in again from where they are, never at once.
-- Without animations, a label takes the side of the first point at each new place of its cursor, and is always
-  shown.
+- Without animations, a label takes the side of the first point at each new place of its cursor, and is shown unless
+  the app hides it.
 
 ## Changes of the user
 

@@ -341,7 +341,8 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         }
         if (leaving.isNotEmpty()) gliding = true
         if (labels.onFrame(timeMs)) gliding = true
-        isGliding = gliding
+        // a label that waits for its writer to rest keeps the loop, without frames
+        isGliding = gliding || labels.waitMs() != null
         return gliding
     }
 

@@ -17,19 +17,27 @@ class RemoteLabelMotionTest {
     var signal = 0
     var localCaret: Rect? = null
 
-    /** lets [ms] pass, Jane gets a new place every [keyMs] if it is above 0 */
+    /**
+     * lets [ms] pass, Jane gets a new place every [keyMs] if it is above 0. Like in the editor: a frame places the
+     * labels, a new place is taken after the composition and placed in the same frame, its time is known in the next
+     */
     private fun pass(ms: Long, keyMs: Long = 0) {
         var sinceKey = 0L
         repeat((ms / FRAME).toInt()) {
             time += FRAME
             sinceKey += FRAME
-            if (keyMs > 0 && sinceKey >= keyMs) {
-                sinceKey = 0
-                motion.moved("jane", jumped = false)
-            }
             motion.onFrame(time)
             place()
+            if (keyMs > 0 && sinceKey >= keyMs) {
+                sinceKey = 0
+                moveJane(jumped = false)
+            }
         }
+    }
+
+    private fun moveJane(jumped: Boolean) {
+        motion.moved("jane", jumped)
+        place()
     }
 
     private fun place(below: Boolean = false) = motion.place(
@@ -66,6 +74,40 @@ class RemoteLabelMotionTest {
         assertEquals("faded down", RemoteLabelMotion.DIM_ALPHA, typing, 0.01f)
         assertEquals("still down in a pause", RemoteLabelMotion.DIM_ALPHA, pause, 0.01f)
         assertEquals("shown after a rest", 1f, alpha)
+    }
+
+    @Test
+    fun `a jump shows the label of somebody who writes steadily again`() {
+        place()
+        pass(1500, keyMs = 64)
+        val typing = alpha
+        moveJane(jumped = true)
+        pass(400, keyMs = 64)
+
+        assertTrue(typing < 0.5f)
+        assertEquals(1f, alpha)
+    }
+
+    @Test
+    fun `a hidden label never shows, also not when it is new`() {
+        visibility = KodeEditorLabelVisibility.Hidden
+        place()
+
+        assertEquals(0f, alpha)
+    }
+
+    @Test
+    fun `a label that only waits for its writer needs no frames`() {
+        place()
+        pass(100)
+        moveJane(jumped = false)
+        time += FRAME
+        val busy = motion.onFrame(time)
+        place()
+
+        assertTrue("no frames", !busy)
+        // the run that started with the move fades the label down first, if it goes on
+        assertEquals("until the run is steady", RemoteLabelMotion.STEADY_MS, motion.waitMs())
     }
 
     @Test
