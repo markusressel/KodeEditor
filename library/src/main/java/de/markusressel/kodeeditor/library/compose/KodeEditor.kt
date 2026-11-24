@@ -504,6 +504,7 @@ fun KodeEditor(
         toEditor = { geometry.toEditor(it, offset) },
         offset = offset,
         zoom = zoom,
+        userMovingView = viewState.isUserMovingView,
     )
 
     val keys = remember(state, menuActions, keyboardCursor) { EditorKeys(state, menuActions, keyboardCursor) }

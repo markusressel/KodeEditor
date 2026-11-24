@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose.cursor
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -18,7 +19,9 @@ private const val MENU_DELAY_MS = 250L
 
 /**
  * Shows the text menu of the system above the selection, after a touch selected something or asked for the menu at
- * the cursor. It hides while the selection or the view moves and shows up again when it stopped.
+ * the cursor. It hides while the user moves the selection or the view, and shows up again when they stopped. When
+ * others change the text, e.g. an agent that writes, the menu stays open and only moves with the selection, so the user
+ * can still use it.
  *
  * @param state the text
  * @param layout the layout of the text
@@ -29,8 +32,9 @@ private const val MENU_DELAY_MS = 250L
  * @param hasClipboardText whether there is text to paste
  * @param coordinates the coordinates of the editor
  * @param toEditor the point of the editor for a point of the text
- * @param offset where the view is, the menu hides while it moves
- * @param zoom the zoom of the view, the menu hides while it changes
+ * @param offset where the view is, the menu moves with it
+ * @param zoom the zoom of the view, the menu moves with it
+ * @param userMovingView whether the user moves the view, the menu hides meanwhile
  */
 @Composable
 internal fun EditorTextMenuEffect(
@@ -45,8 +49,11 @@ internal fun EditorTextMenuEffect(
     toEditor: (Offset) -> Offset,
     offset: Offset,
     zoom: Float,
+    userMovingView: Boolean,
 ) {
     val textToolbar = LocalTextToolbar.current
+    // what the menu was shown with last, it is only shown again when that changes
+    val shown = remember { arrayOfNulls<Any>(1) }
 
     fun showMenu() {
         val current = state.selection
@@ -56,28 +63,43 @@ internal fun EditorTextMenuEffect(
         val top = attached.localToRoot(toEditor(startRect.topLeft))
         val bottom = attached.localToRoot(toEditor(endRect.bottomRight))
         val hasSelection = !current.collapsed
+        val rect = Rect(
+            left = minOf(top.x, bottom.x),
+            top = top.y,
+            right = maxOf(top.x, bottom.x),
+            bottom = bottom.y,
+        )
+        val canPaste = !readOnly && hasClipboardText()
+        val canSelectAll = current.length < state.rawText.length
+        // a menu that is shown with the same place and items is left alone, showing it again redraws it
+        val content = listOf(rect, hasSelection, canPaste, canSelectAll)
+        if (textToolbar.status == TextToolbarStatus.Shown && content == shown[0]) return
+        shown[0] = content
         textToolbar.showMenu(
-            rect = Rect(
-                left = minOf(top.x, bottom.x),
-                top = top.y,
-                right = maxOf(top.x, bottom.x),
-                bottom = bottom.y,
-            ),
+            rect = rect,
             onCopyRequested = menu::copy.takeIf { hasSelection },
-            onPasteRequested = menu::paste.takeIf { !readOnly && hasClipboardText() },
+            onPasteRequested = menu::paste.takeIf { canPaste },
             onCutRequested = menu::cut.takeIf { !readOnly && hasSelection },
-            onSelectAllRequested = menu::selectAll.takeIf { current.length < state.rawText.length },
+            onSelectAllRequested = menu::selectAll.takeIf { canSelectAll },
         )
     }
 
     val selection = state.selection
-    LaunchedEffect(selection, focused, touch.touchInput, touch.cursorMenuRequested, touch.draggedHandle, offset, zoom) {
-        val wanted = focused && touch.touchInput && touch.draggedHandle == null &&
-            (!selection.collapsed || touch.cursorMenuRequested)
+    // the selection the user made last: one that only others moved, by changing the text in front of it, keeps it
+    val userSelection = remember { arrayOf(selection) }
+    if (selection != state.selectionMovedByOthers) userSelection[0] = selection
+    val wanted = focused && touch.touchInput && touch.draggedHandle == null && !userMovingView &&
+        (!selection.collapsed || touch.cursorMenuRequested)
+    LaunchedEffect(userSelection[0], wanted) {
         if (textToolbar.status == TextToolbarStatus.Shown) textToolbar.hide()
         if (wanted) {
             delay(MENU_DELAY_MS)
             showMenu()
         }
+    }
+    // others change the text, or the view keeps its place for that: the menu stays open and moves with the selection.
+    // The system moves a menu that is shown again without closing it
+    LaunchedEffect(selection, offset, zoom) {
+        if (wanted && textToolbar.status == TextToolbarStatus.Shown) showMenu()
     }
 }
