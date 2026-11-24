@@ -19,6 +19,7 @@ import de.markusressel.kodeeditor.library.compose.animation.CubicEaseOut
  * - After [STEADY_MS] of writing without a rest, the label fades down to [DIM_ALPHA]. A rest, a jump or a cursor that
  *   comes into view shows it again.
  * - A label that covers the cursor of the user fades out, a mouse over a label or its cursor shows it.
+ * - The app can show or hide a label always, and show it fully for [SIGNAL_MS] with a signal.
  *
  * Without animations, a label is placed anew at each place of its cursor and always shown.
  *
@@ -48,6 +49,12 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
 
         /** whether the cursor was out of view, it starts a new run when it comes back */
         var unseen = false
+
+        /** the last signal of the app, null before the first one */
+        var signal: Int? = null
+
+        /** until when a signal shows the label, [NOT_STARTED] until the next frame */
+        var signaledUntil = NONE
 
         var alphaFrom = 1f
         var alphaTarget = 1f
@@ -91,6 +98,9 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
                 label.movedAt = timeMs
             }
             if (label.runStartedAt == NOT_STARTED) label.runStartedAt = timeMs
+            if (label.signaledUntil == NOT_STARTED) label.signaledUntil = timeMs + SIGNAL_MS
+            // one frame after it ended, so the label is faded for it
+            if (label.signaledUntil >= 0 && timeMs > label.signaledUntil + REST_FRAME_MS) label.signaledUntil = NONE
             if (label.sideStartedAt == NOT_STARTED) label.sideStartedAt = timeMs
             if (label.sideStartedAt >= 0 && timeMs - label.sideStartedAt >= SIDE_MS) label.sideStartedAt = NONE
             if (label.alphaStartedAt == NOT_STARTED) label.alphaStartedAt = timeMs
@@ -100,7 +110,8 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
             }
             // one frame after the rest, so the label is placed and faded for it
             val writing = label.movedAt != NONE && timeMs - label.movedAt <= REST_MS + REST_FRAME_MS
-            if (writing || label.sideStartedAt != NONE || label.alphaStartedAt != NONE) busy = true
+            val moving = label.sideStartedAt != NONE || label.alphaStartedAt != NONE || label.signaledUntil != NONE
+            if (writing || moving) busy = true
         }
         return busy
     }
@@ -114,6 +125,8 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
      * @param below whether the label must be below its cursor now, otherwise it is above
      * @param inView whether the cursor is in view
      * @param localCaret where the cursor of the user is drawn, null without one
+     * @param visibility whether the app wants the label shown by the rules, always or never
+     * @param signal the signal of the app, a new value shows the label for a moment
      * @return where the top of the label is
      */
     fun place(
@@ -125,16 +138,24 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
         below: Boolean,
         inView: Boolean,
         localCaret: Rect?,
+        visibility: KodeEditorLabelVisibility,
+        signal: Int,
     ): Float {
         val label = labels.getOrPut(id) { Label() }
         val above = caret.top - height
+        val signaled = label.signal != null && label.signal != signal
+        label.signal = signal
         if (!animates()) {
             label.below = below
             label.placed = false
-            label.alphaFrom = 1f
-            label.alphaTarget = 1f
+            label.alphaFrom = if (visibility == KodeEditorLabelVisibility.Hidden) 0f else 1f
+            label.alphaTarget = label.alphaFrom
             label.alphaStartedAt = NONE
             return if (below) caret.bottom else above
+        }
+        if (signaled) {
+            label.signaledUntil = NOT_STARTED
+            wake()
         }
         // reading the time places the label again with each frame
         val now = now
@@ -162,8 +183,11 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
         val box = Rect(x, y, x + width, y + height)
         val hovered = hover?.let { box.inflate(HOVER_SLACK).contains(it) || caret.inflate(HOVER_SLACK).contains(it) }
         val steady = !rested && label.runStartedAt >= 0 && now - label.runStartedAt >= STEADY_MS
+        val shownBySignal = label.signaledUntil == NOT_STARTED || now <= label.signaledUntil
         val target = when {
-            hovered == true -> 1f
+            visibility == KodeEditorLabelVisibility.Hidden -> 0f
+            visibility == KodeEditorLabelVisibility.Shown -> 1f
+            hovered == true || shownBySignal -> 1f
             localCaret != null && box.overlaps(localCaret) -> 0f
             steady -> DIM_ALPHA
             else -> 1f
@@ -217,6 +241,9 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
 
         /** how long a label takes to fade down, out or in */
         const val FADE_MS = 200L
+
+        /** how long a signal of the app shows a label fully */
+        const val SIGNAL_MS = 1500L
 
         /** how visible the label of a writer who writes steadily is */
         const val DIM_ALPHA = 0.35f

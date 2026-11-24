@@ -3,7 +3,10 @@ package de.markusressel.kodeeditor.library.compose.reveal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.MotionDurationScale
@@ -18,6 +21,7 @@ import de.markusressel.kodeeditor.library.compose.state.KodeEditorListener
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.state.SplicePhase
 import de.markusressel.kodeeditor.library.compose.state.TextSplice
+import de.markusressel.kodeeditor.library.compose.state.mapPosition
 import kotlin.math.floor
 import kotlin.math.max
 import kotlinx.coroutines.currentCoroutineContext
@@ -70,6 +74,7 @@ class KodeEditorReveal(
 
     // after the range styles moved with the change: what it inserted or where it removed text is at its start
     private val spliceListener: (TextSplice) -> Unit = { splice ->
+        end = end?.let { mapPosition(it, splice) }
         val end = splice.start + splice.inserted.length
         val touched = state.rangeStyles.any { it.tag.startsWith(prefix) && it.start <= end && splice.start <= it.end }
         if (touched && !inserting) stop()
@@ -83,6 +88,13 @@ class KodeEditorReveal(
 
     /** where the text is revealed at the moment, null when nothing is hidden */
     val head: Int? get() = queue.firstOrNull()?.start
+
+    /**
+     * where the text that was revealed last ends, moved with the text, null before the first one and after [stop]. The
+     * cursor of the writer can stay there between their chunks while nothing is hidden, instead of going away
+     */
+    var end: Int? by mutableStateOf(null)
+        private set
 
     /** whether text is hidden */
     val isRevealing: Boolean get() = state.rangeStyles.any { it.tag.startsWith(prefix) }
@@ -132,6 +144,7 @@ class KodeEditorReveal(
     fun stop() {
         state.setRangeStyles(state.rangeStyles.filterNot { it.tag.startsWith(prefix) })
         state.finishAppearing(tag)
+        end = null
         rested()
     }
 
@@ -173,6 +186,7 @@ class KodeEditorReveal(
             } else {
                 styles.removeAt(index)
                 left--
+                end = range.end
             }
             revealed += range.start until start
         }

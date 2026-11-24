@@ -52,6 +52,9 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 - The head is the start of the hidden text of the first entry of the queue. When that entry is all shown, the head goes
   on to the start of the next one, in the same frame if there are steps left.
 - The cursor of the writer is at the head. It is a remote cursor like any other, so it glides (cursor glide, R5).
+- Between chunks, while nothing is hidden, the cursor of a writer who still writes stays at the end of the text that was
+  revealed last (`end`), instead of going away and coming back with the next chunk. The app knows when the writer is
+  done and removes the cursor then. `stop()` forgets the end.
 
 ### Speed (R3): how much is shown per frame
 
@@ -215,6 +218,10 @@ flip around or cover what they write.
 - A label that covers the cursor of the user fades out in 200 ms, and back in when it does not cover it anymore.
 - With a mouse, a pointer over a label or its cursor (8 px around them) shows it fully. Touch has no hover, there the
   rules above are all.
+- The app decides too: a label can be shown by these rules (`Auto`), always (`Shown`) or never (`Hidden`), and a signal
+  of the app shows it fully for 1500 ms, e.g. when the user picks the writer in a list. Each change fades in 200 ms.
+- A writer who comes fades in, with their cursor and label, in 200 ms, and fades out in 200 ms when they leave. One who
+  comes back while fading out fades in again from where they are, never at once.
 - Without animations, a label takes the side of the first point at each new place of its cursor, and is always
   shown.
 

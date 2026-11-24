@@ -84,6 +84,18 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
     /** the users in the last update, by id */
     private var present = emptyMap<String, KodeEditorRemoteCursor>()
 
+    /** a user who came, drawn more and more opaque from [from] */
+    private class Arriving(val from: Float) {
+        /** when the fade started, [NOT_STARTED] until the next frame */
+        var started = NOT_STARTED
+    }
+
+    /** users who came and fade in, by id */
+    private val arriving = HashMap<String, Arriving>()
+
+    /** whether the cursors were updated before, those that are there when the editor shows do not fade in */
+    private var updated = false
+
     /** users who left and fade out, a change composes the labels and layers again */
     val leaving = mutableStateListOf<Leaving>()
 
@@ -119,6 +131,9 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
     /** how long a glide takes */
     private val durationMs: Long get() = ((config?.durationMs ?: 0) * durationScale()).toLong()
+
+    /** how long a user who comes takes to fade in */
+    private val fadeInMs: Long get() = ((config?.fadeInMs ?: 0) * durationScale()).toLong()
 
     /** how long a user who left takes to fade out */
     private val fadeOutMs: Long get() = ((config?.fadeOutMs ?: 0) * durationScale()).toLong()
@@ -160,6 +175,18 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         labels.retain(cursors.map { it.id }.toSet() + leaving.map { it.cursor.id })
 
         val now = cursors.associateBy { it.id }
+        // a user who comes fades in, one who comes back while fading out from where they are
+        arriving.keys.retainAll(now.keys)
+        if (fadeInMs > 0 && updated) {
+            now.keys.filter { it !in present }.forEach { id ->
+                val from = leaving.firstOrNull { it.cursor.id == id }?.let { alphaOf(it) } ?: 0f
+                arriving[id] = Arriving(from)
+            }
+            if (arriving.isNotEmpty()) {
+                isGliding = true
+                starts++
+            }
+        }
         leaving.removeAll { it.cursor.id in now }
         if (fadeOutMs > 0) {
             present.values.filter { it.id !in now }.forEach { leaving += Leaving(it) }
@@ -169,6 +196,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
             }
         }
         present = now
+        updated = true
         hasCursors = cursors.isNotEmpty() || leaving.isNotEmpty()
     }
 
@@ -303,6 +331,9 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
                 gliding = true
             }
         }
+        arriving.values.forEach { if (it.started == NOT_STARTED) it.started = timeMs }
+        arriving.values.removeAll { timeMs - it.started >= fadeInMs }
+        if (arriving.isNotEmpty()) gliding = true
         leaving.forEach { if (it.started == NOT_STARTED) it.started = timeMs }
         if (leaving.removeAll { timeMs - it.started >= fadeOutMs }) {
             hasCursors = present.isNotEmpty() || leaving.isNotEmpty()
@@ -373,18 +404,28 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
     /** @return how opaque a user who left is drawn, it fades out linearly */
     fun alphaOf(leaving: Leaving): Float {
-        // reading the time here draws again for each frame
+        // reading the time here draws again for each frame, also before the fade started
+        val now = now
         val started = leaving.started
         val elapsed = if (started == NOT_STARTED) 0L else now - started
         return if (fadeOutMs <= 0) 0f else (1f - elapsed.toFloat() / fadeOutMs).coerceIn(0f, 1f)
     }
 
-    /** @return how opaque a user is drawn, 1 unless they left */
-    fun alphaOf(id: String): Float = leaving.firstOrNull { it.cursor.id == id }?.let { alphaOf(it) } ?: 1f
+    /** @return how opaque a user is drawn, 1 unless they came just now or left */
+    fun alphaOf(id: String): Float {
+        leaving.firstOrNull { it.cursor.id == id }?.let { return alphaOf(it) }
+        val arrived = arriving[id] ?: return 1f
+        // reading the time here draws again for each frame, also before the fade started
+        val now = now
+        val started = arrived.started
+        val elapsed = if (started == NOT_STARTED) 0L else now - started
+        val t = if (fadeInMs <= 0) 1f else (elapsed.toFloat() / fadeInMs).coerceIn(0f, 1f)
+        return arrived.from + (1f - arrived.from) * t
+    }
 
     /** @return the users to draw, with how opaque each one is */
     fun drawn(cursors: List<KodeEditorRemoteCursor>): List<Pair<KodeEditorRemoteCursor, Float>> =
-        cursors.map { it to 1f } + leaving.map { it.cursor to alphaOf(it) }
+        cursors.map { it to alphaOf(it.id) } + leaving.map { it.cursor to alphaOf(it) }
 
     /**
      * @return whether the first cursor of a user is at the start of a row that continues a wrapped line, where the text

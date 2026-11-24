@@ -1,7 +1,6 @@
 package de.markusressel.kodeeditor.library.compose
 
 import android.app.Application
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.MutableState
@@ -20,7 +19,6 @@ import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
@@ -76,13 +74,15 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
     val labelShown: Boolean
         get() = rule.onAllNodesWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     var layout: KodeEditorLayout? = null
-    /** the color of the label, to see how visible it is drawn */
-    var labelColor = Color.Transparent
     /** reveals what Jane writes, with [show] and its reveal on. Her cursor is at its head then */
     var reveal: KodeEditorReveal? = null
 
-    fun janeAt(offset: Int, selection: TextRange = TextRange(offset)) =
-        KodeEditorRemoteCursor("jane", listOf(selection), Color.Red, Color.Green.copy(alpha = 0.5f))
+    fun janeAt(offset: Int, selection: TextRange = TextRange(offset)) = KodeEditorRemoteCursor(
+        "jane",
+        listOf(selection),
+        Color.Red,
+        Color.Green.copy(alpha = 0.5f),
+    )
 
     fun show(animations: KodeEditorAnimations, lineWrapping: Boolean = false, reveal: Boolean = false) {
         rule.setContent {
@@ -103,7 +103,7 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
                 lineWrapping = lineWrapping,
                 remoteCursorLabel = {
                     SideEffect { labelCompositions++ }
-                    Box(Modifier.size(10.dp).background(labelColor).testTag(LABEL))
+                    Box(Modifier.size(10.dp).testTag(LABEL))
                 },
             )
         }
@@ -136,18 +136,6 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
         repeat(5) { frame() }
         rule.mainClock.advanceTimeBy(1000)
         rule.waitForIdle()
-    }
-
-    /** how visible the label is drawn now, with a blue [labelColor] */
-    fun labelAlpha(): Float {
-        val editor = rule.onNodeWithTag("editor").fetchSemanticsNode()
-        val label = rule.onNodeWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNode()
-        val image = rule.onNodeWithTag("editor").captureToImage().toPixelMap()
-        val background = image[image.width - 1, image.height - 1]
-        val center = label.positionInRoot - editor.positionInRoot
-        val c = image[(center.x + label.size.width / 2).toInt(), (center.y + label.size.height / 2).toInt()]
-        // blue over the background takes away its red
-        return (background.red - c.red) / background.red
     }
 
     /** where the label is once nothing moves anymore */
@@ -721,39 +709,38 @@ class RemoteCursorsTest {
     }
 
     @Test
-    fun `the label of somebody who writes steadily fades down, a rest and the mouse show it again`() {
-        scene.labelColor = Color.Blue
+    fun `a user who comes fades in, and one who comes back while fading out fades in from there`() {
+        scene.present.value = false
+        scene.cursor.value = scene.janeAt(scene.state.lineStart(3))
         scene.show(glide)
         composeRule.mainClock.autoAdvance = false
-        val start = scene.state.lineStart(3)
-        scene.moveTo(start)
+        composeRule.runOnIdle { scene.present.value = true }
+        repeat(6) { scene.frame() }
+        val coming = caretAlpha()
         scene.settle()
-        val atRest = scene.labelAlpha()
-        // Jane types and fixes a typo at one place, a key every 64 ms, for 1.5 s
-        fun typeFor(ms: Int) = repeat(ms / 64) {
-            scene.moveTo(start + 1 + it % 2)
-            repeat(3) { scene.frame() }
-        }
-        typeFor(1500)
-        val typing = scene.labelAlpha()
-        composeRule.onNodeWithTag("editor").performMouseInput {
-            val label = composeRule.onNodeWithTag("label", useUnmergedTree = true).fetchSemanticsNode()
-            val editor = composeRule.onNodeWithTag("editor").fetchSemanticsNode()
-            moveTo(label.positionInRoot - editor.positionInRoot + Offset(label.size.width / 2f, label.size.height / 2f))
-        }
-        typeFor(320)
-        val hovered = scene.labelAlpha()
-        composeRule.onNodeWithTag("editor").performMouseInput { moveTo(Offset(1f, 1f)) }
-        typeFor(320)
-        val left = scene.labelAlpha()
+        val there = caretAlpha()
+        scene.leave()
+        repeat(6) { scene.frame() }
+        val leaving = caretAlpha()
+        composeRule.runOnIdle { scene.present.value = true }
+        scene.frame()
+        val back = caretAlpha()
         scene.settle()
-        val rested = scene.labelAlpha()
 
-        assertEquals("shown at rest", 1f, atRest, 0.05f)
-        assertTrue("faded down while she types: $typing", typing < 0.5f)
-        assertEquals("shown under the mouse", 1f, hovered, 0.05f)
-        assertTrue("faded down again: $left", left < 0.5f)
-        assertEquals("shown after a rest", 1f, rested, 0.05f)
+        assertTrue("on its way in: $coming", coming in 0.05f..0.9f)
+        assertEquals(1f, there, 0.05f)
+        assertTrue("on its way out: $leaving", leaving in 0.05f..0.9f)
+        assertTrue("in again from there: $leaving $back", back in leaving - 0.1f..0.95f)
+        assertEquals(1f, caretAlpha(), 0.05f)
+    }
+
+    /** how opaque the red caret of Jane is drawn, in the row of the line she is in */
+    private fun caretAlpha(): Float {
+        val layout = scene.layout!!
+        val image = composeRule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        val y = (layout.getLineTop(3) + layout.lineHeight / 2).toInt()
+        // red over the background takes away as much green as it leaves red
+        return (0 until image.width).maxOf { x -> image[x, y].let { it.red - it.green } }
     }
 
     @Test

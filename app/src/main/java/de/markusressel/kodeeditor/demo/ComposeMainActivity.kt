@@ -127,6 +127,8 @@ class ComposeMainActivity : ComponentActivity() {
                     var janeTyped by remember { mutableStateOf<Int?>(null) }
 
                     var agentWriting by remember { mutableStateOf<Job?>(null) }
+                    // counted up to show the labels of the others for a moment
+                    var labelSignal by remember { mutableIntStateOf(0) }
                     // not the head itself, that would compose all of this again for each step of the typing
                     val agentTyping by remember(agent) { derivedStateOf { agent.isRevealing } }
                     val agentBusy = agentTyping || agentWriting != null
@@ -170,6 +172,9 @@ class ComposeMainActivity : ComponentActivity() {
                             TextButton(onClick = { agentWrites(AGENT_LONG_TEXT) }) {
                                 Text("Agent chunks")
                             }
+                        }
+                        TextButton(onClick = { labelSignal++ }) {
+                            Text("Show names")
                         }
                         TextButton(
                             enabled = janeTyping == null,
@@ -292,9 +297,11 @@ class ComposeMainActivity : ComponentActivity() {
                                 } else {
                                     TextRange(phraseEnd + typed)
                                 }
-                                add(remoteCursor("Jane", Teal200, selection))
+                                add(remoteCursor("Jane", Teal200, selection, labelSignal))
                             }
-                            agent.head?.let { add(remoteCursor("Agent", AGENT_COLOR, TextRange(it))) }
+                            // between its chunks, the cursor of the agent stays behind what it wrote
+                            val agentCursor = agent.head ?: agent.end?.takeIf { agentWriting != null }
+                            agentCursor?.let { add(remoteCursor("Agent", AGENT_COLOR, TextRange(it), labelSignal)) }
                         },
                         remoteCursorLabel = { cursor ->
                             Text(
@@ -424,9 +431,9 @@ class ComposeMainActivity : ComponentActivity() {
 
 private val AGENT_COLOR = Color(0xFFFF4081)
 
-/** the cursor of another user, with the [name] as its id */
-private fun remoteCursor(name: String, color: Color, selection: TextRange) =
-    KodeEditorRemoteCursor(name, listOf(selection), color, color.copy(alpha = 0.3f))
+/** the cursor of another user, with the [name] as its id, a new [labelSignal] shows its label for a moment */
+private fun remoteCursor(name: String, color: Color, selection: TextRange, labelSignal: Int) =
+    KodeEditorRemoteCursor(name, listOf(selection), color, color.copy(alpha = 0.3f), labelSignal = labelSignal)
 
 /** what Jane has selected, and types behind */
 private const val JANE_PHRASE = "syntax highlighting"

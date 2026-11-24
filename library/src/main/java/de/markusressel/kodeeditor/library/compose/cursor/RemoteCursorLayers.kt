@@ -149,7 +149,9 @@ internal fun RemoteCursorLabels(
     localCaret: () -> Rect?,
     label: @Composable (KodeEditorRemoteCursor) -> Unit,
 ) {
-    (cursors + glides.leaving.map { it.cursor }).forEach { cursor ->
+    // a user who comes back is in both until the glides know it
+    val leaving = glides.leaving.map { it.cursor }.filter { gone -> cursors.none { it.id == gone.id } }
+    (cursors + leaving).forEach { cursor ->
         if (cursor.selections.isEmpty()) return@forEach
         key(cursor.id) {
             // read while placing, a new place of the cursor only places the label again
@@ -185,6 +187,8 @@ internal fun RemoteCursorLabels(
                                 below = below,
                                 inView = view.overlaps(rect),
                                 localCaret = localCaret(),
+                                visibility = current.value.labelVisibility,
+                                signal = current.value.labelSignal,
                             )
                             placeable.place(x.roundToInt(), y.roundToInt())
                         }

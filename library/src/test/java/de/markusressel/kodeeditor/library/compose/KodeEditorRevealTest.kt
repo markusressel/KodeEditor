@@ -85,6 +85,22 @@ class KodeEditorRevealTest {
     }
 
     @Test
+    fun `the end of the text revealed last stays between chunks, until stop`() {
+        assertEquals("nothing revealed yet", null, reveal.end)
+        reveal.insert(before.length, "hello ")
+        while (reveal.advance(16)) Unit
+        val between = reveal.end
+        reveal.insert(before.length + 6, "world ")
+        while (reveal.advance(16)) Unit
+        val after = reveal.end
+        reveal.stop()
+
+        assertEquals("behind the first chunk", before.length + 6, between)
+        assertEquals("behind the second chunk", before.length + 12, after)
+        assertEquals("forgotten", null, reveal.end)
+    }
+
+    @Test
     fun `a lot of text at once is revealed at an even speed within 4 s`() {
         val text = "word ".repeat(400)
         reveal.insert(before.length, text)
