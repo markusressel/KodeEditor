@@ -182,6 +182,33 @@ class InsertSlideTest {
     }
 
     @Test
+    fun `the text behind somebody who types keeps moving on when an agent writes elsewhere`() {
+        val scene = InsertScene(composeRule, "aaaa rest\nbbbb")
+        scene.show(appearance)
+        fun key(at: Int) {
+            composeRule.runOnIdle { scene.state.applyRemote(listOf(TextSplice(at, 0, "x")), appear = true) }
+        }
+        key(4)
+        repeat(6) { scene.frame() }
+        key(5)
+        // that key has moved the text to its place
+        repeat(10) { scene.frame() }
+        // a chunk of an agent at the end of the next line, between two keys
+        composeRule.runOnIdle {
+            scene.state.applyRemote(listOf(TextSplice(scene.state.text.length, 0, " chunk")), appear = true)
+        }
+        repeat(3) { scene.frame() }
+        val before = scene.shown(7)
+
+        key(6)
+        scene.frame()
+        val moving = scene.shown(8)
+
+        // typed on, it moves in its first frame already, like the keys before
+        assertTrue("moves on at once: $before $moving", moving.x > before.x + 0.3f)
+    }
+
+    @Test
     fun `text the user types does not slide`() {
         val scene = InsertScene(composeRule, "hello world")
         scene.show(appearance)

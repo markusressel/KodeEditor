@@ -462,6 +462,19 @@ internal class EditorLineLayout(
     /** the transition of the last change, also when it is done */
     private var lastInsert: ReflowTransition? = null
 
+    /**
+     * Where the last changes of the writers ended, the newest first, with the transition of their last slide. A short
+     * change right there is typed on, see [TYPING_WINDOW_MS], so somebody who types keeps their even speed while
+     * others write elsewhere
+     */
+    private val typingRuns = ArrayList<TypingRun>()
+
+    /**
+     * @param end where the cursor of the writer was after their last change
+     * @param transition the slide of their last change
+     */
+    private class TypingRun(var end: Int = -1, var transition: ReflowTransition? = null)
+
     /** tells the rows about changes of the text */
     val rowObserver: (TextSplice) -> Unit = { splice ->
         val local = state.applyingBigChange && !state.applyingRemote
@@ -477,13 +490,19 @@ internal class EditorLineLayout(
         val slide = if (slides) before else null
         val removed = splice.removedLength
         val inserted = splice.inserted.length
-        // a key or a backspace right behind the one before
-        val typedOn = when {
-            removed == 0 -> inserted <= TYPING_MAX_CHARS && splice.start == lastChangeEnd
-            inserted == 0 -> removed <= TYPING_MAX_CHARS && splice.start + removed == lastChangeEnd
-            else -> false
+        // a key or a backspace right behind the one before of the same writer, also when others write elsewhere
+        val run = typingRuns.firstOrNull { run ->
+            when {
+                removed == 0 -> inserted <= TYPING_MAX_CHARS && splice.start == run.end
+                inserted == 0 -> removed <= TYPING_MAX_CHARS && splice.start + removed == run.end
+                else -> false
+            }
         }
-        lastChangeEnd = splice.start + inserted
+        typingRuns.forEach { if (it !== run) it.end = mapPosition(it.end, splice) }
+        val current = run ?: TypingRun().also { typingRuns.add(0, it) }
+        current.end = splice.start + inserted
+        if (typingRuns.size > MAX_TYPING_RUNS) typingRuns.removeAt(typingRuns.lastIndex)
+        lastChangeEnd = current.end
         wrappedRows?.onSplice(splice, settledWidth = if (state.replacingText) wrapWidth() else null)
         if (slide != null) {
             reflow = ReflowTransition(
@@ -497,9 +516,10 @@ internal class EditorLineLayout(
                 durationMs = insertSlideMs(),
                 easing = CubicEaseOut,
                 inserted = slide,
-                typedOn = lastInsert.takeIf { typedOn },
+                typedOn = run?.transition,
             )
             lastInsert = reflow
+            current.transition = reflow
             localSlide = local
             foldAnimations++
         }
@@ -1308,6 +1328,9 @@ internal fun lineTexts(
 }
 
 private val COMPOSING_STYLE = SpanStyle(textDecoration = TextDecoration.Underline)
+
+/** how many writers keep typing on at once, see [EditorLineLayout] */
+private const val MAX_TYPING_RUNS = 4
 
 /** how far the box behind a placeholder stays away from the edges of its row, as a part of the row height */
 private const val FOLD_BOX_INSET = 0.04f

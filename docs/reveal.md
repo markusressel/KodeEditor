@@ -157,6 +157,9 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   before (the end of an insertion, the start of a removal), at most 250 ms after it, slides at an even speed to the
   left, with the same times. An insertion right after a removal at the same place is typed on too. So a typo that is
   removed and typed again moves the cursor and the text behind it back and forth without a jump.
+- "The one before" is the last change that ended at that place. KodeEditor remembers where the last changes of the
+  last 4 writers ended, and moves these places with the text, so somebody who types keeps typing on while others
+  write elsewhere, e.g. an agent.
 - Chunks of an agent are no typing: each chunk slides once, in 120 ms, when it arrives, and nothing moves while it is
   revealed.
 - Only the changes of others slide, those of the user are where they are at once.
