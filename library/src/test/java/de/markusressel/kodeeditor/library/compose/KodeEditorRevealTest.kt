@@ -3,6 +3,7 @@ package de.markusressel.kodeeditor.library.compose
 import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
 import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
 import de.markusressel.kodeeditor.library.compose.reveal.KodeEditorReveal
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
@@ -295,7 +296,25 @@ class KodeEditorRevealTest {
     }
 
     @Test
+    fun `a cursor that the user puts into text that still appears, or at the head behind it, shows all of it`() {
+        for (at in listOf(2, null)) {
+            state = KodeEditorState("${before}after\n")
+            state.appearance = KodeEditorAppearance()
+            reveal = KodeEditorReveal(state, "agent")
+            revealing { clock ->
+                reveal.insert(before.length, "a chunk of an agent")
+                clock.until(5)
+                state.setSelection(TextRange(at?.let { before.length + it } ?: reveal.head!!))
+
+                assertFalse("at $at", reveal.isRevealing)
+                assertTrue("all of it shown at $at", state.rangeAlphas.isEmpty())
+            }
+        }
+    }
+
+    @Test
     fun `a cursor at the edge of the hidden text or elsewhere, and one that others move, show nothing`() = revealing { clock ->
+        // without an appearance nothing appears, the head is the start of the hidden text
         reveal.insert(before.length, "a chunk of an agent")
         clock.until(1)
         val head = reveal.head!!

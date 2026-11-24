@@ -22,6 +22,7 @@ import de.markusressel.kodeeditor.library.compose.state.KodeEditorListener
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.state.SplicePhase
 import de.markusressel.kodeeditor.library.compose.state.TextSplice
+import de.markusressel.kodeeditor.library.compose.state.appearTag
 import de.markusressel.kodeeditor.library.compose.state.mapPosition
 import kotlin.math.floor
 import kotlin.math.max
@@ -39,7 +40,7 @@ import kotlinx.coroutines.flow.collectLatest
  *   rises when a chunk arrives and does not drop while text is hidden, so the reveal never stutters.
  * - A collapsed part, like a folded link, counts as a single character and is shown as a whole, see [layout].
  * - A change of the user shows all hidden text at once, see [stop]. So does a cursor or a selection that the user puts
- *   into hidden text, and a change of somebody else inside the hidden text or right at its start or end, as nobody
+ *   into the text that is revealed, hidden or still appearing, and a change of somebody else inside the hidden text or right at its start or end, as nobody
  *   types into hidden text. Changes elsewhere move it, like range styles.
  * - Other range styles stay as they are. An app that sets its own must keep the ones with this [tag] in
  *   [KodeEditorState.setRangeStyles], or their text shows at once.
@@ -73,13 +74,14 @@ class KodeEditorReveal(
     private val listener = object : KodeEditorListener {
         override fun onLocalEdit(splice: TextSplice) = stop()
 
-        // the user puts the cursor or a selection into hidden text, e.g. with a tap into its empty space
+        // the user puts the cursor or a selection into the text that is revealed, to work in it: what still appears
+        // and what is hidden, e.g. with a tap into its empty space
         override fun onLocalSelection(selection: TextRange) {
-            val inside = state.rangeStyles.any {
-                it.tag.startsWith(prefix) && if (selection.collapsed) {
-                    it.start < selection.start && selection.start < it.end
+            val inside = revealingSections().any { section ->
+                if (selection.collapsed) {
+                    section.first < selection.start && selection.start < section.last + 1
                 } else {
-                    selection.min < it.end && it.start < selection.max
+                    selection.min < section.last + 1 && section.first < selection.max
                 }
             }
             if (inside) stop()
@@ -152,6 +154,22 @@ class KodeEditorReveal(
         targetCharsPerSecond = max(max(targetCharsPerSecond, minCharsPerSecond), needed)
         // from a rest it starts at once at its speed, while revealing it gets faster smoothly
         if (charsPerSecond == 0f) charsPerSecond = targetCharsPerSecond
+    }
+
+    /** @return the parts of the text that are hidden or still appear, those that touch each other as one */
+    private fun revealingSections(): List<IntRange> {
+        val hidden = state.rangeStyles.filter { it.tag.startsWith(prefix) }.map { it.start until it.end }
+        val appearing = state.rangeAlphas.filter { it.tag.appearTag() == tag }.map { it.start until it.end }
+        val sections = ArrayList<IntRange>()
+        (hidden + appearing).filterNot { it.isEmpty() }.sortedBy { it.first }.forEach { range ->
+            val last = sections.lastOrNull()
+            if (last != null && range.first <= last.last + 1) {
+                sections[sections.lastIndex] = last.first..maxOf(last.last, range.last)
+            } else {
+                sections += range
+            }
+        }
+        return sections
     }
 
     /** shows all hidden text at once, and ends its appearing */
