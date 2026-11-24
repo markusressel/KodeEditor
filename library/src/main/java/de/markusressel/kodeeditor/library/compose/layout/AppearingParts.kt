@@ -66,6 +66,9 @@ internal class AppearingParts(
     /** the cursors of other users, where each is in the text and where its caret is drawn, see [behindCarets] */
     var remoteCarets: () -> List<Pair<Int, Offset>> = { emptyList() }
 
+    /** how far the text at a position is drawn away from its row, see [WrapCarries], the cut is in its row */
+    var carriedBy: (Int) -> Offset = { Offset.Zero }
+
     /**
      * The appearing text right at the cursor of somebody else, which may be several pieces one behind the other, and
      * pieces behind it, whose cursor update comes a frame later.
@@ -105,7 +108,7 @@ internal class AppearingParts(
             while (true) end = startingAt[end]?.end ?: break
             if (start == end) return@mapNotNull null
             val hiddenBehind = rangeStyles.any { it.item.color == Color.Transparent && it.start <= end && end < it.end }
-            CaretCut(start, end, drawn, hiddenBehind)
+            CaretCut(start, end, drawn - carriedBy(offset), hiddenBehind)
         }
     }
 

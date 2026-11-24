@@ -82,6 +82,22 @@ internal fun VisibleLines(
             }
         }
     }
+    // a word at the start of a wrapped row slides to its place once it does not fit behind the row above anymore
+    LaunchedEffect(layout) {
+        val carries = layout.wrapCarries
+        // reads what the words depend on, so it looks again whenever the hidden or the appearing text changes
+        snapshotFlow {
+            carries.current()
+            carries.releasing
+        }.collectLatest { releasing ->
+            while (releasing && carries.releasing) {
+                withFrameMillis { now ->
+                    carries.current()
+                    carries.onFrame(now)
+                }
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -153,11 +169,12 @@ internal fun VisibleLines(
                 // where text is not drawn yet ahead of the cursors of others, the same for all rows
                 val cuts = layout.appearing.caretCuts()
                 translate(left, top) {
-                    layout.linesWithin(area).forEach { line ->
+                    /** @param inRegion draws only a part of the row, also where it is drawn later in a layer */
+                    fun drawLine(line: EditorLineLayout.DrawnLine, inRegion: (() -> Unit) -> Unit = { it() }) {
                         val parts = layout.movingParts(line)
                         if (parts == null) {
                             val fadingParts = layout.appearing.fadingParts(line, cuts)
-                            if (fadingParts == null) drawRowContent(line) else drawFadingRow(line, fadingParts)
+                            inRegion { if (fadingParts == null) drawRowContent(line) else drawFadingRow(line, fadingParts) }
                         } else {
                             val rowAlpha = layout.rowAlpha(line.row)
                             // text that still appears keeps its alpha while it moves, or it flashes up for the move
@@ -180,9 +197,33 @@ internal fun VisibleLines(
                                     }
                                 }
                                 val alpha = rowAlpha * part.alpha
-                                if (alpha >= 1f) drawPart() else fading.add(alpha) { translate(left, top) { drawPart() } }
+                                if (alpha >= 1f) {
+                                    inRegion(drawPart)
+                                } else {
+                                    fading.add(alpha) { translate(left, top) { inRegion(drawPart) } }
+                                }
                             }
                         }
+                    }
+
+                    layout.linesWithin(area).forEach { line ->
+                        val carried = layout.carriedPart(line.row)
+                        if (carried == null) {
+                            drawLine(line)
+                            return@forEach
+                        }
+                        val rowTop = line.position.y
+                        val rowBottom = rowTop + line.layout.size.height
+                        // the word at the end of the row above, the rest of the row at its place
+                        val wordLeft = line.position.x + carried.left
+                        val wordRight = line.position.x + carried.right
+                        drawLine(line) { draw ->
+                            translate(carried.distance.x, carried.distance.y) {
+                                clipRect(wordLeft, rowTop, wordRight, rowBottom) { draw() }
+                            }
+                        }
+                        drawLine(line) { draw -> clipRect(wordRight, rowTop, Float.MAX_VALUE, rowBottom) { draw() } }
+                        drawLine(line) { draw -> clipRect(-Float.MAX_VALUE, rowTop, wordLeft, rowBottom) { draw() } }
                     }
                     layout.shownLeavingRows.forEach { row ->
                         val position = Offset(0f, row.baseline - row.layout.firstBaseline)

@@ -347,6 +347,7 @@ internal class EditorLineLayout(
         // a key or a backspace right behind the one before of the same writer, also when others write elsewhere
         val (run, current) = typingRuns.onSplice(splice)
         wrappedRows?.onSplice(splice, settledWidth = if (state.replacingText) wrapWidth() else null)
+        wrapCarries.spliceObserver(splice)
         if (slide != null) {
             reflow = ReflowTransition(
                 state = state,
@@ -570,9 +571,26 @@ internal class EditorLineLayout(
 
     /** like [getCursorRect], at the place where the cursor is on the screen during a reflow */
     fun shownCursorRect(offset: Int): Rect {
-        val rect = getCursorRect(offset)
+        val rect = getCursorRect(offset).translate(wrapCarries.distanceAt(offset))
         val transition = activeReflow ?: return rect
         return rect.translate(distanceOf(transition, offset, rect.left, rect.top))
+    }
+
+    /** the words that are revealed at the start of a wrapped row, drawn at the end of the row above, see [WrapCarries] */
+    val wrapCarries = WrapCarries(
+        state = state,
+        lineHeight = lineHeight,
+        rows = { rows },
+        xOf = ::xOf,
+        wrapWidth = { if (wrappedRows != null) wrapWidth() else null },
+        slideMs = { insertSlideMs() },
+    )
+
+    /** @return the part of the [row] that is drawn away from its place as a word that is carried, null if none is */
+    fun carriedPart(row: Int): MovingPart? {
+        val carried = wrapCarries.current().firstOrNull { it.row == row && !it.caretOnly } ?: return null
+        if (carried.distance == Offset.Zero) return null
+        return MovingPart(xOf(row, carried.start), xOf(row, carried.end), carried.distance)
     }
 
     /** @return how far the start of the [line] is away from its place on the screen during a reflow */
@@ -688,7 +706,7 @@ internal class EditorLineLayout(
         rowStart = { rows.start(it) },
         rowEnd = { rows.end(it) },
         inRow = ::inRow,
-    )
+    ).also { it.carriedBy = { offset -> wrapCarries.distanceAt(offset) } }
 
     /** the next position from [offset] in the given direction that is not folded away */
     fun shownPosition(offset: Int, forward: Boolean): Int {

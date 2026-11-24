@@ -106,7 +106,7 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 
 - A cursor glides from where it is drawn to its new place in 120 ms (`KodeEditorCursorGlide.durationMs`) if the move
   fits: in its row by at most 0.4 × the width of the text, to the row above or below by at most 3 line heights.
-  Anything else jumps.
+  Anything else jumps, except at the head of a reveal over a wrap or a line break, see R8.
 - A cursor at rest glides with the cubic ease-out: `d(t) = d0 × (1 - t)³`, with `d0` how far it is drawn from its new
   place at the start, and `t` from 0 to 1 over the duration `T`.
 - A cursor that gets a new place while it glides, as at the head of a reveal, starts a new glide from where it is drawn
@@ -174,6 +174,26 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   further, so the part of a letter that reaches beyond its place is cut too.
 - Apps should apply the cursor of a person together with their change of the text, in one call before the next frame,
   so the insertion and the cursor that caused it are drawn together.
+
+### R8: a word goes over the wrap like a typed one
+
+A chunk keeps its room from the start (R1), so its rows are broken as if all of it was there: a word that does not fit
+at the end of a row already starts the next one. Somebody who types puts the beginning of such a word at the end of the
+row, and only when it does not fit anymore does it go to the next row, with the cursor at its end. The reveal does the
+same:
+
+- While the revealed part of the word at the start of a row that continues a wrapped line fits behind the end of the row
+  above (within the wrap width), it is drawn there, and the cursor at its end is drawn there too. So the cursor glides
+  on in its row with R5b instead of jumping to the next row before any of the word shows.
+- When it does not fit anymore, or the head leaves the word, the word slides to its place at the start of its row in
+  the time of R6 (120 ms) with the cubic ease-out, and carries the cursor with it. The rest of the row stays.
+- After a revealed line break only the cursor glides that way, from the end of the line above to the start of the new
+  line, in the same time. The text stays at its place.
+- Only text that appears is carried: the word from the start of its row to the head, or the line break, must still be
+  fading in. Text that was there before never moves. Without wrapping, without an appearance or with animations off,
+  nothing is carried.
+- Hit tests, the selection and the cursor of the user use the place of the text in its row, only the drawing and the
+  cursors of others use where it is drawn. R7 cuts the carried word in its own row, at where the caret would be there.
 
 ## Changes of the user
 

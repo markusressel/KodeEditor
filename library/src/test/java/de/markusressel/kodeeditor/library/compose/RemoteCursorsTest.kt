@@ -534,6 +534,66 @@ class RemoteCursorsTest {
     }
 
     @Test
+    fun `a cursor at the head of revealed text glides over the wrap of its row`() {
+        scene.show(glide, lineWrapping = true, reveal = true)
+        scene.settle()
+        val layout = scene.layout as EditorLineLayout
+        val rowWidth = composeRule.onNodeWithTag("editor").fetchSemanticsNode().size.width.toFloat()
+        composeRule.mainClock.autoAdvance = false
+
+        // words that do not fit at the end of their rows, so the head reaches the start of a wrapped row in a word
+        composeRule.runOnIdle { scene.reveal!!.insert(0, "the agent writes extraordinarily ".repeat(20)) }
+        val carets = ArrayList<Offset>()
+        var carriedFrames = 0
+        for (frame in 1..600) {
+            scene.frame()
+            val head = composeRule.runOnIdle { scene.reveal!!.head } ?: break
+            val caret = caretPosition() ?: continue
+            carets += caret
+            val caretRow = (caret.y / layout.lineHeight).toInt()
+            val headRow = composeRule.runOnIdle { layout.rowOf(head) }
+            if (caretRow < headRow && head - composeRule.runOnIdle { layout.startOfRow(headRow) } >= 4) {
+                // the word is drawn with it, at the end of the row above
+                carriedFrames++
+                assertTrue("the word behind the caret in frame $frame", inkLeftOf(caret, layout.lineHeight))
+            }
+        }
+        assertTrue("carried for a while: $carriedFrames", carriedFrames >= 3)
+        val moves = carets.zipWithNext { a, b -> (b - a).getDistance() }
+        val rows = carets.map { (it.y / layout.lineHeight).toInt() }.distinct()
+
+        assertTrue("over a few rows: $rows", rows.size >= 3)
+        // a jump would go from the end of a row to the start of the next one in one frame
+        assertTrue("no jump: ${moves.max()} of a row of $rowWidth", moves.max() < 0.5f * rowWidth)
+    }
+
+    @Test
+    fun `a cursor at the head of revealed text glides into the next line`() {
+        scene.show(glide, lineWrapping = true, reveal = true)
+        scene.settle()
+        val layout = scene.layout as EditorLineLayout
+        val line = "the agent writes a line that is long\n"
+        composeRule.mainClock.autoAdvance = false
+
+        composeRule.runOnIdle { scene.reveal!!.insert(0, line.repeat(6)) }
+        val lineWidth = composeRule.runOnIdle {
+            layout.getCursorRect(line.length - 1).left - layout.getCursorRect(0).left
+        }
+        val carets = ArrayList<Offset>()
+        for (frame in 1..400) {
+            scene.frame()
+            if (composeRule.runOnIdle { scene.reveal!!.head } == null) break
+            carets += caretPosition() ?: continue
+        }
+        val moves = carets.zipWithNext { a, b -> (b - a).getDistance() }
+        val rows = carets.map { (it.y / layout.lineHeight).toInt() }.distinct()
+
+        assertTrue("over a few lines: $rows", rows.size >= 4)
+        // a jump would go from the end of a line to the start of the next one in one frame
+        assertTrue("no jump: ${moves.max()} of a line of $lineWidth", moves.max() < 0.6f * lineWidth)
+    }
+
+    @Test
     fun `a change of the user shows all of the revealed text`() {
         scene.show(glide, reveal = true)
         composeRule.runOnIdle { scene.reveal!!.insert(0, "the agent writes a chunk ") }
@@ -542,6 +602,35 @@ class RemoteCursorsTest {
         composeRule.runOnIdle { scene.state.replaceSelection("x") }
 
         composeRule.runOnIdle { assertFalse(scene.reveal!!.isRevealing) }
+    }
+
+    /** @return whether text is drawn in the row of the [caret], a few characters left of it, also faintly */
+    private fun inkLeftOf(caret: Offset, lineHeight: Float): Boolean {
+        val image = composeRule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        val top = (caret.y - lineHeight / 2).toInt().coerceAtLeast(0)
+        val bottom = (caret.y + lineHeight / 2).toInt().coerceAtMost(image.height - 1)
+        val right = (caret.x - 2).toInt()
+        val left = (caret.x - 4 * lineHeight).toInt().coerceAtLeast(0)
+        return (left until right).any { x ->
+            (top..bottom).any { y -> image[x, y].let { it.alpha > 0.5f && it.red + it.green + it.blue < 2.7f } }
+        }
+    }
+
+    /** @return the middle of where the red caret of Jane is drawn, null if it is not */
+    private fun caretPosition(): Offset? {
+        val image = composeRule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        var sumX = 0f
+        var sumY = 0f
+        var count = 0
+        for (y in 0 until image.height) for (x in 0 until image.width) {
+            val c = image[x, y]
+            if (c.red > 0.6f && c.green < 0.4f && c.blue < 0.4f) {
+                sumX += x
+                sumY += y
+                count++
+            }
+        }
+        return if (count == 0) null else Offset(sumX / count + 0.5f, sumY / count + 0.5f)
     }
 
     /** @return where the red caret of Jane is drawn in the first row */
