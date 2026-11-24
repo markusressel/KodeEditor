@@ -261,7 +261,7 @@ class TypingTest {
             val x = composeRule.runOnIdle { (layout as EditorLineLayout).shownCursorRect(c).left }
             if (c != keyAt) {
                 // a key while the text still moves goes on moving in its first frame, a crisp step may start from rest
-                if (time - lastKeyTime <= STEADY_INSERT_MS && moving && x - last < 0.01f) stops += time
+                if (time - lastKeyTime <= TYPING_WINDOW_MS && moving && x - last < 0.01f) stops += time
                 keyAt = c
                 lastKeyTime = time
             }

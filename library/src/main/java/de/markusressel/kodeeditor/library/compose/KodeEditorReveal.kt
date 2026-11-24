@@ -209,7 +209,6 @@ class KodeEditorReveal(
 
     private companion object {
         const val ORDER_SEPARATOR = '\u0000'
-        const val FRAME_MS = 16L
 
         /**
          * how long the reveal takes to get faster, about, so it does not jump to a new speed when a chunk arrives. It

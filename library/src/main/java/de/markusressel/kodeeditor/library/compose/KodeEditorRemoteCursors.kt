@@ -105,13 +105,13 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         /** the time of the frame the last glide ended in */
         var endedAt = NONE
 
-        /** whether it glides at an even speed, see [STEADY_WINDOW_MS] */
+        /** whether it glides at an even speed, see [TYPING_WINDOW_MS] */
         var linear = false
 
         /** whether its last move was small enough to glide at an even speed, decided at its first frame */
         var small = false
 
-        /** the smoothed time between its steps at an even speed, see [STEADY_SPAN_FACTOR] */
+        /** the smoothed time between its steps at an even speed, see [TYPING_SPAN_FACTOR] */
         var stepIntervalMs = -1f
 
         /** how crisp its steps are, see [crispnessOf], 0 is an even glide */
@@ -227,7 +227,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         val moves = !anchorMove.isTiny() || !headMove.isTiny()
         // a key or a backspace of the cursor: the text behind it slides, and carries the cursor with it, so both stay
         // together. A glide of its own would add a second move with a time of its own
-        val carried = anchor == head && headStep <= STEADY_MAX_CHARS && layout.carriesCursorAt(head)
+        val carried = anchor == head && headStep <= TYPING_MAX_CHARS && layout.carriesCursorAt(head)
         // the rules are those of the caret, the other end grows or shrinks with it
         if (config == null || durationMs <= 0 || !moves || carried || !fits(config, headMove)) {
             glide.started = NONE
@@ -236,7 +236,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
             return
         }
         // a step of a few characters in the row, like a key somebody types
-        glide.small = anchor == head && headStep <= STEADY_MAX_CHARS && abs(headMove.y) < layout.lineHeight / 2
+        glide.small = anchor == head && headStep <= TYPING_MAX_CHARS && abs(headMove.y) < layout.lineHeight / 2
         // a cursor that gets a new place while it glides or shortly after, like at the head of text that is revealed,
         // catches up: its glide is a bit longer than the time between its places, so it stays close behind them. The
         // time of the frames stands still between glides, so a cursor at rest knows how long it rested only at its
@@ -248,7 +248,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         glide.linear = false
         if (gliding && glide.movedAt != NONE) {
             val since = now - glide.movedAt
-            if (glide.small && since <= STEADY_WINDOW_MS) {
+            if (glide.small && since <= TYPING_WINDOW_MS) {
                 glide.linear = true
                 glide.durationMs = steadyMs(glide, since)
                 anchorVelocity = null
@@ -278,10 +278,8 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
      * still on its way when the next one comes, and does not stop and start again at each step
      */
     private fun steadyMs(glide: Glide, since: Long): Long {
-        val interval = glide.stepIntervalMs
-        glide.stepIntervalMs = if (interval < 0) since.toFloat() else interval + (since - interval) * STEADY_SMOOTHING
-        val even = (glide.stepIntervalMs * STEADY_SPAN_FACTOR).toLong()
-            .coerceIn(minOf(MIN_CATCH_UP_MS, durationMs), STEADY_WINDOW_MS)
+        glide.stepIntervalMs = smoothedKeyInterval(glide.stepIntervalMs, since.toFloat())
+        val even = evenStepMs(glide.stepIntervalMs, minOf(MIN_STEP_MS, durationMs).toFloat()).toLong()
         // slow typing takes quick crisp steps instead, see CONTINUOUS_INTERVAL_MS
         glide.crisp = crispnessOf(glide.stepIntervalMs)
         return steadyStepMs(even.toFloat(), glide.crisp).toLong()
@@ -289,7 +287,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
     /** @return how long a glide takes that starts [since] the last new place of the cursor */
     private fun catchUpMs(since: Long): Long =
-        (since * CATCH_UP_FACTOR).toLong().coerceIn(minOf(MIN_CATCH_UP_MS, durationMs), durationMs)
+        (since * CATCH_UP_FACTOR).toLong().coerceIn(minOf(MIN_STEP_MS, durationMs), durationMs)
 
     private fun Offset.isTiny() = abs(x) < MIN_GLIDE && abs(y) < MIN_GLIDE
 
@@ -316,7 +314,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
                 val ended = glide.endedAt
                 val start = if (ended != NONE && timeMs - ended <= FRAME_SLACK_MS) ended else timeMs
                 val since = start - glide.movedAt
-                val steady = glide.small && glide.movedAt != NONE && since <= STEADY_WINDOW_MS
+                val steady = glide.small && glide.movedAt != NONE && since <= TYPING_WINDOW_MS
                 val catchUp = !steady && glide.movedAt != NONE && since <= CATCH_UP_WINDOW_MS
                 if (steady) {
                     glide.linear = true
@@ -475,28 +473,6 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
 
         /** at most the time between two frames */
         const val FRAME_SLACK_MS = 20L
-
-        /** the time between two frames at 60 Hz */
-        const val FRAME_MS = 16L
-
-        /** the shortest glide, about two frames */
-        const val MIN_CATCH_UP_MS = 32L
-
-        /**
-         * A step of at most [STEADY_MAX_CHARS] in the row this soon after the last new place, like a key somebody
-         * types, glides at an even speed for the time since then, so typing does not pump: it would start fast and
-         * slow down at each key otherwise
-         */
-        const val STEADY_WINDOW_MS = 250L
-
-        /** characters, see [STEADY_WINDOW_MS] */
-        const val STEADY_MAX_CHARS = 3
-
-        /** a glide at an even speed takes this times the smoothed time between the steps */
-        const val STEADY_SPAN_FACTOR = 1.5f
-
-        /** how much the time since the last step counts for the smoothed time between the steps */
-        const val STEADY_SMOOTHING = 0.3f
     }
 }
 

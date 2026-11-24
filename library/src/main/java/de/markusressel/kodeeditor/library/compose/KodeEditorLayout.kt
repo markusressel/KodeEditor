@@ -416,7 +416,7 @@ internal class EditorLineLayout(
 
     /**
      * where the cursor was after the last change, the end of an insertion or the start of a removal. A short insertion
-     * right there, or a short removal in front of it, is typed on, see [STEADY_INSERT_MS]
+     * right there, or a short removal in front of it, is typed on, see [TYPING_WINDOW_MS]
      */
     private var lastChangeEnd = -1
 
@@ -462,8 +462,8 @@ internal class EditorLineLayout(
         val inserted = splice.inserted.length
         // a key or a backspace right behind the one before
         val typedOn = when {
-            removed == 0 -> inserted <= STEADY_INSERT_CHARS && splice.start == lastChangeEnd
-            inserted == 0 -> removed <= STEADY_INSERT_CHARS && splice.start + removed == lastChangeEnd
+            removed == 0 -> inserted <= TYPING_MAX_CHARS && splice.start == lastChangeEnd
+            inserted == 0 -> removed <= TYPING_MAX_CHARS && splice.start + removed == lastChangeEnd
             else -> false
         }
         lastChangeEnd = splice.start + inserted

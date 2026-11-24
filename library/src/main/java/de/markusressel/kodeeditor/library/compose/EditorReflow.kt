@@ -10,66 +10,6 @@ import kotlin.math.roundToLong
 
 internal const val REFLOW_ANIMATION_MS = 150
 
-/** slows down towards the end like the cursors of other users, `1 - (1 - t)^3` */
-internal val CubicEaseOut = Easing { 1f - (1f - it).let { rest -> rest * rest * rest } }
-
-/**
- * An insertion right behind the one before this soon after it moves the text at an even speed for the time between the
- * two, like the cursor of whoever types it
- */
-internal const val STEADY_INSERT_MS = 250L
-
-/**
- * An insertion that is typed on moves the text for this times the smoothed time between the keys, so it is still on
- * its way when the next key comes, and the text does not stop and start again at each key
- */
-internal const val STEADY_SPAN_FACTOR = 1.5f
-
-/** how much the time since the last key counts for the smoothed time between the keys, the rest is the one before */
-internal const val STEADY_SMOOTHING = 0.3f
-
-/**
- * Up to this smoothed time between keys, a step glides at an even speed for 1.5 × that time, so fast typing does not
- * pump. From [CRISP_INTERVAL_MS] on, a step is quick and crisp, [CRISP_STEP_MS] with the cubic ease-out, so slow typing
- * does not drag. In between, both blend in a straight line.
- */
-internal const val CONTINUOUS_INTERVAL_MS = 100f
-
-/** see [CONTINUOUS_INTERVAL_MS] */
-internal const val CRISP_INTERVAL_MS = 200f
-
-/** how long a crisp step of slow typing takes, see [CONTINUOUS_INTERVAL_MS] */
-internal const val CRISP_STEP_MS = 100f
-
-/**
- * @param intervalMs the smoothed time between the keys
- * @return how crisp a step is, from 0 for an even glide to 1 for a crisp one, see [CONTINUOUS_INTERVAL_MS]
- */
-internal fun crispnessOf(intervalMs: Float): Float =
-    ((intervalMs - CONTINUOUS_INTERVAL_MS) / (CRISP_INTERVAL_MS - CONTINUOUS_INTERVAL_MS)).coerceIn(0f, 1f)
-
-/**
- * @param evenMs how long the step takes as an even glide
- * @param crisp see [crispnessOf]
- * @return how long the step takes
- */
-internal fun steadyStepMs(evenMs: Float, crisp: Float): Float = lerp(evenMs, CRISP_STEP_MS, crisp)
-
-/** @return how far a step of typing is at the part [t] of its time, an even glide blended with the cubic ease-out */
-internal fun steadyStepEase(t: Float, crisp: Float): Float = lerp(t, CubicEaseOut.transform(t), crisp)
-
-/** @return how fast a step of typing moves at the part [t] of its time, for a whole step in a time of 1 */
-internal fun steadyStepSpeed(t: Float, crisp: Float): Float = lerp(1f, 3f * (1f - t) * (1f - t), crisp)
-
-/** the time between two frames at 60 Hz */
-private const val STEADY_FRAME_MS = 16L
-
-/** characters, a longer insertion is no key somebody types */
-internal const val STEADY_INSERT_CHARS = 3
-
-/** the shortest move of such an insertion, about two frames */
-private const val MIN_STEADY_INSERT_MS = 32
-
 /** A change of the wrap width follows the zoom, so a lot of them can be on the way at once */
 private const val MAX_RUNNING_REFLOWS = 12
 
@@ -89,7 +29,7 @@ private const val MAX_RUNNING_REFLOWS = 12
  * @param inserted where the text was before an insertion, instead of [firstRows], [breaks] and [measure]. Such a
  * transition knows its places without the state, so the next insertion can start from where the text is on its way
  * @param typedOn the insertion this one is right behind, like the key before of somebody who types, also when it is
- * done. Soon after it, see [STEADY_INSERT_MS], the text moves at an even speed for the time between the two, so typing
+ * done. Soon after it, see [TYPING_WINDOW_MS], the text moves at an even speed for the time between the two, so typing
  * does not pump
  */
 internal class ReflowTransition(
@@ -119,7 +59,7 @@ internal class ReflowTransition(
     /** stays where it is, an insertion that follows takes the text on from there */
     private var frozen = false
 
-    /** the smoothed time between the keys of somebody who types, see [STEADY_SPAN_FACTOR] */
+    /** the smoothed time between the keys of somebody who types, see [TYPING_SPAN_FACTOR] */
     private var keyIntervalMs = -1f
 
     /** where text was before the change, which is the same on each frame */
@@ -157,21 +97,19 @@ internal class ReflowTransition(
         var steady = false
         if (first && before != null && before.startMs >= 0 && durationMs > 0) {
             // the key before started a frame early too, so this is the time between the keys
-            val since = nowMs - before.startMs - STEADY_FRAME_MS
-            if (since <= STEADY_INSERT_MS) {
-                val interval = before.keyIntervalMs
-                keyIntervalMs = if (interval < 0) since.toFloat() else lerp(interval, since.toFloat(), STEADY_SMOOTHING)
-                val shortest = minOf(MIN_STEADY_INSERT_MS, durationMs)
-                val even = (keyIntervalMs * STEADY_SPAN_FACTOR).coerceIn(shortest.toFloat(), STEADY_INSERT_MS.toFloat())
+            val since = nowMs - before.startMs - FRAME_MS
+            if (since <= TYPING_WINDOW_MS) {
+                keyIntervalMs = smoothedKeyInterval(before.keyIntervalMs, since.toFloat())
+                val even = evenStepMs(keyIntervalMs, minOf(MIN_STEP_MS, durationMs.toLong()).toFloat())
                 val crisp = crispnessOf(keyIntervalMs)
                 durationMs = steadyStepMs(even, crisp).toInt()
                 easing = if (crisp <= 0f) LinearEasing else Easing { steadyStepEase(it, crisp) }
                 steady = true
-                delayMs = (STEADY_FRAME_MS * crisp).roundToLong()
+                delayMs = (FRAME_MS * crisp).roundToLong()
             }
         }
         // one that takes the text on moves in its first frame already, the text does not stop for a frame at each key
-        if (startMs < 0) startMs = if (steady) nowMs - STEADY_FRAME_MS else nowMs
+        if (startMs < 0) startMs = if (steady) nowMs - FRAME_MS else nowMs
         val time = ((nowMs - startMs - delayMs) / durationMs.toFloat()).coerceIn(0f, 1f)
         progress = easing.transform(time)
     }
