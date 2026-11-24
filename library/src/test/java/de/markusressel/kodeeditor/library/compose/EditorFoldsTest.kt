@@ -1,6 +1,16 @@
 package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.fold.EditorFolds
+import de.markusressel.kodeeditor.library.compose.fold.FoldedRows
+import de.markusressel.kodeeditor.library.compose.fold.HiddenLines
+import de.markusressel.kodeeditor.library.compose.fold.providers.MarkdownFoldProvider
+import de.markusressel.kodeeditor.library.compose.layout.UnwrappedRows
+import de.markusressel.kodeeditor.library.compose.layout.WrappedRows
+import de.markusressel.kodeeditor.library.compose.layout.cellBreaks
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.SplicePhase
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,7 +22,7 @@ class EditorFoldsTest {
     private fun foldsOf(text: String): Pair<KodeEditorState, EditorFolds> {
         val state = KodeEditorState(text)
         val folds = EditorFolds(state, MarkdownFoldProvider)
-        state.foldObserver = folds.spliceObserver
+        state.addSpliceObserver(SplicePhase.Folds, folds.spliceObserver)
         state.addListener(folds)
         return state to folds
     }

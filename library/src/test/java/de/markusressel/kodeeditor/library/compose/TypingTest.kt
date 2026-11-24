@@ -17,21 +17,33 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.animation.CONTINUOUS_INTERVAL_MS
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
+import de.markusressel.kodeeditor.library.compose.animation.TYPING_WINDOW_MS
+import de.markusressel.kodeeditor.library.compose.cursor.KodeEditorRemoteCursor
+import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
+import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
+import de.markusressel.kodeeditor.library.compose.reveal.KodeEditorReveal
+import de.markusressel.kodeeditor.library.compose.reveal.rememberKodeEditorReveal
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
+import de.markusressel.kodeeditor.library.compose.state.appearTag
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
+import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.sqrt
+import kotlin.random.Random
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import kotlin.math.abs
-import kotlin.math.exp
-import kotlin.math.ln
-import kotlin.math.sqrt
-import kotlin.random.Random
 
 /**
  * Somebody else types into the first row, or text is revealed for them, with their red caret behind it. Measured on the
@@ -261,7 +273,7 @@ class TypingTest {
             val x = composeRule.runOnIdle { (layout as EditorLineLayout).shownCursorRect(c).left }
             if (c != keyAt) {
                 // a key while the text still moves goes on moving in its first frame, a crisp step may start from rest
-                if (time - lastKeyTime <= STEADY_INSERT_MS && moving && x - last < 0.01f) stops += time
+                if (time - lastKeyTime <= TYPING_WINDOW_MS && moving && x - last < 0.01f) stops += time
                 keyAt = c
                 lastKeyTime = time
             }

@@ -157,6 +157,9 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   before (the end of an insertion, the start of a removal), at most 250 ms after it, slides at an even speed to the
   left, with the same times. An insertion right after a removal at the same place is typed on too. So a typo that is
   removed and typed again moves the cursor and the text behind it back and forth without a jump.
+- "The one before" is the last change that ended at that place. KodeEditor remembers where the last changes of the
+  last 4 writers ended, and moves these places with the text, so somebody who types keeps typing on while others
+  write elsewhere, e.g. an agent.
 - Chunks of an agent are no typing: each chunk slides once, in 120 ms, when it arrives, and nothing moves while it is
   revealed.
 - Only the changes of others slide, those of the user are where they are at once.
@@ -183,7 +186,7 @@ Big changes of the user animate, so it is easy to see what they changed. This is
 - Paste (the text menu and Ctrl+V), undo, redo, and replacing with `KodeEditorSearch.replaceCurrent` and `replaceAll`.
 - The text behind the change slides to its new place like with the changes of others (R6), in 120 ms with the cubic
   ease-out, also across rows.
-- The inserted or restored text fades in, in `highlightMs` (400 ms), with the alpha curve of R4. `replaceAll` is one
+- The inserted or restored text fades in, in `appearMs` (400 ms), with the alpha curve of R4. `replaceAll` is one
   change from the first to the last match, so all of that fades in. Removed text is gone at once, the text behind it
   closes the gap.
 - The cursor, the selection and its handles are at their new place at once, also while the text behind them slides.

@@ -2,6 +2,9 @@ package de.markusressel.kodeeditor.library.compose
 
 import android.app.Application
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.MotionDurationScale
@@ -11,6 +14,11 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
+import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
@@ -36,8 +44,21 @@ private class InsertScene(private val rule: ComposeContentTestRule, text: String
     val state = KodeEditorState(text)
     var layout: EditorLineLayout? = null
 
+    /** whether a second editor shows the same state */
+    var showOther by mutableStateOf(false)
+
     fun show(animations: KodeEditorAnimations, lineWrapping: Boolean = false, width: Int = 400) {
         rule.setContent {
+            if (showOther) {
+                KodeEditor(
+                    modifier = Modifier.size(width.dp, 100.dp),
+                    state = state,
+                    languageRuleBook = noRules,
+                    colorScheme = noColors,
+                    animations = animations,
+                    gutterColumns = emptyList(),
+                )
+            }
             KodeEditor(
                 modifier = Modifier.size(width.dp, 400.dp),
                 state = state,
@@ -140,6 +161,54 @@ class InsertSlideTest {
     }
 
     @Test
+    fun `an editor that goes away does not stop the text of another one on the same state from sliding`() {
+        val scene = InsertScene(composeRule, "hello world")
+        scene.showOther = true
+        scene.show(appearance)
+        composeRule.runOnIdle { scene.showOther = false }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.waitForIdle()
+        val before = scene.shown(6)
+
+        composeRule.runOnIdle { scene.state.applyRemote(listOf(TextSplice(6, 0, "brave ")), appear = true) }
+        scene.frame()
+        scene.frame()
+        scene.frame()
+        val moving = scene.shown(12)
+        val after = scene.settled(12)
+
+        assertTrue("on its way: $before $moving $after", moving.x > before.x + 1 && moving.x < after.x - 1)
+        assertTrue("it still appears", scene.state.rangeAlphas.isNotEmpty())
+    }
+
+    @Test
+    fun `the text behind somebody who types keeps moving on when an agent writes elsewhere`() {
+        val scene = InsertScene(composeRule, "aaaa rest\nbbbb")
+        scene.show(appearance)
+        fun key(at: Int) {
+            composeRule.runOnIdle { scene.state.applyRemote(listOf(TextSplice(at, 0, "x")), appear = true) }
+        }
+        key(4)
+        repeat(6) { scene.frame() }
+        key(5)
+        // that key has moved the text to its place
+        repeat(10) { scene.frame() }
+        // a chunk of an agent at the end of the next line, between two keys
+        composeRule.runOnIdle {
+            scene.state.applyRemote(listOf(TextSplice(scene.state.text.length, 0, " chunk")), appear = true)
+        }
+        repeat(3) { scene.frame() }
+        val before = scene.shown(7)
+
+        key(6)
+        scene.frame()
+        val moving = scene.shown(8)
+
+        // typed on, it moves in its first frame already, like the keys before
+        assertTrue("moves on at once: $before $moving", moving.x > before.x + 0.3f)
+    }
+
+    @Test
     fun `text the user types does not slide`() {
         val scene = InsertScene(composeRule, "hello world")
         scene.show(appearance)
@@ -182,5 +251,35 @@ class InsertSlideWithoutAnimationsTest {
         scene.frame()
 
         assertEquals(scene.settled(12), scene.shown(12))
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@Config(application = Application::class, sdk = [36], qualifiers = "w411dp-h891dp")
+class InsertSlideAnimationsTurnedOffTest {
+
+    /** the system setting, which the user can change while the editor is shown */
+    private val motion = object : MotionDurationScale {
+        override var scaleFactor = 1f
+    }
+
+    @get:Rule
+    val composeRule = createComposeRule(effectContext = motion)
+
+    @Test
+    fun `turning animations off while the editor is shown makes changes of others jump and shows appearing text`() {
+        val scene = InsertScene(composeRule, "hello world")
+        scene.show(KodeEditorAnimations(appearance = KodeEditorAppearance()))
+        composeRule.runOnIdle { scene.state.applyRemote(listOf(TextSplice(0, 0, "a ")), appear = true) }
+        scene.frame()
+        assertTrue("text appears with animations on", scene.state.rangeAlphas.isNotEmpty())
+
+        motion.scaleFactor = 0f
+        scene.frame()
+        assertTrue("appearing text shows at once", scene.state.rangeAlphas.isEmpty())
+        composeRule.runOnIdle { scene.state.applyRemote(listOf(TextSplice(8, 0, "brave ")), appear = true) }
+        scene.frame()
+
+        assertEquals(scene.settled(14), scene.shown(14))
     }
 }

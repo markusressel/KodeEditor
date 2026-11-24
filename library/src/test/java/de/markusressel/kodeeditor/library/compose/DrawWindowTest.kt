@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import de.markusressel.kodeeditor.library.compose.view.DrawWindow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

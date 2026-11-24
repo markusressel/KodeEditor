@@ -2,15 +2,15 @@ package de.markusressel.kodeeditor.demo
 
 import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.snapshots.Snapshot
-import de.markusressel.kodeeditor.library.compose.KodeEditorReveal
-import de.markusressel.kodeeditor.library.compose.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.reveal.KodeEditorReveal
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import kotlin.random.Random
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.random.Random
 
 class AgentChunksTest {
 

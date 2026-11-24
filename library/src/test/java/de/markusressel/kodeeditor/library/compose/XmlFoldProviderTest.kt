@@ -1,9 +1,11 @@
 package de.markusressel.kodeeditor.library.compose
 
+import de.markusressel.kodeeditor.library.compose.fold.FoldRegion
+import de.markusressel.kodeeditor.library.compose.fold.providers.XmlFoldProvider
+import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.random.Random
 
 class XmlFoldProviderTest {
 

@@ -1,5 +1,9 @@
 package de.markusressel.kodeeditor.library.compose
 
+import de.markusressel.kodeeditor.library.compose.fold.KodeEditorFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.IndentFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.PythonFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.YamlFoldProvider
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

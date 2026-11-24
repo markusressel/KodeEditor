@@ -52,16 +52,13 @@ dependencies {
 # Usage
 
 ```kotlin
-var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-    mutableStateOf(TextFieldValue("# Hello KodeEditor"))
-}
+val state = rememberKodeEditorState(initialText = "# Hello KodeEditor")
 
 KodeEditor(
     modifier = Modifier.fillMaxSize(),
+    state = state,
     languageRuleBook = MarkdownRuleBook(),
     colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
-    text = text,
-    onValueChange = { text = it },
     lineWrapping = true,
 )
 ```
@@ -106,8 +103,7 @@ are not highlighted again while typing.
 ## Large documents and collaborative editing
 
 The editor keeps the text itself, in a `KodeEditorState`, and each change happens there directly on the main thread.
-Hand the state to the editor instead of a `TextFieldValue` to avoid a second copy of the text. This is the fastest way
-to use the editor, and changes can not overtake each other:
+There is no second copy of the text, and changes can not overtake each other:
 
 ```kotlin
 val state = rememberKodeEditorState(initialText)

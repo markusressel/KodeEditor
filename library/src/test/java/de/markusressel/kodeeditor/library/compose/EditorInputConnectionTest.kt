@@ -8,11 +8,15 @@ import android.view.inputmethod.BaseInputConnection
 import androidx.compose.ui.text.TextRange
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.input.EditorInputConnection
+import de.markusressel.kodeeditor.library.compose.input.KeyboardActions
+import de.markusressel.kodeeditor.library.compose.state.InputLink
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
-import kotlin.random.Random
 
 /**
  * Compares the connection with the one of the framework, which is what keyboards are written against.

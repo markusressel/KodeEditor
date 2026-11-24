@@ -1,6 +1,7 @@
 package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.view.CursorFollower
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

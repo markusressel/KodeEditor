@@ -1,5 +1,8 @@
 package de.markusressel.kodeeditor.library.compose
 
+import de.markusressel.kodeeditor.library.compose.fold.InlineFold
+import de.markusressel.kodeeditor.library.compose.fold.KodeEditorFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.MarkdownFoldProvider
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

@@ -1,6 +1,5 @@
 package de.markusressel.kodeeditor.demo
 
-import de.markusressel.kodeeditor.library.compose.rememberLineNumberColumn
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -19,7 +18,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,28 +25,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import de.markusressel.kodeeditor.demo.ui.theme.KodeEditorTheme
 import de.markusressel.kodeeditor.demo.ui.theme.Teal200
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
-import de.markusressel.kodeeditor.library.compose.KodeEditorAnimations
-import de.markusressel.kodeeditor.library.compose.KodeEditorAppearance
-import de.markusressel.kodeeditor.library.compose.KodeEditorLocalAnimations
-import de.markusressel.kodeeditor.library.compose.KodeEditorListener
-import de.markusressel.kodeeditor.library.compose.KodeEditorRemoteCursor
-import de.markusressel.kodeeditor.library.compose.KodeEditorSearch
-import de.markusressel.kodeeditor.library.compose.KodeEditorSearchQuery
-import de.markusressel.kodeeditor.library.compose.KodeEditorState
-import de.markusressel.kodeeditor.library.compose.TextSplice
-import de.markusressel.kodeeditor.library.compose.rememberKodeEditorReveal
-import de.markusressel.kodeeditor.library.compose.rememberKodeEditorSearch
-import de.markusressel.kodeeditor.library.compose.rememberKodeEditorViewState
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorLocalAnimations
+import de.markusressel.kodeeditor.library.compose.cursor.KodeEditorRemoteCursor
+import de.markusressel.kodeeditor.library.compose.gutter.rememberLineNumberColumn
+import de.markusressel.kodeeditor.library.compose.reveal.rememberKodeEditorReveal
+import de.markusressel.kodeeditor.library.compose.search.KodeEditorSearch
+import de.markusressel.kodeeditor.library.compose.search.KodeEditorSearchQuery
+import de.markusressel.kodeeditor.library.compose.search.rememberKodeEditorSearch
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorListener
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
+import de.markusressel.kodeeditor.library.compose.view.rememberKodeEditorViewState
 import de.markusressel.kodehighlighter.language.markdown.MarkdownRuleBook
 import de.markusressel.kodehighlighter.language.markdown.colorscheme.DarkBackgroundColorSchemeWithSpanStyle
 import kotlinx.coroutines.Dispatchers
@@ -445,7 +443,7 @@ private const val SHOWCASE_APPEAR_MS = 250
 @Composable
 private fun DefaultPreview() {
     KodeEditorTheme {
-        var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        val state = remember {
             val initialText = """
                 # Heading
                     
@@ -455,14 +453,13 @@ private fun DefaultPreview() {
                     
                 Subheading Text
                 """.trimIndent()
-            mutableStateOf(TextFieldValue(initialText))
+            KodeEditorState(initialText)
         }
 
         KodeEditor(
             languageRuleBook = MarkdownRuleBook(),
             colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
-            text = text,
-            onValueChange = { text = it }
+            state = state,
         )
     }
 }

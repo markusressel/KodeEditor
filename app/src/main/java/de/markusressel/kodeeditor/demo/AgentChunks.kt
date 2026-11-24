@@ -1,11 +1,12 @@
 package de.markusressel.kodeeditor.demo
 
-import de.markusressel.kodeeditor.library.compose.KodeEditorReveal
-import kotlinx.coroutines.delay
+import de.markusressel.kodeeditor.library.compose.KodeEditor
+import de.markusressel.kodeeditor.library.compose.reveal.KodeEditorReveal
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.random.nextInt
 import kotlin.random.nextLong
+import kotlinx.coroutines.delay
 
 /**
  * Splits text into chunks like an agent sends them: 3 to 5 words, 15 to 40 characters where the words allow it. They

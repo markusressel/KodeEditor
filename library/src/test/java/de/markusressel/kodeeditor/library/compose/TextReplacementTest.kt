@@ -8,11 +8,21 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.gutter.GutterCell
+import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorGutterColumn
+import de.markusressel.kodeeditor.library.compose.layout.EditorHighlighting
+import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
+import de.markusressel.kodeeditor.library.compose.layout.WrappedRows
+import de.markusressel.kodeeditor.library.compose.layout.cellBreaks
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.SplicePhase
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -22,8 +32,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(AndroidJUnit4::class)
 @Config(application = Application::class, sdk = [36], qualifiers = "w411dp-h891dp")
@@ -116,7 +124,7 @@ class TextReplacementTest {
             calls++
             cellBreaks(text, start, end, width.toInt())
         }
-        state.rowObserver = { rows.onSplice(it, settledWidth = if (state.replacingText) 50f else null) }
+        state.addSpliceObserver(SplicePhase.Rows) { rows.onSplice(it, settledWidth = if (state.replacingText) 50f else null) }
         rows.update(100f)
         calls = 0
         val text = List(10) { "word ".repeat(40) }.joinToString("\n")

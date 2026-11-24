@@ -1,5 +1,8 @@
 package de.markusressel.kodeeditor.library.compose
 
+import de.markusressel.kodeeditor.library.compose.fold.FoldRegion
+import de.markusressel.kodeeditor.library.compose.fold.KodeEditorFoldProviders
+import de.markusressel.kodeeditor.library.compose.fold.providers.KotlinFoldProvider
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.language.Language
 import de.markusressel.kodehighlighter.core.rule.LanguageRule

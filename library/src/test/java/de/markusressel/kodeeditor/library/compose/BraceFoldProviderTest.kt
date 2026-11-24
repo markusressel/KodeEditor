@@ -1,5 +1,20 @@
 package de.markusressel.kodeeditor.library.compose
 
+import de.markusressel.kodeeditor.library.compose.fold.KodeEditorFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.BraceFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.BraceStringSyntax
+import de.markusressel.kodeeditor.library.compose.fold.providers.CFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.CSharpFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.CppFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.CssFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.DartFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.GoFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.JavaFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.JavaScriptFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.JsonFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.KotlinFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.RustFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.SwiftFoldProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

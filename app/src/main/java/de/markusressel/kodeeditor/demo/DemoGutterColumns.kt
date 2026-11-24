@@ -9,10 +9,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import de.markusressel.kodeeditor.library.compose.GutterCell
-import de.markusressel.kodeeditor.library.compose.DecoratedLine
-import de.markusressel.kodeeditor.library.compose.KodeEditorGutterColumn
-import de.markusressel.kodeeditor.library.compose.KodeEditorLineDecoration
+import de.markusressel.kodeeditor.library.compose.gutter.DecoratedLine
+import de.markusressel.kodeeditor.library.compose.gutter.GutterCell
+import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorGutterColumn
+import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorLineDecoration
 import kotlin.math.min
 
 private val HEADING_WITHOUT_SPACE = Regex("^#{1,6}[^#\\s].*")

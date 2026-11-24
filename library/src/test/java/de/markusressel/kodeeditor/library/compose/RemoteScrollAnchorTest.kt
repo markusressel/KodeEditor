@@ -13,10 +13,17 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
+import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
+import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -24,7 +31,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import kotlin.math.abs
 
 /** Text that others insert or remove in front of what the user looks at does not move it on the screen */
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

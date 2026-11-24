@@ -2,14 +2,11 @@ package de.markusressel.kodeeditor.library.compose
 
 import android.app.Application
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.performClick
@@ -20,6 +17,10 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.fold.providers.MarkdownFoldProvider
+import de.markusressel.kodeeditor.library.compose.input.KodeEditorKeyAction
+import de.markusressel.kodeeditor.library.compose.input.KodeEditorKeyBinding
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
@@ -42,7 +43,14 @@ class KodeEditorKeyboardTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private var value by mutableStateOf(TextFieldValue())
+    private var state = KodeEditorState()
+
+    /** the text and the selection of the editor, setting it changes them like the application would */
+    private var value: TextFieldValue
+        get() = state.value
+        set(new) {
+            if (new.text != state.rawText) state.setText(new.text, new.selection) else state.setSelection(new.selection)
+        }
 
     /** also matches a read-only editor, which can not set text */
     private val textField = SemanticsMatcher.keyIsDefined(SemanticsActions.SetSelection)
@@ -60,10 +68,9 @@ class KodeEditorKeyboardTest {
         composeRule.setContent {
             KodeEditor(
                 modifier = Modifier.fillMaxSize().testTag("editor"),
-                text = value,
+                state = state,
                 languageRuleBook = noRules,
                 colorScheme = noColors,
-                onValueChange = { value = it },
                 readOnly = readOnly,
             )
         }
@@ -249,10 +256,9 @@ class KodeEditorKeyboardTest {
         composeRule.setContent {
             KodeEditor(
                 modifier = Modifier.fillMaxSize().testTag("editor"),
-                text = value,
+                state = state,
                 languageRuleBook = noRules,
                 colorScheme = noColors,
-                onValueChange = { value = it },
                 foldProvider = MarkdownFoldProvider,
             )
         }
@@ -290,10 +296,9 @@ class KodeEditorKeyboardTest {
         composeRule.setContent {
             KodeEditor(
                 modifier = Modifier.fillMaxSize().testTag("editor"),
-                text = value,
+                state = state,
                 languageRuleBook = noRules,
                 colorScheme = noColors,
-                onValueChange = { value = it },
                 keyBindings = listOf(KodeEditorKeyBinding(Key.D, KodeEditorKeyAction.BackspaceWord, ctrl = true)),
             )
         }

@@ -5,7 +5,13 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 ## Layout
 
 - `library`: the published library, package `de.markusressel.kodeeditor.library`.
-  - `compose`: the Compose editor (`KodeEditor`, `KodeEditorState`, `KodeEditorViewState`, `KodeEditorLayout`, `ZoomLayout`, `EditorGutter`, `EditorFolds`, `KodeEditorLineDecoration`, `KodeEditorColors`/`KodeEditorDefaults`, `KodeEditorRemoteCursors`, `KodeEditorReveal`). There is no text field: `KodeEditorState` holds the only copy of the text, `EditorInputConnection` connects the keyboard to it, and only visible lines are measured and drawn.
+  - `compose`: the Compose editor, `KodeEditor` and its colors (`KodeEditorColors`/`KodeEditorDefaults`). There is no text field: `KodeEditorState` holds the only copy of the text, `EditorInputConnection` connects the keyboard to it, and only visible lines are measured and drawn. Its packages, each with its public API and the `internal` code behind it:
+    - `state`: `KodeEditorState`, `TextSplice`, the line index, undo and the timing of appearing text.
+    - `view`: `KodeEditorViewState`, `ZoomLayout`, scrollbars, geometry, following the cursor.
+    - `layout`: `KodeEditorLayout`, `EditorLineLayout`, rows, the drawn layers, typing runs and the scroll anchor of remote changes.
+    - `animation`: `KodeEditorAnimations`/`KodeEditorAppearance`, `ReflowTransition` and `TypingMotion` (the typing rules of cursor and text in one place).
+    - `reveal`: `KodeEditorReveal`. `cursor`: remote cursors (`KodeEditorRemoteCursor`, `RemoteCursorGlides`, `GlideCurves`), selection handles.
+    - `fold` and `fold.providers`: folding and the fold providers. `search`, `gutter` (`KodeEditorGutterColumn`, `KodeEditorLineDecoration`), `input` (keyboard, key bindings, gestures).
 - `app`: demo app, package `de.markusressel.kodeeditor.demo`. `ComposeMainActivity` (launcher) shows the editor.
 - `build-logic`: Gradle convention plugins (`kodeeditor.android.library`, `...compose`, `...publishing`, ...). Versions live in `gradle/libs.versions.toml`.
 
@@ -29,7 +35,7 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 
 ## Shared rules
 
-- [docs/reveal.md](docs/reveal.md) has the rules for text that arrives in chunks and the cursor at its head, with all numbers. The MkDocsEditor Android app and the web client follow them too, so change them only together with those, and keep the doc in step with `KodeEditorReveal` and `RemoteCursorGlides`.
+- [docs/reveal.md](docs/reveal.md) has the rules for text that arrives in chunks and the cursor at its head, with all numbers. The MkDocsEditor Android app and the web client follow them too, so change them only together with those, and keep the doc in step with `KodeEditorReveal`, `RemoteCursorGlides`, `GlideCurves` and `TypingMotion`.
 
 ## README animation
 

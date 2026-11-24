@@ -1,18 +1,22 @@
 package de.markusressel.kodeeditor.library.compose
 
+import androidx.compose.runtime.MonotonicFrameClock
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
+import de.markusressel.kodeeditor.library.compose.reveal.KodeEditorReveal
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
+import java.lang.reflect.Proxy
+import kotlin.random.Random
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import androidx.compose.runtime.MonotonicFrameClock
-import androidx.compose.runtime.snapshots.Snapshot
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.yield
-import java.lang.reflect.Proxy
-import kotlin.random.Random
 
 class KodeEditorRevealTest {
 
@@ -255,5 +259,20 @@ class KodeEditorRevealTest {
         state.replaceSelection("x")
 
         assertFalse(reveal.isRevealing)
+    }
+
+    @Test
+    fun `a character of two UTF-16 units is revealed as a whole`() {
+        val chunk = "a\uD83D\uDE00b\uD83D\uDE00\uD83D\uDE00c"
+        reveal.insert(before.length, chunk)
+        var frames = 0
+        while (reveal.isRevealing) {
+            reveal.advance(16)
+            frames++
+            val start = reveal.head ?: break
+            assertFalse("the hidden text starts inside a pair at $start", state.text[start].isLowSurrogate())
+        }
+        // about one character in each frame at 60 characters per second, a pair counts as one
+        assertTrue("$frames frames", frames <= chunk.codePointCount(0, chunk.length) + 1)
     }
 }

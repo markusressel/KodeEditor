@@ -8,25 +8,31 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
+import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
+import de.markusressel.kodeeditor.library.compose.reveal.KodeEditorReveal
+import de.markusressel.kodeeditor.library.compose.reveal.rememberKodeEditorReveal
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.random.Random
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import kotlin.math.abs
-import kotlin.math.ceil
-import kotlin.math.floor
-import kotlin.random.Random
 
 // real text drawing, to see what is drawn and not only what the state says
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

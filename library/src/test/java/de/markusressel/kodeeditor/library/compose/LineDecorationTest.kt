@@ -14,6 +14,12 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.fold.KodeEditorFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.MarkdownFoldProvider
+import de.markusressel.kodeeditor.library.compose.gutter.DecoratedLine
+import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorLineDecoration
+import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme

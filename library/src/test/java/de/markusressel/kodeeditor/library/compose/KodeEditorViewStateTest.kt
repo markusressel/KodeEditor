@@ -10,8 +10,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.toPixelMap
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.captureToImage
@@ -26,6 +26,16 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.fold.KodeEditorFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.MarkdownFoldProvider
+import de.markusressel.kodeeditor.library.compose.gutter.GutterCell
+import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorGutterColumn
+import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.view.CursorVisibility
+import de.markusressel.kodeeditor.library.compose.view.GestureMovement
+import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme

@@ -1,0 +1,404 @@
+package de.markusressel.kodeeditor.library.compose.view
+
+import androidx.compose.animation.core.AnimationState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.animateTo
+import androidx.compose.animation.core.spring
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.KodeEditor
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.fold.EditorFolds
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.abs
+import kotlin.math.sign
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+/** What the [KodeEditorViewState] needs from the editor it belongs to */
+internal interface EditorViewport {
+    /** where animations run, so they also work for a caller without a frame clock */
+    val scope: CoroutineScope
+    val offset: Offset
+    val visibleSize: Size
+    val animates: Boolean
+    val visibleRange: TextRange?
+
+    /** moves the view without the user, to the nearest offset that can be reached */
+    fun moveTo(offset: Offset)
+
+    /** @return the offset that shows the [position], the current one if it is visible already */
+    fun offsetShowing(position: Int): Offset
+
+    /** @return the offset that has the middle of the range in the center, the current one if it is near already */
+    fun offsetCentering(start: Int, end: Int): Offset
+
+    /** the largest offset, in text coordinates like [offset] */
+    val maxOffset: Offset
+
+    /** how much larger the text is on the screen than in text coordinates */
+    val zoom: Float
+
+    /** the zoom the user can reach, the zoom of [zoomTo] stays within it */
+    val zoomRange: ClosedFloatingPointRange<Float>
+
+    /** zooms without the user, the middle of the view stays in its place */
+    fun zoomTo(zoom: Float)
+
+    /** what can be folded, null if the editor has no fold provider */
+    val folds: EditorFolds?
+
+    /** @return the offset that has the place [fraction] of the way down the [line] at the height [y] of the view */
+    fun offsetPutting(line: Int, fraction: Float, y: Float): Offset
+
+    /** @return the line and the place in it at the height [y] of the text */
+    fun lineAt(y: Float): LinePosition
+
+    fun isVisible(position: Int): Boolean
+}
+
+/**
+ * The view of a [KodeEditor] on its text: scrolling to a place in the text, zooming and folding without touching the
+ * cursor, the selection or the focus, also in a read-only editor. This lets an app follow the cursor of another user,
+ * or open a text at a position without opening the keyboard.
+ *
+ * A scroll ends early when a finger or a mouse goes down on the editor, when something else moves the view, and when a
+ * newer scroll starts, which takes over the speed of a running one. While following, pass `keepCursorVisible = false`
+ * to the editor, or changes of the text in front of the local cursor scroll to that cursor.
+ */
+@Stable
+class KodeEditorViewState {
+    internal var viewport by mutableStateOf<EditorViewport?>(null)
+
+    /** the fingers of a pan or a zoom, or the fling after them, move the view */
+    internal var gestureMoving by mutableStateOf(false)
+
+    /** a dragged selection handle scrolls the view at the edge of the editor */
+    internal var handleMoving by mutableStateOf(false)
+
+    /** the thumb of a scrollbar is dragged */
+    internal var scrollbarMoving by mutableStateOf(false)
+
+    /** a jump is about to happen, so the editor shows nothing rather than the top of the text */
+    internal var jumpPending by mutableStateOf(false)
+        private set
+
+    /** counts the scrolls and what ended them, a scroll that waits for the editor stops waiting when it changes */
+    private var generation by mutableIntStateOf(0)
+    private var running: Job? = null
+    private var velocity = Offset.Zero
+
+    /**
+     * Whether the user moves the view: from the first movement of a gesture until the gesture and its fling have ended,
+     * also while a finger holds the view still. A dragged selection handle counts while it scrolls the view, a
+     * scrollbar while its thumb is held. A zoom with the keyboard is a single step, it only calls `onUserMovedView`.
+     */
+    val isUserMovingView: Boolean get() = gestureMoving || handleMoving || scrollbarMoving
+
+    /**
+     * The text from the start of the top visible row to the end of the bottom visible row, null before the first
+     * layout. Scrolling a line without line wrapping sideways does not change it. Reading it is cheap, and what reads
+     * it only runs again when another row reaches an edge of the editor.
+     */
+    val visibleRange: TextRange? get() = viewport?.visibleRange
+
+    /**
+     * Shows a position of the text. It stays where it is if the position is visible already, otherwise the position
+     * moves to the upper third of the editor, and horizontally to the middle if it is outside. The zoom stays.
+     *
+     * Waits for the first layout if the editor has none yet. An editor that jumps then shows the text at this position
+     * right away, instead of the top of the text first. Call this after the text is in the editor: a position behind
+     * the end of the text means the end, also when more text arrives later.
+     *
+     * @param position the position in the text
+     * @param animate whether the view moves there, instead of jumping. [KodeEditorAnimations.scrolling] can turn this
+     * off
+     * @return true if the view got there, false if something ended the scroll, at once while [isUserMovingView]
+     */
+    suspend fun scrollToPosition(position: Int, animate: Boolean = true): Boolean =
+        scroll(animate) { it.offsetShowing(position) }
+
+    /**
+     * Moves the middle of a range of the text to the vertical center of the editor. The range can be larger than the
+     * editor. It stays where it is if the middle is near the center already, so small differences do not move the view.
+     * The zoom and the horizontal position stay. This waits and ends like [scrollToPosition].
+     *
+     * @param start one end of the range
+     * @param end the other end of the range
+     * @param animate whether the view moves there, instead of jumping. [KodeEditorAnimations.scrolling] can turn this
+     * off
+     * @return true if the view got there, false if something ended the scroll, at once while [isUserMovingView]
+     */
+    suspend fun scrollToRange(start: Int, end: Int, animate: Boolean = true): Boolean =
+        scroll(animate) { it.offsetCentering(start, end) }
+
+    /**
+     * Puts a place in a line exactly at a height of the editor, the top by default, also when it is visible already or
+     * only a little away. Calling this for every frame of another scrolling view follows it smoothly, for example a
+     * preview of the text. The zoom and the horizontal position stay. Near the start and the end of the text, the view
+     * only gets as far as it can. This waits and ends like [scrollToPosition], and like all scrolls of this class it
+     * does not call `onUserMovedView`.
+     *
+     * The place that is at a height of the view is [lineAt] that height, so `scrollToLine` with what [lineAt] returns
+     * for the same `viewportFraction` does not move the view.
+     *
+     * @param line the line of the text, 0 for the first one. A line behind the end means the last one, a line in a fold
+     * the place of the fold
+     * @param fraction the place in the line, from 0 for the top of its first row to 1 for the bottom of its last row,
+     * which matters for a line that wraps into several rows
+     * @param viewportFraction the height of the editor to put that place at, from 0 for its top edge to 1 for its
+     * bottom edge
+     * @param animate whether the view moves there, instead of jumping. [KodeEditorAnimations.scrolling] can turn this
+     * off
+     * @return true if the view got there, false if something ended the scroll, at once while [isUserMovingView]
+     */
+    suspend fun scrollToLine(
+        line: Int,
+        fraction: Float = 0f,
+        viewportFraction: Float = 0f,
+        animate: Boolean = false,
+    ): Boolean = scroll(animate) {
+        it.offsetPutting(line, fraction, it.visibleSize.height * viewportFraction.coerceIn(0f, 1f))
+    }
+
+    /**
+     * The place in the text at a height of the editor, exact within a line, unlike [visibleRange], which has whole
+     * rows. Reading this in a composition or a draw updates it when the view moves.
+     *
+     * @param viewportFraction the height of the editor, from 0 for its top edge to 1 for its bottom edge
+     * @return the line and the place in it there, null before the first layout. Below the end of the text, it is the
+     * bottom of the last line
+     */
+    fun lineAt(viewportFraction: Float): LinePosition? {
+        val current = viewport ?: return null
+        return current.lineAt(current.offset.y + current.visibleSize.height * viewportFraction.coerceIn(0f, 1f))
+    }
+
+    /**
+     * How far the view is scrolled down, in pixels on the screen, null before the first layout. Divided by
+     * [maxVerticalScrollOffset], it is the progress through the text. Reading this in a composition or a draw updates
+     * it when the view moves or zooms.
+     */
+    val verticalScrollOffset: Float? get() = viewport?.let { it.offset.y * it.zoom }
+
+    /**
+     * The largest [verticalScrollOffset] at the current zoom, in pixels on the screen, 0 if the whole text fits, null
+     * before the first layout.
+     */
+    val maxVerticalScrollOffset: Float? get() = viewport?.let { it.maxOffset.y.coerceAtLeast(0f) * it.zoom }
+
+    /**
+     * Reading this in a composition or a draw updates it when the view moves.
+     *
+     * @param position the position in the text
+     * @return whether the whole row of the position is on the screen, false before the first layout. A position in a
+     * fold is at the place of the fold.
+     */
+    fun isPositionVisible(position: Int): Boolean = viewport?.isVisible(position) ?: false
+
+    /**
+     * How much larger the text is on the screen than at the zoom 1, null before the first layout. Reading this in a
+     * composition or a draw updates it when the zoom changes.
+     */
+    val zoom: Float? get() = viewport?.zoom
+
+    /**
+     * Zooms the editor without the user, around the middle of the editor: the text there stays in its place. Like the
+     * scrolls of this class, it does not call `onUserMovedView`, it waits for the first layout, and it ends early when
+     * a finger or a mouse goes down on the editor, when the user zooms, and when a newer scroll or zoom starts.
+     *
+     * @param zoom the new zoom, it stays within the `minZoom` and `maxZoom` of the editor
+     * @param animate whether the zoom changes smoothly, instead of at once. [KodeEditorAnimations.scrolling] can turn
+     * this off
+     * @return true if the editor got to the zoom, false if something ended it, at once while [isUserMovingView]
+     */
+    suspend fun zoomTo(zoom: Float, animate: Boolean = true): Boolean = move(
+        animate = animate,
+        animated = { animateZoom(it, zoom.coerceIn(it.zoomRange)) },
+        jump = { it.zoomTo(zoom.coerceIn(it.zoomRange)) },
+    )
+
+    /**
+     * Reading this in a composition or a draw updates it when the text or the folds change.
+     *
+     * @param line the line of the text, 0 for the first one
+     * @return whether the line starts a part that can be folded, false before the first layout and without a
+     * `foldProvider`
+     */
+    fun canFold(line: Int): Boolean = viewport?.folds?.canFold(line) ?: false
+
+    /**
+     * Reading this in a composition or a draw updates it when the folds change.
+     *
+     * @param line the line of the text, 0 for the first one
+     * @return whether the line is folded, so the lines of its part are hidden
+     */
+    fun isFolded(line: Int): Boolean = viewport?.folds?.isFolded(line) ?: false
+
+    /**
+     * Folds or unfolds a line like a tap on its arrow, animated by [KodeEditorAnimations.folding]. A cursor or a
+     * selection that would end up hidden moves to the end of the line. It does not move the view.
+     *
+     * @param line the line of the text, 0 for the first one
+     * @param folded whether the lines of its part are hidden
+     * @return false if the line can not be folded, see [canFold]. True if it is folded or unfolded now, also when it
+     * was already
+     */
+    fun setFolded(line: Int, folded: Boolean): Boolean {
+        val folds = viewport?.folds ?: return false
+        if (!folds.canFold(line)) return false
+        if (folds.isFolded(line) != folded) folds.toggle(line)
+        return true
+    }
+
+    /** ends a running scroll, because the user or the editor moves the view now */
+    internal fun interrupt() {
+        velocity = Offset.Zero
+        jumpPending = false
+        generation++
+        running?.cancel()
+    }
+
+    private suspend fun scroll(animate: Boolean, target: (EditorViewport) -> Offset): Boolean = move(
+        animate = animate,
+        animated = { animateTo(it, target(it)) },
+        jump = {
+            velocity = Offset.Zero
+            it.moveTo(target(it))
+        },
+    )
+
+    /**
+     * Runs one scroll or zoom, which ends the one before it.
+     *
+     * @param animated moves there smoothly, false if something else moved the view on the way
+     * @param jump moves there at once
+     */
+    private suspend fun move(
+        animate: Boolean,
+        animated: suspend (EditorViewport) -> Boolean,
+        jump: (EditorViewport) -> Unit,
+    ): Boolean {
+        if (isUserMovingView) return false
+        val keptVelocity = velocity
+        interrupt()
+        velocity = keptVelocity
+        val mine = generation
+        // hides the text before the editor could show the wrong part of it
+        val jumpsOnOpen = !animate && viewport == null
+        if (jumpsOnOpen) jumpPending = true
+        try {
+            snapshotFlow { viewport != null || generation != mine }.first { it }
+            val current = viewport
+            if (current == null || generation != mine) return false
+
+            var arrived = false
+            val job = current.scope.launch {
+                if (animate && current.animates) {
+                    arrived = animated(current)
+                } else {
+                    jump(current)
+                    // the new offset reaches the screen with the next frame, which then also shows the text again
+                    if (jumpsOnOpen) withFrameNanos { }
+                    arrived = true
+                }
+            }
+            running = job
+            try {
+                job.join()
+            } catch (e: CancellationException) {
+                job.cancel()
+                throw e
+            }
+            return arrived
+        } finally {
+            if (generation == mine) jumpPending = false
+        }
+    }
+
+    /** @return false if something else moved the view on the way */
+    private suspend fun animateTo(viewport: EditorViewport, target: Offset): Boolean {
+        if (target == viewport.offset && velocity == Offset.Zero) return true
+        // a long way would only show text flying by and lay it all out
+        val longest = viewport.visibleSize.height * LONGEST_ANIMATION_SCREENS
+        val distance = target.y - viewport.offset.y
+        if (abs(distance) > longest) {
+            viewport.moveTo(viewport.offset.copy(y = target.y - distance.sign * longest))
+            velocity = Offset.Zero
+        }
+
+        var last = viewport.offset
+        var undisturbed = true
+        AnimationState(Offset.VectorConverter, last, velocity).animateTo(
+            targetValue = target,
+            animationSpec = spring(stiffness = Spring.StiffnessLow, visibilityThreshold = Offset(0.5f, 0.5f)),
+        ) {
+            if (viewport.offset != last) {
+                undisturbed = false
+                cancelAnimation()
+                return@animateTo
+            }
+            viewport.moveTo(value)
+            last = viewport.offset
+            this@KodeEditorViewState.velocity = velocity
+        }
+        velocity = Offset.Zero
+        return undisturbed
+    }
+
+    /** @return false if something else zoomed on the way */
+    private suspend fun animateZoom(viewport: EditorViewport, target: Float): Boolean {
+        // a zoom does not take over the speed of a scroll
+        velocity = Offset.Zero
+        var last = viewport.zoom
+        if (target == last) return true
+        var undisturbed = true
+        AnimationState(last).animateTo(
+            targetValue = target,
+            animationSpec = spring(stiffness = Spring.StiffnessLow, visibilityThreshold = ZOOM_THRESHOLD),
+        ) {
+            if (viewport.zoom != last) {
+                undisturbed = false
+                cancelAnimation()
+                return@animateTo
+            }
+            viewport.zoomTo(value)
+            last = viewport.zoom
+        }
+        return undisturbed
+    }
+
+    private companion object {
+        const val ZOOM_THRESHOLD = 0.001f
+        const val LONGEST_ANIMATION_SCREENS = 3f
+    }
+}
+
+/**
+ * A place in the text, exact within a line.
+ *
+ * @param line the line, 0 for the first one
+ * @param fraction the place in the line, from 0 for the top of its first row to 1 for the bottom of its last row
+ */
+@Immutable
+data class LinePosition(val line: Int, val fraction: Float)
+
+/**
+ * @return a new [KodeEditorViewState], to pass to a [KodeEditor]
+ */
+@Composable
+fun rememberKodeEditorViewState(): KodeEditorViewState = remember { KodeEditorViewState() }
