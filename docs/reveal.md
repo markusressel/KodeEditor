@@ -208,14 +208,16 @@ flip around or cover what they write.
 - The place: above the cursor. Below it on the first row, where there is no room above, and at the start of a row that
   continues a wrapped line, where it would cover what was just written in the row above. It stays inside the right
   edge of the visible text while its cursor is in view.
-- Keep the side: a label goes below at once when it must, but back above only when its writer rested, that is got no
-  new place for 500 ms, or when their cursor jumps instead of gliding. So a writer who wraps rows quickly moves the
+- Keep the side: a label goes below at once when it must, but back above only when its writer rested, that is got no new
+  place for 2000 ms, or when their cursor jumps instead of gliding. That is longer than the pauses of an agent between
+  bursts of chunks, so the label does not come and go with each of them. So a writer who wraps rows quickly moves the
   label below once, and it goes back above after they stop.
 - A change of the side moves the label in 120 ms with the cubic ease-out, from where it is drawn. A jump of the cursor
   takes the label with it at once, on the side its new place needs.
 - Fade down: after 1000 ms of writing without a rest, the label fades to an alpha of 0.35 in 200 ms. The cursor still
   shows who writes. The label shows fully again, in 200 ms, after a rest, a jump, or when the cursor comes into view.
-- A label that covers the cursor of the user fades out in 200 ms, and back in when it does not cover it anymore.
+- A label that covers the cursor of the user fades down the same way, and back up when it does not cover it anymore.
+  Not out: a label that comes and goes as it passes the cursor would be noise.
 - With a mouse, a pointer over a label or its cursor (8 px around them) shows it fully. Touch has no hover, there the
   rules above are all.
 - The app decides too: a label can be shown by these rules (`Auto`), always (`Shown`) or never (`Hidden`), and a signal

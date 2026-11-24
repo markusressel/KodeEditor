@@ -18,7 +18,7 @@ import de.markusressel.kodeeditor.library.compose.animation.CubicEaseOut
  * - A change of the side moves the label in [SIDE_MS] with the cubic ease-out, from where it is drawn.
  * - After [STEADY_MS] of writing without a rest, the label fades down to [DIM_ALPHA]. A rest, a jump or a cursor that
  *   comes into view shows it again.
- * - A label that covers the cursor of the user fades out, a mouse over a label or its cursor shows it.
+ * - A label that covers the cursor of the user fades down too, a mouse over a label or its cursor shows it.
  * - The app can show or hide a label always, and show it fully for [SIGNAL_MS] with a signal.
  *
  * Without animations, a label is placed anew at each place of its cursor and always shown.
@@ -188,8 +188,8 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
             visibility == KodeEditorLabelVisibility.Hidden -> 0f
             visibility == KodeEditorLabelVisibility.Shown -> 1f
             hovered == true || shownBySignal -> 1f
-            localCaret != null && box.overlaps(localCaret) -> 0f
-            steady -> DIM_ALPHA
+            // only faded down, a label that comes and goes as it passes the cursor would be noise
+            steady || localCaret != null && box.overlaps(localCaret) -> DIM_ALPHA
             else -> 1f
         }
         if (target != label.alphaTarget) {
@@ -230,8 +230,11 @@ internal class RemoteLabelMotion(private val animates: () -> Boolean, private va
         private const val NONE = -1L
         private const val NOT_STARTED = -2L
 
-        /** a writer who got no new place for this long rests, their label goes back above and is shown */
-        const val REST_MS = 500L
+        /**
+         * a writer who got no new place for this long rests, their label goes back above and is shown. Longer than the
+         * pauses of an agent between bursts of chunks, so the label does not come and go with each of them
+         */
+        const val REST_MS = 2000L
 
         /** a writer who writes without a rest for this long has their label faded down */
         const val STEADY_MS = 1000L

@@ -134,7 +134,8 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
     /** lets the frames pass until nothing moves anymore */
     fun settle() {
         repeat(5) { frame() }
-        rule.mainClock.advanceTimeBy(1000)
+        // longer than the rest of a writer, after which their label changes
+        rule.mainClock.advanceTimeBy(2500)
         rule.waitForIdle()
     }
 
@@ -698,7 +699,7 @@ class RemoteCursorsTest {
         val below = scene.labelPosition.y
         // a step into the row keeps it below until a rest, then it goes above
         scene.moveTo(rowStart + 1)
-        val ys = (0 until 50).map {
+        val ys = (0 until 160).map {
             scene.frame()
             scene.labelPosition.y
         }

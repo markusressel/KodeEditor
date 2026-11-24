@@ -172,7 +172,6 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
             }
         }
         glides.keys.retainAll(seen)
-        labels.retain(cursors.map { it.id }.toSet() + leaving.map { it.cursor.id })
 
         val now = cursors.associateBy { it.id }
         // a user who comes fades in, one who comes back while fading out from where they are
@@ -197,6 +196,8 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         }
         present = now
         updated = true
+        // after the leaving ones are known, their labels fade out as they are
+        labels.retain(now.keys + leaving.map { it.cursor.id })
         hasCursors = cursors.isNotEmpty() || leaving.isNotEmpty()
     }
 

@@ -30,8 +30,8 @@ data class KodeEditorRemoteCursor(
 /** whether the label of another user is shown, see [KodeEditorRemoteCursor.labelVisibility] */
 enum class KodeEditorLabelVisibility {
     /**
-     * by the rules of the editor: it fades down while the user writes steadily, and out while it covers the cursor of
-     * this editor, see docs/reveal.md
+     * by the rules of the editor: it fades down while the user writes steadily, and while it covers the cursor of this
+     * editor, see docs/reveal.md
      */
     Auto,
 

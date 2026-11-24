@@ -56,11 +56,15 @@ class RemoteLabelMotionTest {
         val early = alpha
         pass(700, keyMs = 64)
         val typing = alpha
-        pass(800)
+        // a pause of an agent between bursts is no rest
+        pass(1500)
+        val pause = alpha
+        pass(1000)
 
         assertEquals(1f, atRest)
         assertEquals("shown at the start of the run", 1f, early)
         assertEquals("faded down", RemoteLabelMotion.DIM_ALPHA, typing, 0.01f)
+        assertEquals("still down in a pause", RemoteLabelMotion.DIM_ALPHA, pause, 0.01f)
         assertEquals("shown after a rest", 1f, alpha)
     }
 
@@ -70,7 +74,7 @@ class RemoteLabelMotionTest {
         pass(1500, keyMs = 64)
         val alphas = ArrayList<Float>()
         // the rest, and the fade after it
-        repeat(60) {
+        repeat(160) {
             pass(FRAME)
             alphas += alpha
         }
@@ -98,7 +102,7 @@ class RemoteLabelMotionTest {
     }
 
     @Test
-    fun `a label that covers the cursor of the user fades out`() {
+    fun `a label that covers the cursor of the user fades down`() {
         place()
         pass(500)
         localCaret = Rect(110f, 85f, 112f, 105f)
@@ -107,7 +111,7 @@ class RemoteLabelMotionTest {
         localCaret = Rect(300f, 85f, 302f, 105f)
         pass(300)
 
-        assertEquals(0f, covering)
+        assertEquals(RemoteLabelMotion.DIM_ALPHA, covering, 0.01f)
         assertEquals(1f, alpha)
     }
 
@@ -152,7 +156,7 @@ class RemoteLabelMotionTest {
             motion.onFrame(time)
             ys += place(below = false)
         }
-        val rest = (0 until 50).map {
+        val rest = (0 until 160).map {
             time += FRAME
             motion.onFrame(time)
             place(below = false)
