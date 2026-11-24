@@ -11,6 +11,9 @@ import de.markusressel.kodeeditor.library.compose.state.TextSplice
 import de.markusressel.kodeeditor.library.compose.state.mapPosition
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
+import de.markusressel.kodehighlighter.core.colorscheme.GitHubDarkTheme
+import de.markusressel.kodehighlighter.core.colorscheme.GitHubLightTheme
+import de.markusressel.kodehighlighter.core.colorscheme.withFallback
 import de.markusressel.kodehighlighter.core.util.AnnotatedStringHighlighter
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -98,3 +101,7 @@ internal class EditorHighlighting(
 
 /** a few frames, enough for the colors of a usual document to be there with its first frame */
 private const val FIRST_RUN_LIMIT_MS = 100L
+
+/** styles the rules this color scheme doesn't know, like those of another language in the text, with a GitHub theme */
+internal fun ColorScheme<SpanStyle>.withEmbeddedFallback(dark: Boolean): ColorScheme<SpanStyle> =
+    withFallback(if (dark) GitHubDarkTheme.spanStyleColorScheme else GitHubLightTheme.spanStyleColorScheme)

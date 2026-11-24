@@ -26,11 +26,12 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import de.markusressel.kodeeditor.library.compose.cursor.CURSOR_HANDLE_TAG
+import de.markusressel.kodeeditor.library.compose.input.CURSOR_HANDLE_TAG
 import de.markusressel.kodeeditor.library.compose.cursor.HandleDrag
-import de.markusressel.kodeeditor.library.compose.cursor.HandleMenu
-import de.markusressel.kodeeditor.library.compose.cursor.SELECTION_END_HANDLE_TAG
-import de.markusressel.kodeeditor.library.compose.cursor.SELECTION_START_HANDLE_TAG
+import de.markusressel.kodeeditor.library.compose.input.HandleKind
+import de.markusressel.kodeeditor.library.compose.input.EditorClipboardActions
+import de.markusressel.kodeeditor.library.compose.input.SELECTION_END_HANDLE_TAG
+import de.markusressel.kodeeditor.library.compose.input.SELECTION_START_HANDLE_TAG
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
@@ -173,10 +174,20 @@ class SelectionHandlesTest {
     }
 
     @Test
+    fun `the ends of a selection do not pass each other`() {
+        val selection = TextRange(5, 10)
+        assertEquals(TextRange(7), HandleDrag.selectionFor(HandleKind.Cursor, 7, selection))
+        assertEquals(TextRange(2, 10), HandleDrag.selectionFor(HandleKind.SelectionStart, 2, selection))
+        assertEquals(TextRange(9, 10), HandleDrag.selectionFor(HandleKind.SelectionStart, 20, selection))
+        assertEquals(TextRange(5, 12), HandleDrag.selectionFor(HandleKind.SelectionEnd, 12, selection))
+        assertEquals(TextRange(5, 6), HandleDrag.selectionFor(HandleKind.SelectionEnd, 0, selection))
+    }
+
+    @Test
     fun `the menu actions change the text and the clipboard`() {
         var clip: AnnotatedString? = null
         val state = KodeEditorState("hello world", TextRange(6, 11))
-        val menu = HandleMenu(state, false, { clip }, { clip = it })
+        val menu = EditorClipboardActions(state, false, { clip }, { clip = it })
 
         menu.cut()
         assertEquals("world", clip?.text)

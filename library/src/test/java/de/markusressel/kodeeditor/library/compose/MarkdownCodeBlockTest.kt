@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import de.markusressel.kodeeditor.library.compose.layout.EditorHighlighting
+import de.markusressel.kodeeditor.library.compose.layout.withEmbeddedFallback
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodehighlighter.core.colorscheme.GitHubDarkTheme
 import de.markusressel.kodehighlighter.core.colorscheme.GitHubLightTheme

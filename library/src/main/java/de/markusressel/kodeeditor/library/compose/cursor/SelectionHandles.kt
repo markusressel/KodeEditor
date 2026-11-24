@@ -4,11 +4,13 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -20,28 +22,22 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.input.EditorTouch
+import de.markusressel.kodeeditor.library.compose.input.HandleKind
+import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
 import kotlin.math.roundToInt
-
-internal const val CURSOR_HANDLE_TAG = "kodeeditor-cursor-handle"
-internal const val SELECTION_START_HANDLE_TAG = "kodeeditor-selection-start-handle"
-internal const val SELECTION_END_HANDLE_TAG = "kodeeditor-selection-end-handle"
 
 private val HANDLE_TOUCH_SIZE: Dp = 40.dp
 private val HANDLE_RADIUS: Dp = 11.dp
-
-internal enum class HandleKind(val tag: String) {
-    Cursor(CURSOR_HANDLE_TAG),
-    SelectionStart(SELECTION_START_HANDLE_TAG),
-    SelectionEnd(SELECTION_END_HANDLE_TAG),
-}
+private val HANDLE_EDGE_SIZE = 48.dp
+private val HANDLE_EDGE_SPEED = 12.dp
 
 internal object HandleDrag {
 
@@ -58,42 +54,19 @@ internal object HandleDrag {
         y = axis(target.y, 0f, area.height, edgeSize, speed),
     )
 
+    /** the selection after the handle of this kind is dragged to the text position */
+    fun selectionFor(kind: HandleKind, position: Int, current: TextRange) = when (kind) {
+        HandleKind.Cursor -> TextRange(position)
+        // the ends of a selection do not pass each other, there is always one character selected
+        HandleKind.SelectionStart -> TextRange(position.coerceAtMost(current.max - 1).coerceAtLeast(0), current.max)
+        HandleKind.SelectionEnd -> TextRange(current.min, position.coerceAtLeast(current.min + 1))
+    }
+
     private fun axis(value: Float, start: Float, end: Float, edgeSize: Float, speed: Float): Float = when {
         value < start + edgeSize -> -speed * ((start + edgeSize - value) / edgeSize).coerceAtMost(1f)
         value > end - edgeSize -> speed * ((value - end + edgeSize) / edgeSize).coerceAtMost(1f)
         else -> 0f
     }
-}
-
-/**
- * The actions of the text menu.
- */
-internal class HandleMenu(
-    private val state: KodeEditorState,
-    private val readOnly: Boolean,
-    private val clipboardText: () -> AnnotatedString?,
-    private val setClipboardText: (AnnotatedString) -> Unit,
-) {
-    private val selectedText get() = state.rawText.substring(state.selection.min, state.selection.max)
-
-    fun copy() {
-        setClipboardText(AnnotatedString(selectedText))
-        state.setSelection(TextRange(state.selection.max))
-    }
-
-    fun cut() {
-        if (readOnly) return
-        setClipboardText(AnnotatedString(selectedText))
-        state.replaceSelection("")
-    }
-
-    fun paste() {
-        if (readOnly) return
-        val text = clipboardText()?.text ?: return
-        state.bigChange { state.replaceSelection(text) }
-    }
-
-    fun selectAll() = state.selectAll()
 }
 
 /**
@@ -210,4 +183,51 @@ private fun DrawScope.rotate45(pivot: Offset, block: DrawScope.() -> Unit) {
     drawContext.transform.rotate(45f, pivot)
     block()
     drawContext.transform.rotate(-45f, pivot)
+}
+
+/**
+ * Near an edge of the editor a dragged handle scrolls the view, so it can reach the whole text.
+ *
+ * @param touch which handle is dragged where
+ * @param viewState is told while the handle moves the view
+ * @param area the size of the editor
+ * @param textLeft where the text starts in the editor, after the bar
+ * @param scrolled the offset of the view after scrolling by a distance on screen, null if it can not move
+ * @param scrollTo moves the view to an offset
+ * @param onUserMovedView called when the handle starts to move the view
+ * @param moveHandle moves the handle of this kind to the point it is dragged to, after the view moved
+ */
+@Composable
+internal fun HandleEdgeScrollEffect(
+    touch: EditorTouch,
+    viewState: KodeEditorViewState,
+    area: () -> Size,
+    textLeft: () -> Float,
+    scrolled: (Offset) -> Offset?,
+    scrollTo: (Offset) -> Unit,
+    onUserMovedView: () -> Unit,
+    moveHandle: (HandleKind, Offset) -> Unit,
+) {
+    val edgeSize = LocalDensity.current.run { HANDLE_EDGE_SIZE.toPx() }
+    val edgeSpeed = LocalDensity.current.run { HANDLE_EDGE_SPEED.toPx() }
+    LaunchedEffect(touch.draggedHandle) {
+        val kind = touch.draggedHandle ?: return@LaunchedEffect
+        try {
+            while (true) {
+                withFrameNanos { }
+                val target = touch.dragTarget ?: continue
+                val distance = HandleDrag.edgeScroll(target, area(), textLeft(), edgeSize, edgeSpeed)
+                val moved = scrolled(distance) ?: continue
+                if (!viewState.handleMoving) {
+                    viewState.handleMoving = true
+                    viewState.interrupt()
+                    onUserMovedView()
+                }
+                scrollTo(moved)
+                moveHandle(kind, target)
+            }
+        } finally {
+            viewState.handleMoving = false
+        }
+    }
 }
