@@ -168,7 +168,7 @@ class SelectionHandlesTest {
     }
 
     @Test
-    fun `the menu stays open and still while somebody else writes in front of the selection, then moves to it`() {
+    fun `the menu stays open and still while somebody else writes in front of the selection`() {
         show(manyLines)
         tap()
         value = value.copy(selection = TextRange(30, 60))
@@ -182,16 +182,13 @@ class SelectionHandlesTest {
             composeRule.runOnIdle { state.applyRemote(listOf(TextSplice(25, 0, "x"))) }
             composeRule.mainClock.advanceTimeByFrame()
         }
-        // the system hides a menu while it moves, so it does not follow each change
-        val whileWriting = menus.size
         composeRule.mainClock.advanceTimeBy(1000)
 
+        // the system hides a menu while it moves, and the user knows what they selected
         assertEquals("never hidden", hidden, hides)
-        assertEquals("still while others write", shown, whileWriting)
+        assertEquals("not moved", shown, menus.size)
         assertEquals(TextToolbarStatus.Shown, toolbar.status)
         assertEquals("the selection moved with the text", TextRange(70, 100), value.selection)
-        val moved = menus.size > shown && menus.last().left > menus[shown - 1].left
-        assertTrue("moved with it: ${menus.drop(shown - 1)}", moved)
     }
 
     @Test

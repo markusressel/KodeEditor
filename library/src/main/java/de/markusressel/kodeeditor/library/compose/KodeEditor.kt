@@ -502,8 +502,6 @@ fun KodeEditor(
         hasClipboardText = { clipboard.hasText() },
         coordinates = { editorCoordinates },
         toEditor = { geometry.toEditor(it, offset) },
-        offset = offset,
-        zoom = zoom,
         userMovingView = viewState.isUserMovingView,
     )
 
