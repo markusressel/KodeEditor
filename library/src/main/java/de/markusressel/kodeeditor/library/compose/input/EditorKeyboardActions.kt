@@ -1,11 +1,10 @@
 package de.markusressel.kodeeditor.library.compose.input
 
-import android.view.View
 import android.view.KeyEvent as AndroidKeyEvent
+import android.view.View
 import android.view.inputmethod.BaseInputConnection
-import androidx.compose.runtime.*
-import de.markusressel.kodeeditor.library.compose.cursor.HandleMenu
 import de.markusressel.kodeeditor.library.compose.fold.EditorFolds
+import de.markusressel.kodeeditor.library.compose.input.EditorClipboardActions
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 
 /**
@@ -19,7 +18,7 @@ import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 internal class EditorKeyboardActions(
     view: View,
     private val state: KodeEditorState,
-    private val menu: HandleMenu,
+    private val menu: EditorClipboardActions,
     private val folds: () -> EditorFolds?,
 ) : KeyboardActions {
     private val keySender = BaseInputConnection(view, false)

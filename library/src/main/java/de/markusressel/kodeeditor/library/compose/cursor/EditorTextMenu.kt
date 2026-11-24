@@ -7,8 +7,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.input.EditorClipboardActions
 import de.markusressel.kodeeditor.library.compose.input.EditorTouch
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
@@ -16,37 +15,6 @@ import kotlinx.coroutines.delay
 
 /** how long the selection has to stay before its menu shows up */
 private const val MENU_DELAY_MS = 250L
-
-/**
- * The actions of the text menu.
- */
-internal class HandleMenu(
-    private val state: KodeEditorState,
-    private val readOnly: Boolean,
-    private val clipboardText: () -> AnnotatedString?,
-    private val setClipboardText: (AnnotatedString) -> Unit,
-) {
-    private val selectedText get() = state.rawText.substring(state.selection.min, state.selection.max)
-
-    fun copy() {
-        setClipboardText(AnnotatedString(selectedText))
-        state.setSelection(TextRange(state.selection.max))
-    }
-
-    fun cut() {
-        if (readOnly) return
-        setClipboardText(AnnotatedString(selectedText))
-        state.replaceSelection("")
-    }
-
-    fun paste() {
-        if (readOnly) return
-        val text = clipboardText()?.text ?: return
-        state.bigChange { state.replaceSelection(text) }
-    }
-
-    fun selectAll() = state.selectAll()
-}
 
 /**
  * Shows the text menu of the system above the selection, after a touch selected something or asked for the menu at
@@ -61,20 +29,22 @@ internal class HandleMenu(
  * @param hasClipboardText whether there is text to paste
  * @param coordinates the coordinates of the editor
  * @param toEditor the point of the editor for a point of the text
- * @param view where the view is, the menu hides while it changes
+ * @param offset where the view is, the menu hides while it moves
+ * @param zoom the zoom of the view, the menu hides while it changes
  */
 @Composable
 internal fun EditorTextMenuEffect(
     state: KodeEditorState,
     layout: EditorLineLayout,
-    menu: HandleMenu,
+    menu: EditorClipboardActions,
     readOnly: Boolean,
     focused: Boolean,
     touch: EditorTouch,
     hasClipboardText: () -> Boolean,
     coordinates: () -> LayoutCoordinates?,
     toEditor: (Offset) -> Offset,
-    view: Any,
+    offset: Offset,
+    zoom: Float,
 ) {
     val textToolbar = LocalTextToolbar.current
 
@@ -101,7 +71,7 @@ internal fun EditorTextMenuEffect(
     }
 
     val selection = state.selection
-    LaunchedEffect(selection, focused, touch.touchInput, touch.cursorMenuRequested, touch.draggedHandle, view) {
+    LaunchedEffect(selection, focused, touch.touchInput, touch.cursorMenuRequested, touch.draggedHandle, offset, zoom) {
         val wanted = focused && touch.touchInput && touch.draggedHandle == null &&
             (!selection.collapsed || touch.cursorMenuRequested)
         if (textToolbar.status == TextToolbarStatus.Shown) textToolbar.hide()

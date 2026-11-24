@@ -1,21 +1,19 @@
 package de.markusressel.kodeeditor.library.compose.layout
 
-import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
+import de.markusressel.kodeeditor.library.compose.state.mapPosition
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.colorscheme.GitHubDarkTheme
 import de.markusressel.kodehighlighter.core.colorscheme.GitHubLightTheme
 import de.markusressel.kodehighlighter.core.colorscheme.withFallback
-
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
-import de.markusressel.kodeeditor.library.compose.state.TextSplice
-import de.markusressel.kodeeditor.library.compose.state.mapPosition
 import de.markusressel.kodehighlighter.core.util.AnnotatedStringHighlighter
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope

@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -20,7 +19,8 @@ private const val CURSOR_BLINK_MS = 500L
 private val CURSOR_WIDTH = 2.dp
 
 /**
- * The blinking cursor of the local user, it stays on while the text or the selection changes.
+ * The blinking cursor of the local user, it stays on while the text or the selection changes. It has its own small
+ * layer, so blinking only changes the alpha of that layer.
  *
  * @param state the text, with the selection whose end the cursor is at
  * @param layout the layout of the text

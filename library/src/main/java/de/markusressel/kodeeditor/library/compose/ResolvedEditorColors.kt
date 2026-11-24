@@ -18,7 +18,7 @@ private val CURRENT_SEARCH_MATCH_COLOR = Color(0xAAFF8F00)
 
 /** The colors the editor draws with, where the unspecified ones of [KodeEditorColors] got their defaults */
 @Immutable
-internal data class EditorShownColors(
+internal data class ResolvedEditorColors(
     val textStyle: TextStyle,
     val cursor: Color,
     /** the text of the bar, also of the fold arrows */
@@ -39,14 +39,14 @@ internal data class EditorShownColors(
  * @return the colors to draw with, unspecified ones derived from the text, the bar and the selection
  */
 @Composable
-internal fun KodeEditorColors.resolve(enabled: Boolean, textStyle: TextStyle): EditorShownColors {
+internal fun KodeEditorColors.resolve(enabled: Boolean, textStyle: TextStyle): ResolvedEditorColors {
     val fieldColors = textFieldColors(enabled = enabled).value
     val fieldTextColor = fieldColors.textColor(enabled).value
     val fieldTextStyle = textStyle.copy(color = textStyle.color.takeOrElse { fieldTextColor })
     val gutterText = lineNumberTextColor().value.takeOrElse { fieldTextStyle.color }
     val selectionColors = LocalTextSelectionColors.current
     val selection = selectionColors.backgroundColor
-    return EditorShownColors(
+    return ResolvedEditorColors(
         textStyle = fieldTextStyle,
         cursor = fieldColors.cursorColor().value,
         gutterText = gutterText,

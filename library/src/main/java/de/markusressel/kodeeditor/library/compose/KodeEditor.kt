@@ -39,7 +39,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.setSelection
@@ -58,8 +57,6 @@ import de.markusressel.kodeeditor.library.compose.cursor.EditorCursor
 import de.markusressel.kodeeditor.library.compose.cursor.EditorTextMenuEffect
 import de.markusressel.kodeeditor.library.compose.cursor.HandleDrag
 import de.markusressel.kodeeditor.library.compose.cursor.HandleEdgeScrollEffect
-import de.markusressel.kodeeditor.library.compose.cursor.HandleKind
-import de.markusressel.kodeeditor.library.compose.cursor.HandleMenu
 import de.markusressel.kodeeditor.library.compose.cursor.KodeEditorRemoteCursor
 import de.markusressel.kodeeditor.library.compose.cursor.RemoteCaretLayer
 import de.markusressel.kodeeditor.library.compose.cursor.RemoteCursorLabels
@@ -77,10 +74,12 @@ import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorLineDecoratio
 import de.markusressel.kodeeditor.library.compose.gutter.LineDecorationLayer
 import de.markusressel.kodeeditor.library.compose.gutter.gutterColumnAt
 import de.markusressel.kodeeditor.library.compose.gutter.rememberLineNumberColumn
+import de.markusressel.kodeeditor.library.compose.input.EditorClipboardActions
 import de.markusressel.kodeeditor.library.compose.input.EditorKeyboardActions
 import de.markusressel.kodeeditor.library.compose.input.EditorKeys
 import de.markusressel.kodeeditor.library.compose.input.EditorTouch
 import de.markusressel.kodeeditor.library.compose.input.EditorTouchGestures
+import de.markusressel.kodeeditor.library.compose.input.HandleKind
 import de.markusressel.kodeeditor.library.compose.input.KeyZoom
 import de.markusressel.kodeeditor.library.compose.input.KeyboardCommand
 import de.markusressel.kodeeditor.library.compose.input.KeyboardCursor
@@ -119,7 +118,7 @@ import de.markusressel.kodeeditor.library.compose.view.CursorVisibility
 import de.markusressel.kodeeditor.library.compose.view.DrawWindow
 import de.markusressel.kodeeditor.library.compose.view.EditorGeometry
 import de.markusressel.kodeeditor.library.compose.view.EditorScrollbars
-import de.markusressel.kodeeditor.library.compose.view.EditorViewportState
+import de.markusressel.kodeeditor.library.compose.view.EditorViewportAdapter
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorScrollbarStyle
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
 import de.markusressel.kodeeditor.library.compose.view.ZoomLayout
@@ -234,7 +233,6 @@ fun KodeEditor(
     val windowInfo = LocalWindowInfo.current
     val keyboard = LocalSoftwareKeyboardController.current
     val haptics = LocalHapticFeedback.current
-    val textToolbar = LocalTextToolbar.current
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     val touch = remember { EditorTouch() }
@@ -295,7 +293,7 @@ fun KodeEditor(
     }
 
     val menuActions = remember(state, readOnly, clipboard) {
-        HandleMenu(
+        EditorClipboardActions(
             state = state,
             readOnly = readOnly,
             clipboardText = { clipboard.getText() },
@@ -364,8 +362,8 @@ fun KodeEditor(
     val measurer = rememberTextMeasurer(cacheSize = LINE_LAYOUT_CACHE_SIZE)
     val breakMeasurer = rememberTextMeasurer(cacheSize = 0)
     val layout = remember(
-        state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping, animations.reflow, animations.folding,
-        folds, inlineFoldText,
+        state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping,
+        animations.reflow, animations.folding, folds, inlineFoldText,
     ) {
         EditorLineLayout(
             state = state,
@@ -460,7 +458,7 @@ fun KodeEditor(
     }
 
     val viewport = remember(layout, textStartPadding) {
-        EditorViewportState(
+        EditorViewportAdapter(
             state = state,
             layout = layout,
             textStartPadding = textStartPadding,
@@ -517,6 +515,11 @@ fun KodeEditor(
         zoom = newZoom
     }
 
+    fun focusAndShowKeyboard() {
+        focusRequester.requestFocus()
+        if (!readOnly) keyboard?.show()
+    }
+
     /** @return true if a column of the bar took the tap */
     fun tapGutter(position: Offset): Boolean {
         if (position.x >= geometry.gutterOnScreen) return false
@@ -534,10 +537,7 @@ fun KodeEditor(
             viewState = viewState,
             touch = touch,
             haptics = haptics,
-            focus = {
-                focusRequester.requestFocus()
-                if (!readOnly) keyboard?.show()
-            },
+            focus = ::focusAndShowKeyboard,
             toText = { geometry.toText(it, offset) },
             tapGutter = ::tapGutter,
             tapTrailingText = { layout.tapTrailingText(it, currentDecorations) },
@@ -586,7 +586,8 @@ fun KodeEditor(
         hasClipboardText = { clipboard.hasText() },
         coordinates = { editorCoordinates },
         toEditor = { geometry.toEditor(it, offset) },
-        view = offset to zoom,
+        offset = offset,
+        zoom = zoom,
     )
 
     val keys = remember(state, menuActions, keyboardCursor) { EditorKeys(state, menuActions, keyboardCursor) }
@@ -641,10 +642,7 @@ fun KodeEditor(
             }
             .focusRequester(focusRequester)
             .editorInput(state, enabled && !readOnly, autoCorrect, keyboardActions)
-            .editorSemantics(state, enabled, readOnly) {
-                focusRequester.requestFocus()
-                if (!readOnly) keyboard?.show()
-            }
+            .editorSemantics(state, enabled, readOnly, ::focusAndShowKeyboard)
             .focusable(enabled = enabled),
     ) {
         EditorGutter(

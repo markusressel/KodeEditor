@@ -4,11 +4,13 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -20,8 +22,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
@@ -30,23 +30,14 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import de.markusressel.kodeeditor.library.compose.input.EditorTouch
+import de.markusressel.kodeeditor.library.compose.input.HandleKind
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
 import kotlin.math.roundToInt
-
-internal const val CURSOR_HANDLE_TAG = "kodeeditor-cursor-handle"
-internal const val SELECTION_START_HANDLE_TAG = "kodeeditor-selection-start-handle"
-internal const val SELECTION_END_HANDLE_TAG = "kodeeditor-selection-end-handle"
 
 private val HANDLE_TOUCH_SIZE: Dp = 40.dp
 private val HANDLE_RADIUS: Dp = 11.dp
 private val HANDLE_EDGE_SIZE = 48.dp
 private val HANDLE_EDGE_SPEED = 12.dp
-
-internal enum class HandleKind(val tag: String) {
-    Cursor(CURSOR_HANDLE_TAG),
-    SelectionStart(SELECTION_START_HANDLE_TAG),
-    SelectionEnd(SELECTION_END_HANDLE_TAG),
-}
 
 internal object HandleDrag {
 

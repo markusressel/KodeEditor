@@ -1,6 +1,5 @@
 package de.markusressel.kodeeditor.library.compose.input
 
-import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.editableText

@@ -1,15 +1,13 @@
 package de.markusressel.kodeeditor.library.compose.input
 
 import android.view.KeyCharacterMap
-import androidx.compose.runtime.*
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.utf16CodePoint
-import androidx.compose.ui.semantics.setSelection
-import de.markusressel.kodeeditor.library.compose.cursor.HandleMenu
 import de.markusressel.kodeeditor.library.compose.fold.EditorFolds
+import de.markusressel.kodeeditor.library.compose.input.EditorClipboardActions
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 
 /** what a zoom key asks for */
@@ -25,7 +23,7 @@ internal enum class KeyZoom { In, Out, Reset }
  */
 internal class EditorKeys(
     private val state: KodeEditorState,
-    private val menu: HandleMenu,
+    private val menu: EditorClipboardActions,
     private val cursor: KeyboardCursor,
 ) {
     /**
@@ -50,118 +48,118 @@ internal class EditorKeys(
         zoom: (KeyZoom) -> Unit,
     ): Boolean {
         val current = state.selection
-            return when (val command = event.toKeyboardCommand(keyBindings)) {
-                null -> editable && event.insertTypedCharacter(state)
+        return when (val command = event.toKeyboardCommand(keyBindings)) {
+            null -> editable && event.insertTypedCharacter(state)
 
-                is KeyboardCommand.Move -> {
-                    val target = cursor.move(
-                        text = state.rawText,
-                        selection = current,
-                        move = command.move,
-                        extend = event.isShiftPressed,
-                        lines = lines(),
-                        pageHeight = pageHeight(),
-                    )
-                    onCursorMoved()
-                    state.setSelection(target)
-                    true
-                }
-
-                // a read-only editor has nothing to insert it into, so tab moves the focus
-                KeyboardCommand.InsertTab -> {
-                    if (editable) state.replaceSelection("\t")
-                    editable
-                }
-
-                KeyboardCommand.InsertLine -> {
-                    if (editable) state.replaceSelection("\n")
-                    editable
-                }
-
-                // like in IntelliJ: the current line and a selection in it stay as they are
-                KeyboardCommand.StartNewLine -> {
-                    if (editable) {
-                        val line = state.lineOf(current.end)
-                        val end = state.lineEnd(line)
-                        state.localEdit(end, end, "\n" + indentOf(state.rawText, state.lineStart(line)))
-                    }
-                    editable
-                }
-
-                KeyboardCommand.Backspace -> {
-                    if (editable && folds?.inline?.openInsteadOfDelete(backward = true) != true) {
-                        deleteTo(state, previousCharacter(state.rawText, current.min))
-                    }
-                    editable
-                }
-
-                KeyboardCommand.Delete -> {
-                    if (editable && folds?.inline?.openInsteadOfDelete(backward = false) != true) {
-                        deleteTo(state, nextCharacter(state.rawText, current.max))
-                    }
-                    editable
-                }
-
-                KeyboardCommand.BackspaceWord -> {
-                    if (editable && folds?.inline?.openInsteadOfDelete(backward = true) != true) {
-                        deleteTo(state, previousWord(state.rawText, current.min))
-                    }
-                    editable
-                }
-
-                KeyboardCommand.DeleteWord -> {
-                    if (editable && folds?.inline?.openInsteadOfDelete(backward = false) != true) {
-                        deleteTo(state, nextWord(state.rawText, current.max))
-                    }
-                    editable
-                }
-
-                KeyboardCommand.Copy -> {
-                    if (!current.collapsed) menu.copy()
-                    true
-                }
-
-                KeyboardCommand.Cut -> {
-                    if (editable && !current.collapsed) menu.cut()
-                    editable
-                }
-
-                KeyboardCommand.Paste -> {
-                    if (editable) menu.paste()
-                    editable
-                }
-
-                KeyboardCommand.SelectAll -> {
-                    menu.selectAll()
-                    true
-                }
-
-                KeyboardCommand.Undo -> {
-                    if (editable) state.undo()
-                    editable
-                }
-
-                KeyboardCommand.Redo -> {
-                    if (editable) state.redo()
-                    editable
-                }
-
-                KeyboardCommand.ZoomIn -> {
-                    // the keys of IntelliJ, where there is nothing to fold they zoom
-                    if (folds?.expandAtCursor() != true) zoom(KeyZoom.In)
-                    true
-                }
-
-                KeyboardCommand.ZoomOut -> {
-                    if (folds?.collapseAtCursor() != true) zoom(KeyZoom.Out)
-                    true
-                }
-
-                KeyboardCommand.ZoomReset -> {
-                    zoom(KeyZoom.Reset)
-                    true
-                }
+            is KeyboardCommand.Move -> {
+                val target = cursor.move(
+                    text = state.rawText,
+                    selection = current,
+                    move = command.move,
+                    extend = event.isShiftPressed,
+                    lines = lines(),
+                    pageHeight = pageHeight(),
+                )
+                onCursorMoved()
+                state.setSelection(target)
+                true
             }
+
+            // a read-only editor has nothing to insert it into, so tab moves the focus
+            KeyboardCommand.InsertTab -> {
+                if (editable) state.replaceSelection("\t")
+                editable
+            }
+
+            KeyboardCommand.InsertLine -> {
+                if (editable) state.replaceSelection("\n")
+                editable
+            }
+
+            // like in IntelliJ: the current line and a selection in it stay as they are
+            KeyboardCommand.StartNewLine -> {
+                if (editable) {
+                    val line = state.lineOf(current.end)
+                    val end = state.lineEnd(line)
+                    state.localEdit(end, end, "\n" + indentOf(state.rawText, state.lineStart(line)))
+                }
+                editable
+            }
+
+            KeyboardCommand.Backspace -> {
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = true) != true) {
+                    deleteTo(state, previousCharacter(state.rawText, current.min))
+                }
+                editable
+            }
+
+            KeyboardCommand.Delete -> {
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = false) != true) {
+                    deleteTo(state, nextCharacter(state.rawText, current.max))
+                }
+                editable
+            }
+
+            KeyboardCommand.BackspaceWord -> {
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = true) != true) {
+                    deleteTo(state, previousWord(state.rawText, current.min))
+                }
+                editable
+            }
+
+            KeyboardCommand.DeleteWord -> {
+                if (editable && folds?.inline?.openInsteadOfDelete(backward = false) != true) {
+                    deleteTo(state, nextWord(state.rawText, current.max))
+                }
+                editable
+            }
+
+            KeyboardCommand.Copy -> {
+                if (!current.collapsed) menu.copy()
+                true
+            }
+
+            KeyboardCommand.Cut -> {
+                if (editable && !current.collapsed) menu.cut()
+                editable
+            }
+
+            KeyboardCommand.Paste -> {
+                if (editable) menu.paste()
+                editable
+            }
+
+            KeyboardCommand.SelectAll -> {
+                menu.selectAll()
+                true
+            }
+
+            KeyboardCommand.Undo -> {
+                if (editable) state.undo()
+                editable
+            }
+
+            KeyboardCommand.Redo -> {
+                if (editable) state.redo()
+                editable
+            }
+
+            KeyboardCommand.ZoomIn -> {
+                // the keys of IntelliJ, where there is nothing to fold they zoom
+                if (folds?.expandAtCursor() != true) zoom(KeyZoom.In)
+                true
+            }
+
+            KeyboardCommand.ZoomOut -> {
+                if (folds?.collapseAtCursor() != true) zoom(KeyZoom.Out)
+                true
+            }
+
+            KeyboardCommand.ZoomReset -> {
+                zoom(KeyZoom.Reset)
+                true
+            }
+        }
     }
 }
 
@@ -183,7 +181,3 @@ private fun KeyEvent.insertTypedCharacter(state: KodeEditorState): Boolean {
     state.replaceSelection(String(Character.toChars(code)))
     return true
 }
-
-/**
- * The cursor of the editor. It has its own small layer, so blinking only changes the alpha of that layer.
- */

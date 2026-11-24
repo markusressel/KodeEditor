@@ -9,10 +9,21 @@ import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.text.TextRange
-import de.markusressel.kodeeditor.library.compose.cursor.HandleKind
+import de.markusressel.kodeeditor.library.compose.input.HandleKind
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
+
+internal const val CURSOR_HANDLE_TAG = "kodeeditor-cursor-handle"
+internal const val SELECTION_START_HANDLE_TAG = "kodeeditor-selection-start-handle"
+internal const val SELECTION_END_HANDLE_TAG = "kodeeditor-selection-end-handle"
+
+/** the handles that can be dragged, with the test tags of their views */
+internal enum class HandleKind(val tag: String) {
+    Cursor(CURSOR_HANDLE_TAG),
+    SelectionStart(SELECTION_START_HANDLE_TAG),
+    SelectionEnd(SELECTION_END_HANDLE_TAG),
+}
 
 /** What the fingers, a mouse and the selection handles do to the editor right now */
 @Stable
@@ -47,7 +58,7 @@ internal class EditorTouch {
  * @param focus focuses the editor and shows the keyboard
  * @param toText the text position of a point of the editor
  * @param tapGutter lets the bar take a tap, true if it did
- * @param tapTrailingText lets what is shown after the text of a line take a tap at a text position, true if it did
+ * @param tapTrailingText lets what is shown after the text of a line take a tap at a point of the text, true if it did
  */
 internal class EditorTouchGestures(
     private val state: KodeEditorState,

@@ -33,7 +33,7 @@ private const val VISIBLE_RANGE_EDGE = 0.01f
  * @param foldsOf the folds of the editor, null if it does not fold
  * @param onMoved called when the view moved like the user moved it, so the cursor is no longer followed
  */
-internal class EditorViewportState(
+internal class EditorViewportAdapter(
     private val state: KodeEditorState,
     private val layout: EditorLineLayout,
     private val textStartPadding: Float,

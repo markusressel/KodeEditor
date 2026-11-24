@@ -2,11 +2,16 @@ package de.markusressel.kodeeditor.library.compose
 
 import android.app.Application
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -102,6 +107,25 @@ class EditorSemanticsTest {
 
         assertNull(config().getOrNull(SemanticsActions.SetText))
         assertNull(config().getOrNull(SemanticsActions.InsertTextAtCursor))
+    }
+
+    @Test
+    fun `a click focuses the editor, but not when it is disabled`() {
+        var enabled by mutableStateOf(true)
+        composeRule.setContent {
+            KodeEditor(
+                modifier = Modifier.size(400.dp),
+                state = remember { KodeEditorState("hello") },
+                languageRuleBook = noRules,
+                colorScheme = noColors,
+                enabled = enabled,
+            )
+        }
+        composeRule.runOnIdle { assertTrue(config()[SemanticsActions.OnClick].action!!()) }
+        composeRule.onNode(field).assertIsFocused()
+
+        enabled = false
+        composeRule.runOnIdle { assertFalse(config()[SemanticsActions.OnClick].action!!()) }
     }
 
     @Test
