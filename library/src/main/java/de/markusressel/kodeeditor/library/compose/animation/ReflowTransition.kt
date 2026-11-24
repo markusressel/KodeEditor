@@ -37,9 +37,13 @@ internal class ReflowTransition(
     private var easing: Easing = FastOutSlowInEasing,
     private var typedOn: ReflowTransition? = null,
 ) {
-    // the places of a transition from before a change of the text are about a text that is gone, unless it kept them
-    private var previous: ReflowTransition? =
-        previous?.takeIf { it.version == state.rawVersion || (before.keepsPlaces && it.before.keepsPlaces) }
+    // the places of a transition from before a change of the text are about a text that is gone, unless it kept them.
+    // Those are about the text right after its own change, so no other change may have come between, e.g. a key of
+    // the user that does not slide
+    private var previous: ReflowTransition? = previous?.takeIf {
+        it.version == state.rawVersion ||
+            (before.keepsPlaces && it.before.keepsPlaces && it.version == state.rawVersion - 1)
+    }
 
     private val version = state.rawVersion
     private var startMs = -1L

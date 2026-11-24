@@ -229,6 +229,56 @@ class InsertSlideTest {
 
         assertEquals(scene.settled(12), scene.shown(12))
     }
+
+    @Test
+    fun `an insertion after a key of the user does not start from the slide before the key`() {
+        val scene = InsertScene(composeRule, "hello world")
+        scene.show(appearance)
+
+        composeRule.runOnIdle {
+            // all in one frame: somebody inserts, the user types at the end, somebody inserts behind that
+            scene.state.applyRemote(listOf(TextSplice(0, 0, "abc ")), appear = true)
+            scene.state.setSelection(TextRange(scene.state.text.length))
+            scene.state.replaceSelection("xyz")
+            scene.state.applyRemote(listOf(TextSplice(scene.state.text.length, 0, " def")), appear = true)
+        }
+        val end = scene.state.text.length
+        val moving = scene.shown(end)
+        scene.settle()
+
+        assertEquals(scene.settled(end).y, moving.y)
+        assertEquals(scene.settled(end), scene.shown(end))
+    }
+
+    @Test
+    fun `the user types while others insert in the middle and at the end`() = typeWhileOthersInsert(wrapping = false)
+
+    @Test
+    fun `the user types while others insert, with wrapping`() = typeWhileOthersInsert(wrapping = true)
+
+    /** like the app with an agent and another user, all in one frame, about 20 times in a second */
+    private fun typeWhileOthersInsert(wrapping: Boolean) {
+        run {
+            val scene = InsertScene(composeRule, "first line of the text\nsecond line, where the user types")
+            scene.show(appearance, lineWrapping = wrapping, width = 200)
+            repeat(20) { round ->
+                composeRule.runOnIdle {
+                    // somebody in the middle of the first line, the user's key at the end, an agent behind it
+                    scene.state.applyRemote(listOf(TextSplice(6, 0, "x")), appear = true)
+                    scene.state.setSelection(TextRange(scene.state.text.length))
+                    scene.state.replaceSelection("k")
+                    val end = scene.state.text.length
+                    scene.state.applyRemote(listOf(TextSplice(end, 0, " chunk $round")), appear = true)
+                }
+                if (round % 3 == 0) scene.frame()
+                val end = scene.state.text.length
+                (0..end).forEach { scene.shown(it) }
+            }
+            scene.settle()
+            val end = scene.state.text.length
+            assertEquals("wrapping $wrapping", scene.settled(end), scene.shown(end))
+        }
+    }
 }
 
 @RunWith(AndroidJUnit4::class)
