@@ -1,6 +1,7 @@
 package de.markusressel.kodeeditor.library.compose
 
 import android.app.Application
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.MutableState
@@ -74,6 +75,8 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
     val labelShown: Boolean
         get() = rule.onAllNodesWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     var layout: KodeEditorLayout? = null
+    /** the color of the label, to see how visible it is drawn */
+    var labelColor = Color.Transparent
     /** reveals what Jane writes, with [show] and its reveal on. Her cursor is at its head then */
     var reveal: KodeEditorReveal? = null
 
@@ -103,7 +106,7 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
                 lineWrapping = lineWrapping,
                 remoteCursorLabel = {
                     SideEffect { labelCompositions++ }
-                    Box(Modifier.size(10.dp).testTag(LABEL))
+                    Box(Modifier.size(10.dp).background(labelColor).testTag(LABEL))
                 },
             )
         }
@@ -137,6 +140,17 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
         // longer than the rest of a writer, after which their label changes
         rule.mainClock.advanceTimeBy(2500)
         rule.waitForIdle()
+    }
+
+    /** how visible the label is drawn now, with a blue [labelColor] */
+    fun labelAlpha(): Float {
+        val editor = rule.onNodeWithTag("editor").fetchSemanticsNode()
+        val label = rule.onNodeWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNode()
+        val image = rule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        val center = label.positionInRoot - editor.positionInRoot
+        val c = image[(center.x + label.size.width / 2).toInt(), (center.y + label.size.height / 2).toInt()]
+        // blue over gray, the background or text, adds as much blue as it takes away red
+        return c.blue - c.red
     }
 
     /** where the label is once nothing moves anymore */
@@ -742,6 +756,21 @@ class RemoteCursorsTest {
         val y = (layout.getLineTop(3) + layout.lineHeight / 2).toInt()
         // red over the background takes away as much green as it leaves red
         return (0 until image.width).maxOf { x -> image[x, y].let { it.red - it.green } }
+    }
+
+    @Test
+    fun `a label that fades is drawn half visible on its way, not cut away`() {
+        scene.labelColor = Color.Blue
+        scene.cursor.value = scene.janeAt(scene.state.lineStart(3))
+        scene.show(glide)
+        composeRule.mainClock.autoAdvance = false
+        val shown = scene.labelAlpha()
+        scene.leave()
+        repeat(7) { scene.frame() }
+        val fading = scene.labelAlpha()
+
+        assertEquals(1f, shown, 0.05f)
+        assertTrue("half visible: $fading", fading in 0.2f..0.8f)
     }
 
     @Test

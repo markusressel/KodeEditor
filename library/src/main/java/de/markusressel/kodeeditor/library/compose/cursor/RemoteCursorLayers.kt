@@ -158,10 +158,6 @@ internal fun RemoteCursorLabels(
             val current = rememberUpdatedState(cursor)
             Box(
                 modifier = Modifier
-                    .graphicsLayer {
-                        val id = current.value.id
-                        alpha = glides.alphaOf(id) * glides.labels.alphaOf(id)
-                    }
                     .layout { measurable, _ ->
                         val placeable = measurable.measure(Constraints())
                         layout(placeable.width, placeable.height) {
@@ -190,7 +186,12 @@ internal fun RemoteCursorLabels(
                                 visibility = current.value.labelVisibility,
                                 signal = current.value.labelSignal,
                             )
-                            placeable.place(x.roundToInt(), y.roundToInt())
+                            // the layer at the place of the label, a layer that only moves its content would cut it
+                            // away when it is drawn apart for an alpha below 1
+                            placeable.placeWithLayer(x.roundToInt(), y.roundToInt()) {
+                                val id = current.value.id
+                                alpha = glides.alphaOf(id) * glides.labels.alphaOf(id)
+                            }
                         }
                     },
             ) {
