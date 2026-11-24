@@ -3,6 +3,7 @@ package de.markusressel.kodeeditor.library.compose
 import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
 import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
 import de.markusressel.kodeeditor.library.compose.reveal.KodeEditorReveal
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
@@ -82,6 +83,24 @@ class KodeEditorRevealTest {
             val waits = arrived.indices.map { revealedAt[it] - arrived[it] }
             assertTrue("seed $seed waits ${waits.max()}", waits.max() <= 4000 + 16)
         }
+    }
+
+    @Test
+    fun `the end of the text revealed last stays between chunks, and stop moves it to the end of what it shows`() {
+        assertEquals("nothing revealed yet", null, reveal.end)
+        reveal.insert(before.length, "hello ")
+        while (reveal.advance(16)) Unit
+        val between = reveal.end
+        reveal.insert(before.length + 6, "world ")
+        while (reveal.advance(16)) Unit
+        val after = reveal.end
+        reveal.insert(before.length + 12, "again ")
+        reveal.advance(16)
+        reveal.stop()
+
+        assertEquals("behind the first chunk", before.length + 6, between)
+        assertEquals("behind the second chunk", before.length + 12, after)
+        assertEquals("behind what stop showed", before.length + 18, reveal.end)
     }
 
     @Test
@@ -259,6 +278,56 @@ class KodeEditorRevealTest {
         state.replaceSelection("x")
 
         assertFalse(reveal.isRevealing)
+    }
+
+    @Test
+    fun `a cursor or a selection that the user puts into the hidden text shows all of it`() {
+        val chunk = "a chunk of an agent"
+        // into the hidden text, a selection over part of it, and one from the shown text into it
+        for ((start, end) in listOf(4 to 4, 2 to 6, -3 to 1)) {
+            state = KodeEditorState("${before}after\n")
+            reveal = KodeEditorReveal(state, "agent")
+            revealing { clock ->
+                reveal.insert(before.length, chunk)
+                clock.until(1)
+                state.setSelection(TextRange(before.length + start, before.length + end))
+
+                assertFalse("$start..$end", reveal.isRevealing)
+            }
+        }
+    }
+
+    @Test
+    fun `a cursor that the user puts into text that still appears, or at the head behind it, shows all of it`() {
+        for (at in listOf(2, null)) {
+            state = KodeEditorState("${before}after\n")
+            state.appearance = KodeEditorAppearance()
+            reveal = KodeEditorReveal(state, "agent")
+            revealing { clock ->
+                reveal.insert(before.length, "a chunk of an agent")
+                clock.until(5)
+                state.setSelection(TextRange(at?.let { before.length + it } ?: reveal.head!!))
+
+                assertFalse("at $at", reveal.isRevealing)
+                assertTrue("all of it shown at $at", state.rangeAlphas.isEmpty())
+            }
+        }
+    }
+
+    @Test
+    fun `a cursor at the edge of the hidden text or elsewhere, and one that others move, show nothing`() = revealing { clock ->
+        // without an appearance nothing appears, the head is the start of the hidden text
+        reveal.insert(before.length, "a chunk of an agent")
+        clock.until(1)
+        val head = reveal.head!!
+        state.setSelection(TextRange(head))
+        state.setSelection(TextRange(before.length + 19))
+        state.setSelection(TextRange(0))
+        // a chunk at the cursor of the user, behind the hidden text, joins it and moves the cursor with the text
+        state.setSelection(TextRange(before.length + 19))
+        reveal.insert(before.length + 19, "more")
+
+        assertTrue(reveal.isRevealing)
     }
 
     @Test

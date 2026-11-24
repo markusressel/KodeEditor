@@ -17,6 +17,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.isSpecified
@@ -26,6 +27,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onInterceptKeyBeforeSoftKeyboard
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
@@ -499,8 +502,7 @@ fun KodeEditor(
         hasClipboardText = { clipboard.hasText() },
         coordinates = { editorCoordinates },
         toEditor = { geometry.toEditor(it, offset) },
-        offset = offset,
-        zoom = zoom,
+        userMovingView = viewState.isUserMovingView,
     )
 
     val keys = remember(state, menuActions, keyboardCursor) { EditorKeys(state, menuActions, keyboardCursor) }
@@ -533,6 +535,19 @@ fun KodeEditor(
             .background(colors.textFieldBackgroundColor().value)
             // on the parent, so these see the events of the zoom layout and the handles, without taking them away
             .pointerInput(gestures) { detectEditorGestures(gestures) }
+            // a mouse over the label of another user shows it, only watched, nothing is taken away
+            .pointerInput(glides) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: continue
+                        glides.labels.hover = when {
+                            change.type != PointerType.Mouse || event.type == PointerEventType.Exit -> null
+                            else -> geometry.toText(change.position, offset)
+                        }
+                    }
+                }
+            }
             // the keyboard app gets the keys first, and it would turn this one into a line break or drop it
             .onInterceptKeyBeforeSoftKeyboard { event ->
                 val intercept = event.toKeyboardCommand(keyBindings) == KeyboardCommand.StartNewLine &&
@@ -646,7 +661,13 @@ fun KodeEditor(
                             RemoteCursorLabels(
                                 cursors = remoteCursors,
                                 glides = glides,
-                                visibleRight = { offset.x - textStartPadding + geometry.visibleSize.width },
+                                visible = {
+                                    Rect(Offset(offset.x - textStartPadding, offset.y), geometry.visibleSize)
+                                },
+                                localCaret = {
+                                    val shown = focused && enabled && !readOnly && state.selection.collapsed
+                                    if (shown) layout.localCursorRect(state.selection.end) else null
+                                },
                                 label = remoteCursorLabel,
                             )
                         }

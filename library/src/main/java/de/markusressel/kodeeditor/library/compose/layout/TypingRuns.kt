@@ -8,8 +8,8 @@ import de.markusressel.kodeeditor.library.compose.state.mapPosition
 
 /**
  * Where the last changes of the writers ended, the newest first, with the transition of their last slide. A short
- * change right there is typed on (R6b of docs/reveal.md), see [TYPING_WINDOW_MS], so somebody who types keeps their
- * even speed while others write elsewhere.
+ * change right there is typed on (the typing slide, R6b of docs/reveal.md), see [TYPING_WINDOW_MS], so somebody who
+ * types keeps their even speed while others write elsewhere.
  */
 internal class TypingRuns {
 

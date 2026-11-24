@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
 import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
@@ -149,8 +150,11 @@ class RevealFlickerTest {
         // how much ink each character of the agent has in each frame, and whether it is hidden
         val inks = ArrayList<FloatArray>()
         val hidden = ArrayList<BooleanArray>()
+        // a word that slides from the end of a row to its place in the next one passes over other text
+        val sliding = ArrayList<Boolean>()
         agentRun(20) { state, layout, written ->
             val alphas = composeRule.runOnIdle { alphas(state) }
+            sliding += composeRule.runOnIdle { (layout as EditorLineLayout).wrapCarries.releasing }
             hidden += BooleanArray(written) { alphas[it] == 0f }
             val bitmap = composeRule.onNodeWithTag("editor").captureToImage()
             val image = bitmap.toPixelMap()
@@ -158,8 +162,10 @@ class RevealFlickerTest {
             // the text starts behind a padding
             val padding = composeRule.density.run { TEXT_START_PADDING.toPx() }
             inks += FloatArray(written) { i ->
-                val from = layout.getCursorRect(i)
-                val to = layout.getCursorRect(i + 1)
+                // where it is drawn, a word at the start of a wrapped row is drawn at the end of the row above for a while
+                val shown = layout as EditorLineLayout
+                val from = shown.shownCursorRect(i)
+                val to = shown.shownCursorRect(i + 1)
                 // the last one of a row, or a line break
                 if (to.top != from.top || to.left <= from.left) return@FloatArray 0f
                 var ink = 0f
@@ -176,6 +182,7 @@ class RevealFlickerTest {
         val full = inks.last()
         val problems = ArrayList<String>()
         for (frame in 1 until inks.size) {
+            if (sliding[frame - 1] || sliding[frame]) continue
             val before = inks[frame - 1]
             val now = inks[frame]
             for (i in 0 until minOf(before.size, now.size)) {

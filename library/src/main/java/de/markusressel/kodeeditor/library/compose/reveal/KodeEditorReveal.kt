@@ -3,13 +3,17 @@ package de.markusressel.kodeeditor.library.compose.reveal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.animation.FRAME_MS
 import de.markusressel.kodeeditor.library.compose.input.nextCharacter
@@ -18,6 +22,8 @@ import de.markusressel.kodeeditor.library.compose.state.KodeEditorListener
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.state.SplicePhase
 import de.markusressel.kodeeditor.library.compose.state.TextSplice
+import de.markusressel.kodeeditor.library.compose.state.appearTag
+import de.markusressel.kodeeditor.library.compose.state.mapPosition
 import kotlin.math.floor
 import kotlin.math.max
 import kotlinx.coroutines.currentCoroutineContext
@@ -33,8 +39,9 @@ import kotlinx.coroutines.flow.collectLatest
  * - The speed is [minCharsPerSecond], or faster, so all hidden text is shown within [catchUpMs] of its arrival. It
  *   rises when a chunk arrives and does not drop while text is hidden, so the reveal never stutters.
  * - A collapsed part, like a folded link, counts as a single character and is shown as a whole, see [layout].
- * - A change of the user shows all hidden text at once, see [stop]. So does a change of somebody else inside the hidden
- *   text or right at its start or end, as nobody types into hidden text. Changes elsewhere move it, like range styles.
+ * - A change of the user shows all hidden text at once, see [stop]. So does a cursor or a selection that the user puts
+ *   into the text that is revealed, hidden or still appearing, and a change of somebody else inside the hidden text or right at its start or end, as nobody
+ *   types into hidden text. Changes elsewhere move it, like range styles.
  * - Other range styles stay as they are. An app that sets its own must keep the ones with this [tag] in
  *   [KodeEditorState.setRangeStyles], or their text shows at once.
  *
@@ -66,10 +73,24 @@ class KodeEditorReveal(
 
     private val listener = object : KodeEditorListener {
         override fun onLocalEdit(splice: TextSplice) = stop()
+
+        // the user puts the cursor or a selection into the text that is revealed, to work in it: what still appears
+        // and what is hidden, e.g. with a tap into its empty space
+        override fun onLocalSelection(selection: TextRange) {
+            val inside = revealingSections().any { section ->
+                if (selection.collapsed) {
+                    section.first < selection.start && selection.start < section.last + 1
+                } else {
+                    selection.min < section.last + 1 && section.first < selection.max
+                }
+            }
+            if (inside) stop()
+        }
     }
 
     // after the range styles moved with the change: what it inserted or where it removed text is at its start
     private val spliceListener: (TextSplice) -> Unit = { splice ->
+        end = end?.let { mapPosition(it, splice) }
         val end = splice.start + splice.inserted.length
         val touched = state.rangeStyles.any { it.tag.startsWith(prefix) && it.start <= end && splice.start <= it.end }
         if (touched && !inserting) stop()
@@ -83,6 +104,14 @@ class KodeEditorReveal(
 
     /** where the text is revealed at the moment, null when nothing is hidden */
     val head: Int? get() = queue.firstOrNull()?.start
+
+    /**
+     * where the text that was revealed last ends, null before any was shown. [stop] moves it to the end of what it
+     * shows. It moves with the text while the reveal runs. The cursor of the writer can stay there between their chunks
+     * while nothing is hidden, instead of going away
+     */
+    var end: Int? by mutableStateOf(null)
+        private set
 
     /** whether text is hidden */
     val isRevealing: Boolean get() = state.rangeStyles.any { it.tag.startsWith(prefix) }
@@ -128,8 +157,26 @@ class KodeEditorReveal(
         if (charsPerSecond == 0f) charsPerSecond = targetCharsPerSecond
     }
 
+    /** @return the parts of the text that are hidden or still appear, those that touch each other as one */
+    private fun revealingSections(): List<IntRange> {
+        val hidden = state.rangeStyles.filter { it.tag.startsWith(prefix) }.map { it.start until it.end }
+        val appearing = state.rangeAlphas.filter { it.tag.appearTag() == tag }.map { it.start until it.end }
+        val sections = ArrayList<IntRange>()
+        (hidden + appearing).filterNot { it.isEmpty() }.sortedBy { it.first }.forEach { range ->
+            val last = sections.lastOrNull()
+            if (last != null && range.first <= last.last + 1) {
+                sections[sections.lastIndex] = last.first..maxOf(last.last, range.last)
+            } else {
+                sections += range
+            }
+        }
+        return sections
+    }
+
     /** shows all hidden text at once, and ends its appearing */
     fun stop() {
+        // what is shown now ends where the newest hidden text ended
+        queue.lastOrNull()?.let { end = it.end }
         state.setRangeStyles(state.rangeStyles.filterNot { it.tag.startsWith(prefix) })
         state.finishAppearing(tag)
         rested()
@@ -173,6 +220,7 @@ class KodeEditorReveal(
             } else {
                 styles.removeAt(index)
                 left--
+                end = range.end
             }
             revealed += range.start until start
         }

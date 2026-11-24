@@ -1,6 +1,7 @@
 package de.markusressel.kodeeditor.library.compose
 
 import android.app.Application
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.MutableState
@@ -36,6 +37,7 @@ import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -74,11 +76,17 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
     val labelShown: Boolean
         get() = rule.onAllNodesWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     var layout: KodeEditorLayout? = null
+    /** the color of the label, to see how visible it is drawn */
+    var labelColor = Color.Transparent
     /** reveals what Jane writes, with [show] and its reveal on. Her cursor is at its head then */
     var reveal: KodeEditorReveal? = null
 
-    fun janeAt(offset: Int, selection: TextRange = TextRange(offset)) =
-        KodeEditorRemoteCursor("jane", listOf(selection), Color.Red, Color.Green.copy(alpha = 0.5f))
+    fun janeAt(offset: Int, selection: TextRange = TextRange(offset)) = KodeEditorRemoteCursor(
+        "jane",
+        listOf(selection),
+        Color.Red,
+        Color.Green.copy(alpha = 0.5f),
+    )
 
     fun show(animations: KodeEditorAnimations, lineWrapping: Boolean = false, reveal: Boolean = false) {
         rule.setContent {
@@ -99,7 +107,7 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
                 lineWrapping = lineWrapping,
                 remoteCursorLabel = {
                     SideEffect { labelCompositions++ }
-                    Box(Modifier.size(10.dp).testTag(LABEL))
+                    Box(Modifier.size(10.dp).background(labelColor).testTag(LABEL))
                 },
             )
         }
@@ -130,8 +138,20 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
     /** lets the frames pass until nothing moves anymore */
     fun settle() {
         repeat(5) { frame() }
-        rule.mainClock.advanceTimeBy(1000)
+        // longer than the rest of a writer, after which their label changes
+        rule.mainClock.advanceTimeBy(2500)
         rule.waitForIdle()
+    }
+
+    /** how visible the label is drawn now, with a blue [labelColor] */
+    fun labelAlpha(): Float {
+        val editor = rule.onNodeWithTag("editor").fetchSemanticsNode()
+        val label = rule.onNodeWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNode()
+        val image = rule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        val center = label.positionInRoot - editor.positionInRoot
+        val c = image[(center.x + label.size.width / 2).toInt(), (center.y + label.size.height / 2).toInt()]
+        // blue over gray, the background or text, adds as much blue as it takes away red
+        return c.blue - c.red
     }
 
     /** where the label is once nothing moves anymore */
@@ -534,6 +554,66 @@ class RemoteCursorsTest {
     }
 
     @Test
+    fun `a cursor at the head of revealed text glides over the wrap of its row`() {
+        scene.show(glide, lineWrapping = true, reveal = true)
+        scene.settle()
+        val layout = scene.layout as EditorLineLayout
+        val rowWidth = composeRule.onNodeWithTag("editor").fetchSemanticsNode().size.width.toFloat()
+        composeRule.mainClock.autoAdvance = false
+
+        // words that do not fit at the end of their rows, so the head reaches the start of a wrapped row in a word
+        composeRule.runOnIdle { scene.reveal!!.insert(0, "the agent writes extraordinarily ".repeat(20)) }
+        val carets = ArrayList<Offset>()
+        var carriedFrames = 0
+        for (frame in 1..600) {
+            scene.frame()
+            val head = composeRule.runOnIdle { scene.reveal!!.head } ?: break
+            val caret = caretPosition() ?: continue
+            carets += caret
+            val caretRow = (caret.y / layout.lineHeight).toInt()
+            val headRow = composeRule.runOnIdle { layout.rowOf(head) }
+            if (caretRow < headRow && head - composeRule.runOnIdle { layout.startOfRow(headRow) } >= 4) {
+                // the word is drawn with it, at the end of the row above
+                carriedFrames++
+                assertTrue("the word behind the caret in frame $frame", inkLeftOf(caret, layout.lineHeight))
+            }
+        }
+        assertTrue("carried for a while: $carriedFrames", carriedFrames >= 3)
+        val moves = carets.zipWithNext { a, b -> (b - a).getDistance() }
+        val rows = carets.map { (it.y / layout.lineHeight).toInt() }.distinct()
+
+        assertTrue("over a few rows: $rows", rows.size >= 3)
+        // a jump would go from the end of a row to the start of the next one in one frame
+        assertTrue("no jump: ${moves.max()} of a row of $rowWidth", moves.max() < 0.5f * rowWidth)
+    }
+
+    @Test
+    fun `a cursor at the head of revealed text glides into the next line`() {
+        scene.show(glide, lineWrapping = true, reveal = true)
+        scene.settle()
+        val layout = scene.layout as EditorLineLayout
+        val line = "the agent writes a line that is long\n"
+        composeRule.mainClock.autoAdvance = false
+
+        composeRule.runOnIdle { scene.reveal!!.insert(0, line.repeat(6)) }
+        val lineWidth = composeRule.runOnIdle {
+            layout.getCursorRect(line.length - 1).left - layout.getCursorRect(0).left
+        }
+        val carets = ArrayList<Offset>()
+        for (frame in 1..400) {
+            scene.frame()
+            if (composeRule.runOnIdle { scene.reveal!!.head } == null) break
+            carets += caretPosition() ?: continue
+        }
+        val moves = carets.zipWithNext { a, b -> (b - a).getDistance() }
+        val rows = carets.map { (it.y / layout.lineHeight).toInt() }.distinct()
+
+        assertTrue("over a few lines: $rows", rows.size >= 4)
+        // a jump would go from the end of a line to the start of the next one in one frame
+        assertTrue("no jump: ${moves.max()} of a line of $lineWidth", moves.max() < 0.6f * lineWidth)
+    }
+
+    @Test
     fun `a change of the user shows all of the revealed text`() {
         scene.show(glide, reveal = true)
         composeRule.runOnIdle { scene.reveal!!.insert(0, "the agent writes a chunk ") }
@@ -542,6 +622,35 @@ class RemoteCursorsTest {
         composeRule.runOnIdle { scene.state.replaceSelection("x") }
 
         composeRule.runOnIdle { assertFalse(scene.reveal!!.isRevealing) }
+    }
+
+    /** @return whether text is drawn in the row of the [caret], a few characters left of it, also faintly */
+    private fun inkLeftOf(caret: Offset, lineHeight: Float): Boolean {
+        val image = composeRule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        val top = (caret.y - lineHeight / 2).toInt().coerceAtLeast(0)
+        val bottom = (caret.y + lineHeight / 2).toInt().coerceAtMost(image.height - 1)
+        val right = (caret.x - 2).toInt()
+        val left = (caret.x - 4 * lineHeight).toInt().coerceAtLeast(0)
+        return (left until right).any { x ->
+            (top..bottom).any { y -> image[x, y].let { it.alpha > 0.5f && it.red + it.green + it.blue < 2.7f } }
+        }
+    }
+
+    /** @return the middle of where the red caret of Jane is drawn, null if it is not */
+    private fun caretPosition(): Offset? {
+        val image = composeRule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        var sumX = 0f
+        var sumY = 0f
+        var count = 0
+        for (y in 0 until image.height) for (x in 0 until image.width) {
+            val c = image[x, y]
+            if (c.red > 0.6f && c.green < 0.4f && c.blue < 0.4f) {
+                sumX += x
+                sumY += y
+                count++
+            }
+        }
+        return if (count == 0) null else Offset(sumX / count + 0.5f, sumY / count + 0.5f)
     }
 
     /** @return where the red caret of Jane is drawn in the first row */
@@ -570,6 +679,125 @@ class RemoteCursorsTest {
 
         assertEquals("below the cursor", caret.bottom, atStart, 1f)
         assertTrue("above the cursor within the row: $inRow ${caret.top}", inRow < caret.top)
+    }
+
+    @Test
+    fun `a long word that is revealed slowly over the wrap goes to its row once`() {
+        scene.show(glide, lineWrapping = true, reveal = true)
+        composeRule.mainClock.autoAdvance = false
+        val layout = scene.layout as EditorLineLayout
+        val reveal = scene.reveal!!
+        // a word longer than what is left of the row, revealed at the slow speed
+        composeRule.runOnIdle { reveal.insert(0, "word ".repeat(11) + "extraordinarilylongwordsthatgoon more\n") }
+        val distances = HashMap<Int, ArrayList<Float>>()
+        repeat(150) {
+            scene.frame()
+            composeRule.runOnIdle {
+                layout.wrapCarries.current().forEach { distances.getOrPut(it.start) { ArrayList() } += it.distance.y }
+            }
+        }
+        // per word: carried, then at its place, never carried again
+        val again = distances.filter { (_, ys) ->
+            // -0 too
+            val atPlace = ys.indexOfFirst { abs(it) < 0.5f }.takeIf { it >= 0 } ?: ys.size
+            ys.drop(atPlace).any { abs(it) >= 0.5f }
+        }
+
+        assertTrue("carried: ${distances.keys}", distances.isNotEmpty())
+        assertTrue("carried again: $again", again.isEmpty())
+    }
+
+    @Test
+    fun `a label that went below stays there while its writer writes on, and goes back above after a rest`() {
+        scene.show(glide, lineWrapping = true)
+        composeRule.mainClock.autoAdvance = false
+        val layout = scene.layout as EditorLineLayout
+        val rowStart = layout.startOfRow(1)
+        scene.moveTo(rowStart - 3)
+        scene.settle()
+        val caretTop = layout.getCursorRect(rowStart).top
+        // Jane types on into the next row, a key every 64 ms
+        val ys = ArrayList<Float>()
+        for (offset in rowStart - 2..rowStart + 6) {
+            scene.moveTo(offset)
+            repeat(3) { scene.frame() }
+            if (offset > rowStart) ys += scene.labelPosition.y
+        }
+        val rested = scene.settledPosition().y
+
+        assertTrue("below the cursor while she types: $ys", ys.all { it >= caretTop + layout.lineHeight / 2 })
+        assertTrue("above it after a rest: $rested $caretTop", rested < caretTop)
+    }
+
+    @Test
+    fun `a label changes its side in a few frames, not at once`() {
+        scene.show(glide, lineWrapping = true)
+        composeRule.mainClock.autoAdvance = false
+        val layout = scene.layout as EditorLineLayout
+        val rowStart = layout.startOfRow(1)
+        scene.moveTo(rowStart)
+        scene.settle()
+        val below = scene.labelPosition.y
+        // a step into the row keeps it below until a rest, then it goes above
+        scene.moveTo(rowStart + 1)
+        val ys = (0 until 160).map {
+            scene.frame()
+            scene.labelPosition.y
+        }
+        val above = ys.last()
+
+        assertTrue("above in the end: $above $below", above < below - layout.lineHeight)
+        assertTrue("on its way: $ys", ys.any { it < below - 1f && it > above + 1f })
+    }
+
+    @Test
+    fun `a user who comes fades in, and one who comes back while fading out fades in from there`() {
+        scene.present.value = false
+        scene.cursor.value = scene.janeAt(scene.state.lineStart(3))
+        scene.show(glide)
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnIdle { scene.present.value = true }
+        repeat(6) { scene.frame() }
+        val coming = caretAlpha()
+        scene.settle()
+        val there = caretAlpha()
+        scene.leave()
+        repeat(6) { scene.frame() }
+        val leaving = caretAlpha()
+        composeRule.runOnIdle { scene.present.value = true }
+        scene.frame()
+        val back = caretAlpha()
+        scene.settle()
+
+        assertTrue("on its way in: $coming", coming in 0.05f..0.9f)
+        assertEquals(1f, there, 0.05f)
+        assertTrue("on its way out: $leaving", leaving in 0.05f..0.9f)
+        assertTrue("in again from there: $leaving $back", back in leaving - 0.1f..0.95f)
+        assertEquals(1f, caretAlpha(), 0.05f)
+    }
+
+    /** how opaque the red caret of Jane is drawn, in the row of the line she is in */
+    private fun caretAlpha(): Float {
+        val layout = scene.layout!!
+        val image = composeRule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        val y = (layout.getLineTop(3) + layout.lineHeight / 2).toInt()
+        // red over the background takes away as much green as it leaves red
+        return (0 until image.width).maxOf { x -> image[x, y].let { it.red - it.green } }
+    }
+
+    @Test
+    fun `a label that fades is drawn half visible on its way, not cut away`() {
+        scene.labelColor = Color.Blue
+        scene.cursor.value = scene.janeAt(scene.state.lineStart(3))
+        scene.show(glide)
+        composeRule.mainClock.autoAdvance = false
+        val shown = scene.labelAlpha()
+        scene.leave()
+        repeat(7) { scene.frame() }
+        val fading = scene.labelAlpha()
+
+        assertEquals(1f, shown, 0.05f)
+        assertTrue("half visible: $fading", fading in 0.2f..0.8f)
     }
 
     @Test

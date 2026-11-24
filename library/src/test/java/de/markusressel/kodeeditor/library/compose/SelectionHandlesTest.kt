@@ -33,6 +33,7 @@ import de.markusressel.kodeeditor.library.compose.input.EditorClipboardActions
 import de.markusressel.kodeeditor.library.compose.cursor.SELECTION_END_HANDLE_TAG
 import de.markusressel.kodeeditor.library.compose.cursor.SELECTION_START_HANDLE_TAG
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
@@ -70,9 +71,11 @@ class SelectionHandlesTest {
             if (new.text != state.rawText) state.setText(new.text, new.selection) else state.setSelection(new.selection)
         }
     private val menus = mutableListOf<Rect>()
+    private var hides = 0
     private val toolbar = object : TextToolbar {
         override var status = TextToolbarStatus.Hidden
         override fun hide() {
+            if (status == TextToolbarStatus.Shown) hides++
             status = TextToolbarStatus.Hidden
         }
 
@@ -162,6 +165,30 @@ class SelectionHandlesTest {
         composeRule.waitForIdle()
         assertEquals(30, value.selection.min)
         assertTrue("selection ends at ${value.selection.max}", value.selection.max > 60)
+    }
+
+    @Test
+    fun `the menu stays open and still while somebody else writes in front of the selection`() {
+        show(manyLines)
+        tap()
+        value = value.copy(selection = TextRange(30, 60))
+        composeRule.mainClock.advanceTimeBy(1000)
+        composeRule.waitForIdle()
+        val shown = menus.size
+        val hidden = hides
+        // an agent writes in the line of the selection, a character in each frame
+        composeRule.mainClock.autoAdvance = false
+        repeat(40) {
+            composeRule.runOnIdle { state.applyRemote(listOf(TextSplice(25, 0, "x"))) }
+            composeRule.mainClock.advanceTimeByFrame()
+        }
+        composeRule.mainClock.advanceTimeBy(1000)
+
+        // the system hides a menu while it moves, and the user knows what they selected
+        assertEquals("never hidden", hidden, hides)
+        assertEquals("not moved", shown, menus.size)
+        assertEquals(TextToolbarStatus.Shown, toolbar.status)
+        assertEquals("the selection moved with the text", TextRange(70, 100), value.selection)
     }
 
     @Test

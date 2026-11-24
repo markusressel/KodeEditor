@@ -12,6 +12,7 @@ import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.state.SplicePhase
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 
 /**
@@ -52,8 +53,12 @@ internal fun rememberRemoteCursorGlides(
         val motion = coroutineContext[MotionDurationScale]
         glides.durationScale = { motion?.scaleFactor ?: 1f }
         snapshotFlow { glides.isGliding to glides.starts }.collectLatest { (gliding) ->
-            // frames only while a cursor glides, they only draw and place again
-            while (gliding && withFrameMillis { glides.onFrame(it) }) Unit
+            // frames only while a cursor glides or a label moves, they only draw and place again. A label that waits,
+            // e.g. for its writer to rest, waits without frames
+            while (gliding) {
+                if (withFrameMillis { glides.onFrame(it) }) continue
+                delay(glides.labels.waitMs() ?: break)
+            }
         }
     }
     return glides

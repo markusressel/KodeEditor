@@ -4,8 +4,8 @@ import androidx.compose.animation.core.Easing
 import androidx.compose.ui.util.lerp
 
 /*
- * How the steps of somebody who types move, the same for their cursor (R5b, R5c of docs/reveal.md) and for the text
- * behind their change (R6b). Keep these in step with the doc.
+ * How the steps of somebody who types move, the same for their cursor (the even typing glide R5b and crisp slow typing
+ * R5c of docs/reveal.md) and for the text behind their change (the typing slide, R6b). Keep these in step with the doc.
  */
 
 /** the time between two frames at 60 Hz */

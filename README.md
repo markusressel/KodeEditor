@@ -134,7 +134,11 @@ All lines have the same height, so a style with a larger font size does not make
 `KodeEditorReveal` shows text that arrives in chunks, like the answer of an agent, as if it was typed. Each chunk is
 in the text at once and hidden until the reveal gets to it, a few characters in each frame, so the text below does not
 move. It goes at 60 characters per second, faster when more text waits, and shows each chunk within 4 s. A change of
-the user shows all of it at once. [docs/reveal.md](docs/reveal.md) has the rules.
+the user, or their cursor in text that is still revealed, shows all of it at once. [docs/reveal.md](docs/reveal.md) has
+the rules.
+
+[docs/collaboration.md](docs/collaboration.md) shows how the text, typists, agents, cursors and names work together,
+with a complete example and a checklist.
 
 ```kotlin
 val reveal = rememberKodeEditorReveal(state, tag = "agent")
@@ -146,9 +150,29 @@ KodeEditor(
     state = state,
     // shows a folded part as a whole
     onTextLayout = { reveal.layout = it },
-    // its cursor at the head of the reveal
-    remoteCursors = listOfNotNull(reveal.head?.let { agentCursor(it) }),
+    // its cursor at the head of the reveal, and at the end of its text between chunks while it writes
+    remoteCursors = listOfNotNull((reveal.head ?: reveal.end?.takeIf { agentWrites })?.let { agentCursor(it) }),
     // ...
+)
+```
+
+### Cursors and names of others
+
+`remoteCursors` draws the cursors and selections of others, and `remoteCursorLabel` their name at the first cursor.
+Cursors glide to their new place, users who come and go fade in and out. The name stays out of the way on its own: it
+goes below the cursor where it would cover what was just written, and fades down while somebody writes steadily or while
+it covers the user's cursor. The app can take over:
+
+```kotlin
+KodeEditorRemoteCursor(
+    id = "jane",
+    selections = listOf(TextRange(cursor)),
+    caretColor = janeColor,
+    selectionColor = janeColor.copy(alpha = 0.3f),
+    // Auto by default, Shown or Hidden always
+    labelVisibility = KodeEditorLabelVisibility.Auto,
+    // count it up to show the name for a moment, e.g. when the user picks Jane in a list
+    labelSignal = showNames,
 )
 ```
 
