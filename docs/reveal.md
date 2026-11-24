@@ -12,6 +12,7 @@ val reveal = rememberKodeEditorReveal(state, tag = "agent")
 
 reveal.insert(position, chunk) // inserts the chunk hidden, with applyRemote
 reveal.head                    // where the text is revealed, null when nothing is hidden
+reveal.end                     // where the text revealed last ends, for the cursor between chunks, null after stop()
 reveal.isRevealing             // whether text is hidden
 reveal.hiddenLength            // how many characters are hidden
 reveal.stop()                  // shows all hidden text at once
