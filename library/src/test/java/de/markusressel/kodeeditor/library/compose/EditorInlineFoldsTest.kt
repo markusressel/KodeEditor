@@ -1,6 +1,16 @@
 package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.fold.CollapsedRanges
+import de.markusressel.kodeeditor.library.compose.fold.EditorFolds
+import de.markusressel.kodeeditor.library.compose.fold.EditorInlineFolds
+import de.markusressel.kodeeditor.library.compose.fold.FoldRegion
+import de.markusressel.kodeeditor.library.compose.fold.InlineFold
+import de.markusressel.kodeeditor.library.compose.fold.KodeEditorFoldProvider
+import de.markusressel.kodeeditor.library.compose.fold.providers.MarkdownFoldProvider
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.SplicePhase
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

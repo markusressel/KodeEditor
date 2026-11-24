@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

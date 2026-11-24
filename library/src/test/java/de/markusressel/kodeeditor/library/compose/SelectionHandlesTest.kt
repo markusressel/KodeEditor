@@ -29,6 +29,12 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.cursor.CURSOR_HANDLE_TAG
+import de.markusressel.kodeeditor.library.compose.cursor.HandleDrag
+import de.markusressel.kodeeditor.library.compose.cursor.HandleMenu
+import de.markusressel.kodeeditor.library.compose.cursor.SELECTION_END_HANDLE_TAG
+import de.markusressel.kodeeditor.library.compose.cursor.SELECTION_START_HANDLE_TAG
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme

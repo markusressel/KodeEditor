@@ -18,6 +18,17 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.gutter.GutterCell
+import de.markusressel.kodeeditor.library.compose.gutter.GutterLine
+import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorGutterColumn
+import de.markusressel.kodeeditor.library.compose.gutter.LineNumberFades
+import de.markusressel.kodeeditor.library.compose.gutter.gutterColumnAt
+import de.markusressel.kodeeditor.library.compose.gutter.gutterLinesWithin
+import de.markusressel.kodeeditor.library.compose.gutter.rememberLineNumberColumn
+import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme

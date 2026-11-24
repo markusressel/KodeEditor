@@ -3,6 +3,9 @@ package de.markusressel.kodeeditor.library.compose
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import de.markusressel.kodeeditor.library.compose.input.DEFAULT_KEY_BINDINGS
+import de.markusressel.kodeeditor.library.compose.input.KodeEditorKeyBinding
+import de.markusressel.kodeeditor.library.compose.search.KodeEditorSearch
 import de.markusressel.kodehighlighter.core.ui.KodeTextField
 import de.markusressel.kodehighlighter.core.ui.KodeTextFieldColors
 import de.markusressel.kodehighlighter.core.ui.KodeTextFieldDefaults

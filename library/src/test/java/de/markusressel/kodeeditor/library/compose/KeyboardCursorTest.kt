@@ -2,6 +2,11 @@ package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.input.CursorMove
+import de.markusressel.kodeeditor.library.compose.input.KeyboardCommand
+import de.markusressel.kodeeditor.library.compose.input.KeyboardCursor
+import de.markusressel.kodeeditor.library.compose.input.TextLines
+import de.markusressel.kodeeditor.library.compose.input.keyboardCommandFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

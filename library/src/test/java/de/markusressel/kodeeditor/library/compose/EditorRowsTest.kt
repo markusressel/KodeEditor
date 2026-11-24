@@ -1,11 +1,18 @@
 package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.layout.EditorRows
+import de.markusressel.kodeeditor.library.compose.layout.WrappedRows
+import de.markusressel.kodeeditor.library.compose.layout.cellBreaks
+import de.markusressel.kodeeditor.library.compose.layout.emojiBreaks
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.SplicePhase
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
+import kotlin.random.Random
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import kotlin.random.Random
 
 class EditorRowsTest {
 

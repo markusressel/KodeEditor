@@ -1,5 +1,6 @@
 package de.markusressel.kodeeditor.library.compose
 
+import de.markusressel.kodeeditor.library.compose.fold.providers.TomlFoldProvider
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

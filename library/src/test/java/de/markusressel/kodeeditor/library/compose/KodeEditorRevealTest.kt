@@ -1,18 +1,22 @@
 package de.markusressel.kodeeditor.library.compose
 
+import androidx.compose.runtime.MonotonicFrameClock
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.text.TextRange
+import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
+import de.markusressel.kodeeditor.library.compose.reveal.KodeEditorReveal
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
+import java.lang.reflect.Proxy
+import kotlin.random.Random
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import androidx.compose.runtime.MonotonicFrameClock
-import androidx.compose.runtime.snapshots.Snapshot
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.yield
-import java.lang.reflect.Proxy
-import kotlin.random.Random
 
 class KodeEditorRevealTest {
 

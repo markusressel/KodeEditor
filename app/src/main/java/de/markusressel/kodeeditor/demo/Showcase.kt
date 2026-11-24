@@ -2,9 +2,9 @@ package de.markusressel.kodeeditor.demo
 
 import android.util.Log
 import androidx.compose.runtime.snapshotFlow
-import de.markusressel.kodeeditor.library.compose.KodeEditorReveal
-import de.markusressel.kodeeditor.library.compose.KodeEditorState
-import de.markusressel.kodeeditor.library.compose.KodeEditorViewState
+import de.markusressel.kodeeditor.library.compose.reveal.KodeEditorReveal
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first

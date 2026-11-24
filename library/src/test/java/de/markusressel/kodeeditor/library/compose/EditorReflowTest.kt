@@ -1,6 +1,13 @@
 package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.ui.geometry.Offset
+import de.markusressel.kodeeditor.library.compose.animation.LayoutBeforeInsert
+import de.markusressel.kodeeditor.library.compose.animation.REFLOW_ANIMATION_MS
+import de.markusressel.kodeeditor.library.compose.animation.ReflowTransition
+import de.markusressel.kodeeditor.library.compose.layout.WrappedRows
+import de.markusressel.kodeeditor.library.compose.layout.cellBreaks
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.state.TextSplice
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
