@@ -278,6 +278,38 @@ class KodeEditorRevealTest {
     }
 
     @Test
+    fun `a cursor or a selection that the user puts into the hidden text shows all of it`() {
+        val chunk = "a chunk of an agent"
+        // into the hidden text, a selection over part of it, and one from the shown text into it
+        for ((start, end) in listOf(4 to 4, 2 to 6, -3 to 1)) {
+            state = KodeEditorState("${before}after\n")
+            reveal = KodeEditorReveal(state, "agent")
+            revealing { clock ->
+                reveal.insert(before.length, chunk)
+                clock.until(1)
+                state.setSelection(TextRange(before.length + start, before.length + end))
+
+                assertFalse("$start..$end", reveal.isRevealing)
+            }
+        }
+    }
+
+    @Test
+    fun `a cursor at the edge of the hidden text or elsewhere, and one that others move, show nothing`() = revealing { clock ->
+        reveal.insert(before.length, "a chunk of an agent")
+        clock.until(1)
+        val head = reveal.head!!
+        state.setSelection(TextRange(head))
+        state.setSelection(TextRange(before.length + 19))
+        state.setSelection(TextRange(0))
+        // a chunk at the cursor of the user, behind the hidden text, joins it and moves the cursor with the text
+        state.setSelection(TextRange(before.length + 19))
+        reveal.insert(before.length + 19, "more")
+
+        assertTrue(reveal.isRevealing)
+    }
+
+    @Test
     fun `a character of two UTF-16 units is revealed as a whole`() {
         val chunk = "a\uD83D\uDE00b\uD83D\uDE00\uD83D\uDE00c"
         reveal.insert(before.length, chunk)

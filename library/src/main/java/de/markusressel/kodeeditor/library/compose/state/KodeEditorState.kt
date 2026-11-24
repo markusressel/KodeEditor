@@ -26,6 +26,12 @@ interface KodeEditorListener {
      */
     fun onLocalEdit(splice: TextSplice) {}
 
+    /**
+     * The user or the app moved the cursor or the selection, e.g. with a tap, the keyboard or
+     * [KodeEditorState.setSelection]. Moves by changes of the text are not reported.
+     */
+    fun onLocalSelection(selection: TextRange) {}
+
     /** the selection or the composition changed, or the text */
     fun onStateChanged() {}
 }
@@ -278,10 +284,12 @@ class KodeEditorState(
     fun setSelection(selection: TextRange) = batch {
         val range = selection.coercedIn(currentText.length)
         if (range != selectionState || compositionState != null) {
+            val moved = range != selectionState
             selectionState = range
             selectionMovedByOthers = null
             compositionState = null
             changedInBatch = true
+            if (moved) listeners.toList().forEach { it.onLocalSelection(range) }
         }
     }
 
@@ -450,10 +458,12 @@ class KodeEditorState(
     internal fun setSelectionFromKeyboard(selection: TextRange, composition: TextRange?) = batch {
         val range = selection.coercedIn(currentText.length)
         if (range != selectionState || composition != compositionState) {
+            val moved = range != selectionState
             selectionState = range
             selectionMovedByOthers = null
             compositionState = composition
             changedInBatch = true
+            if (moved) listeners.toList().forEach { it.onLocalSelection(range) }
         }
     }
 

@@ -13,6 +13,7 @@ import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import de.markusressel.kodeeditor.library.compose.KodeEditor
 import de.markusressel.kodeeditor.library.compose.animation.FRAME_MS
 import de.markusressel.kodeeditor.library.compose.input.nextCharacter
@@ -37,8 +38,9 @@ import kotlinx.coroutines.flow.collectLatest
  * - The speed is [minCharsPerSecond], or faster, so all hidden text is shown within [catchUpMs] of its arrival. It
  *   rises when a chunk arrives and does not drop while text is hidden, so the reveal never stutters.
  * - A collapsed part, like a folded link, counts as a single character and is shown as a whole, see [layout].
- * - A change of the user shows all hidden text at once, see [stop]. So does a change of somebody else inside the hidden
- *   text or right at its start or end, as nobody types into hidden text. Changes elsewhere move it, like range styles.
+ * - A change of the user shows all hidden text at once, see [stop]. So does a cursor or a selection that the user puts
+ *   into hidden text, and a change of somebody else inside the hidden text or right at its start or end, as nobody
+ *   types into hidden text. Changes elsewhere move it, like range styles.
  * - Other range styles stay as they are. An app that sets its own must keep the ones with this [tag] in
  *   [KodeEditorState.setRangeStyles], or their text shows at once.
  *
@@ -70,6 +72,18 @@ class KodeEditorReveal(
 
     private val listener = object : KodeEditorListener {
         override fun onLocalEdit(splice: TextSplice) = stop()
+
+        // the user puts the cursor or a selection into hidden text, e.g. with a tap into its empty space
+        override fun onLocalSelection(selection: TextRange) {
+            val inside = state.rangeStyles.any {
+                it.tag.startsWith(prefix) && if (selection.collapsed) {
+                    it.start < selection.start && selection.start < it.end
+                } else {
+                    selection.min < it.end && it.start < selection.max
+                }
+            }
+            if (inside) stop()
+        }
     }
 
     // after the range styles moved with the change: what it inserted or where it removed text is at its start

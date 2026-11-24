@@ -43,6 +43,10 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   other chunk is a new entry at the end of the queue, also one right at the start of hidden text.
 - Nobody types into hidden text: a change of the user anywhere, and a change of anybody else inside the hidden text or
   right at its start or end, shows all hidden text of that writer at once and ends its appearing, like `stop()`.
+- Nobody works in hidden text either: a cursor that the user puts into the hidden text (between its start and its end,
+  e.g. with a tap into the empty space it keeps), or a selection that covers part of it, shows all hidden text of that
+  writer at once, like `stop()`. A cursor right at the start or the end of it, and a cursor that only moves with the
+  changes of the text, show nothing.
 - Other changes move the hidden text, like range styles: text inserted in front of it moves it.
 - Only a pure insert of the writer is a chunk. The new text of a replace, also one of the writer, shows at once and
   appears like the text of others (`applyRemote(appear = true)`), and finishes the reveal if it touches hidden text.
