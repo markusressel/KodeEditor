@@ -197,6 +197,27 @@ does the same:
   cursors of others use where it is drawn. The caret cut (R7) cuts the carried word in its own row, at where the caret
   would be there.
 
+### Calm label (R9): the name of a writer does not get in the way
+
+The label with the name of a writer sits at their first cursor. While somebody writes fast, like an agent, it must not
+flip around or cover what they write.
+
+- The place: above the cursor. Below it on the first row, where there is no room above, and at the start of a row that
+  continues a wrapped line, where it would cover what was just written in the row above. It stays inside the right
+  edge of the visible text while its cursor is in view.
+- Keep the side: a label goes below at once when it must, but back above only when its writer rested, that is got no
+  new place for 500 ms, or when their cursor jumps instead of gliding. So a writer who wraps rows quickly moves the
+  label below once, and it goes back above after they stop.
+- A change of the side moves the label in 120 ms with the cubic ease-out, from where it is drawn. A jump of the cursor
+  takes the label with it at once, on the side its new place needs.
+- Fade down: after 1000 ms of writing without a rest, the label fades to an alpha of 0.35 in 200 ms. The cursor still
+  shows who writes. The label shows fully again, in 200 ms, after a rest, a jump, or when the cursor comes into view.
+- A label that covers the cursor of the user fades out in 200 ms, and back in when it does not cover it anymore.
+- With a mouse, a pointer over a label or its cursor (8 px around them) shows it fully. Touch has no hover, there the
+  rules above are all.
+- Without animations, a label takes the side of the first point at each new place of its cursor, and is always
+  shown.
+
 ## Changes of the user
 
 The user's own typing never animates: no cursor glide, no slide, no fade, also not with the keyboard (IME) or while

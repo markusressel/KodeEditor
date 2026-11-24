@@ -35,7 +35,7 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 
 ## Shared rules
 
-- [docs/reveal.md](docs/reveal.md) has the rules for text that arrives in chunks and the cursor at its head, with all numbers. The MkDocsEditor Android app and the web client follow them too, so change them only together with those, and keep the doc in step with `KodeEditorReveal`, `RemoteCursorGlides`, `GlideCurves` and `TypingMotion`.
+- [docs/reveal.md](docs/reveal.md) has the rules for text that arrives in chunks and the cursor at its head, with all numbers. The MkDocsEditor Android app and the web client follow them too, so change them only together with those, and keep the doc in step with `KodeEditorReveal`, `RemoteCursorGlides`, `GlideCurves`, `TypingMotion` and `RemoteLabelMotion`.
 
 ## README animation
 

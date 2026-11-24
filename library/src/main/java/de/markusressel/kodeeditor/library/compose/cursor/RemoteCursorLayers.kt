@@ -8,6 +8,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -133,14 +134,19 @@ internal fun RemoteCaretLayer(
 /**
  * The labels of other users at their first cursor, above it, or below it on the first row and at the start of a row
  * that continues a wrapped line, where the label would cover the text just written in the row above. A label stays
- * inside the right edge of the visible text while its cursor is visible. Only placing them follows a glide or a
- * scroll, and only drawing them a fade out, they are not composed again for it.
+ * inside the right edge of the visible text while its cursor is visible. While somebody writes fast, their label keeps
+ * its side and fades down, see [RemoteLabelMotion]. Only placing them follows a glide or a scroll, and only drawing
+ * them a fade, they are not composed again for it.
+ *
+ * @param visible the visible part of the text
+ * @param localCaret where the cursor of the user is drawn, null without one
  */
 @Composable
 internal fun RemoteCursorLabels(
     cursors: List<KodeEditorRemoteCursor>,
     glides: RemoteCursorGlides,
-    visibleRight: () -> Float,
+    visible: () -> Rect,
+    localCaret: () -> Rect?,
     label: @Composable (KodeEditorRemoteCursor) -> Unit,
 ) {
     (cursors + glides.leaving.map { it.cursor }).forEach { cursor ->
@@ -150,15 +156,18 @@ internal fun RemoteCursorLabels(
             val current = rememberUpdatedState(cursor)
             Box(
                 modifier = Modifier
-                    .graphicsLayer { alpha = glides.alphaOf(current.value.id) }
+                    .graphicsLayer {
+                        val id = current.value.id
+                        alpha = glides.alphaOf(id) * glides.labels.alphaOf(id)
+                    }
                     .layout { measurable, _ ->
                         val placeable = measurable.measure(Constraints())
                         layout(placeable.width, placeable.height) {
                             val rect = glides.caretRect(current.value, 0)
                             // above the cursor, except where that would cover what was just written in the row above
                             val below = rect.top < placeable.height || glides.atWrappedRowStart(current.value)
-                            val y = if (below) rect.bottom else rect.top - placeable.height
-                            val right = visibleRight()
+                            val view = visible()
+                            val right = view.right
                             // the cursor stays under the label, a label of a cursor out of sight stays with it
                             val x = if (rect.left > right) {
                                 rect.left
@@ -167,6 +176,16 @@ internal fun RemoteCursorLabels(
                                     .coerceAtMost(right - placeable.width)
                                     .coerceAtLeast(rect.left - placeable.width)
                             }
+                            val y = glides.labels.place(
+                                id = current.value.id,
+                                caret = rect,
+                                width = placeable.width.toFloat(),
+                                height = placeable.height.toFloat(),
+                                x = x,
+                                below = below,
+                                inView = view.overlaps(rect),
+                                localCaret = localCaret(),
+                            )
                             placeable.place(x.roundToInt(), y.roundToInt())
                         }
                     },

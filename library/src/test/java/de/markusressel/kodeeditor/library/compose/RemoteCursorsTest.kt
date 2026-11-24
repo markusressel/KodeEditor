@@ -1,6 +1,7 @@
 package de.markusressel.kodeeditor.library.compose
 
 import android.app.Application
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.MutableState
@@ -19,6 +20,7 @@ import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
@@ -74,6 +76,8 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
     val labelShown: Boolean
         get() = rule.onAllNodesWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     var layout: KodeEditorLayout? = null
+    /** the color of the label, to see how visible it is drawn */
+    var labelColor = Color.Transparent
     /** reveals what Jane writes, with [show] and its reveal on. Her cursor is at its head then */
     var reveal: KodeEditorReveal? = null
 
@@ -99,7 +103,7 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
                 lineWrapping = lineWrapping,
                 remoteCursorLabel = {
                     SideEffect { labelCompositions++ }
-                    Box(Modifier.size(10.dp).testTag(LABEL))
+                    Box(Modifier.size(10.dp).background(labelColor).testTag(LABEL))
                 },
             )
         }
@@ -132,6 +136,18 @@ private class RemoteCursorScene(private val rule: ComposeContentTestRule) {
         repeat(5) { frame() }
         rule.mainClock.advanceTimeBy(1000)
         rule.waitForIdle()
+    }
+
+    /** how visible the label is drawn now, with a blue [labelColor] */
+    fun labelAlpha(): Float {
+        val editor = rule.onNodeWithTag("editor").fetchSemanticsNode()
+        val label = rule.onNodeWithTag(LABEL, useUnmergedTree = true).fetchSemanticsNode()
+        val image = rule.onNodeWithTag("editor").captureToImage().toPixelMap()
+        val background = image[image.width - 1, image.height - 1]
+        val center = label.positionInRoot - editor.positionInRoot
+        val c = image[(center.x + label.size.width / 2).toInt(), (center.y + label.size.height / 2).toInt()]
+        // blue over the background takes away its red
+        return (background.red - c.red) / background.red
     }
 
     /** where the label is once nothing moves anymore */
@@ -659,6 +675,85 @@ class RemoteCursorsTest {
 
         assertEquals("below the cursor", caret.bottom, atStart, 1f)
         assertTrue("above the cursor within the row: $inRow ${caret.top}", inRow < caret.top)
+    }
+
+    @Test
+    fun `a label that went below stays there while its writer writes on, and goes back above after a rest`() {
+        scene.show(glide, lineWrapping = true)
+        composeRule.mainClock.autoAdvance = false
+        val layout = scene.layout as EditorLineLayout
+        val rowStart = layout.startOfRow(1)
+        scene.moveTo(rowStart - 3)
+        scene.settle()
+        val caretTop = layout.getCursorRect(rowStart).top
+        // Jane types on into the next row, a key every 64 ms
+        val ys = ArrayList<Float>()
+        for (offset in rowStart - 2..rowStart + 6) {
+            scene.moveTo(offset)
+            repeat(3) { scene.frame() }
+            if (offset > rowStart) ys += scene.labelPosition.y
+        }
+        val rested = scene.settledPosition().y
+
+        assertTrue("below the cursor while she types: $ys", ys.all { it >= caretTop + layout.lineHeight / 2 })
+        assertTrue("above it after a rest: $rested $caretTop", rested < caretTop)
+    }
+
+    @Test
+    fun `a label changes its side in a few frames, not at once`() {
+        scene.show(glide, lineWrapping = true)
+        composeRule.mainClock.autoAdvance = false
+        val layout = scene.layout as EditorLineLayout
+        val rowStart = layout.startOfRow(1)
+        scene.moveTo(rowStart)
+        scene.settle()
+        val below = scene.labelPosition.y
+        // a step into the row keeps it below until a rest, then it goes above
+        scene.moveTo(rowStart + 1)
+        val ys = (0 until 50).map {
+            scene.frame()
+            scene.labelPosition.y
+        }
+        val above = ys.last()
+
+        assertTrue("above in the end: $above $below", above < below - layout.lineHeight)
+        assertTrue("on its way: $ys", ys.any { it < below - 1f && it > above + 1f })
+    }
+
+    @Test
+    fun `the label of somebody who writes steadily fades down, a rest and the mouse show it again`() {
+        scene.labelColor = Color.Blue
+        scene.show(glide)
+        composeRule.mainClock.autoAdvance = false
+        val start = scene.state.lineStart(3)
+        scene.moveTo(start)
+        scene.settle()
+        val atRest = scene.labelAlpha()
+        // Jane types and fixes a typo at one place, a key every 64 ms, for 1.5 s
+        fun typeFor(ms: Int) = repeat(ms / 64) {
+            scene.moveTo(start + 1 + it % 2)
+            repeat(3) { scene.frame() }
+        }
+        typeFor(1500)
+        val typing = scene.labelAlpha()
+        composeRule.onNodeWithTag("editor").performMouseInput {
+            val label = composeRule.onNodeWithTag("label", useUnmergedTree = true).fetchSemanticsNode()
+            val editor = composeRule.onNodeWithTag("editor").fetchSemanticsNode()
+            moveTo(label.positionInRoot - editor.positionInRoot + Offset(label.size.width / 2f, label.size.height / 2f))
+        }
+        typeFor(320)
+        val hovered = scene.labelAlpha()
+        composeRule.onNodeWithTag("editor").performMouseInput { moveTo(Offset(1f, 1f)) }
+        typeFor(320)
+        val left = scene.labelAlpha()
+        scene.settle()
+        val rested = scene.labelAlpha()
+
+        assertEquals("shown at rest", 1f, atRest, 0.05f)
+        assertTrue("faded down while she types: $typing", typing < 0.5f)
+        assertEquals("shown under the mouse", 1f, hovered, 0.05f)
+        assertTrue("faded down again: $left", left < 0.5f)
+        assertEquals("shown after a rest", 1f, rested, 0.05f)
     }
 
     @Test

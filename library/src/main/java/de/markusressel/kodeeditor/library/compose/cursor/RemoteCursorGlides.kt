@@ -111,6 +111,12 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
     /** the system setting of the animation speed, 0 turns animations off. It can change at any time */
     var durationScale: () -> Float = { 1f }
 
+    /** where the labels are and how visible, they move with the frames of the glides */
+    val labels = RemoteLabelMotion(animates = { config != null && durationMs > 0 }, wake = {
+        isGliding = true
+        starts++
+    })
+
     /** how long a glide takes */
     private val durationMs: Long get() = ((config?.durationMs ?: 0) * durationScale()).toLong()
 
@@ -145,11 +151,13 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
                 if (glide == null) {
                     glides[key] = Glide(anchor, head)
                 } else if (glide.anchor.offset != anchor || glide.head.offset != head) {
-                    moveTo(glide, anchor, head)
+                    val jumped = moveTo(glide, anchor, head)
+                    if (index == 0) labels.moved(cursor.id, jumped)
                 }
             }
         }
         glides.keys.retainAll(seen)
+        labels.retain(cursors.map { it.id }.toSet() + leaving.map { it.cursor.id })
 
         val now = cursors.associateBy { it.id }
         leaving.removeAll { it.cursor.id in now }
@@ -167,8 +175,10 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
     /**
      * Both ends glide from where they are drawn now, when the cursor moves a little or stays, however far the other end
      * moves. A cursor that becomes a selection grows from it, a selection that becomes a cursor shrinks into it.
+     *
+     * @return whether it jumped to its new place instead of gliding there
      */
-    private fun moveTo(glide: Glide, anchor: Int, head: Int) {
+    private fun moveTo(glide: Glide, anchor: Int, head: Int): Boolean {
         val config = config
         val shownAnchor = shown(glide, glide.anchor)
         val shownHead = shown(glide, glide.head)
@@ -188,7 +198,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
             glide.started = NONE
             glide.movedAt = NONE
             glide.linear = false
-            return
+            return moves && !carried
         }
         // a step of a few characters in the row, like a key somebody types
         glide.small = anchor == head && headStep <= TYPING_MAX_CHARS && abs(headMove.y) < layout.lineHeight / 2
@@ -226,6 +236,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         glide.started = if (gliding) now else NOT_STARTED
         isGliding = true
         starts++
+        return false
     }
 
     /**
@@ -297,6 +308,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
             hasCursors = present.isNotEmpty() || leaving.isNotEmpty()
         }
         if (leaving.isNotEmpty()) gliding = true
+        if (labels.onFrame(timeMs)) gliding = true
         isGliding = gliding
         return gliding
     }
