@@ -187,7 +187,8 @@ class SelectionHandlesTest {
         assertEquals("never hidden", hidden, hides)
         assertEquals(TextToolbarStatus.Shown, toolbar.status)
         assertEquals("the selection moved with the text", TextRange(70, 100), value.selection)
-        assertTrue("moved with it: ${menus.drop(shown - 1)}", menus.size > shown && menus.last().left > menus[shown - 1].left)
+        val moved = menus.size > shown && menus.last().left > menus[shown - 1].left
+        assertTrue("moved with it: ${menus.drop(shown - 1)}", moved)
     }
 
     @Test
