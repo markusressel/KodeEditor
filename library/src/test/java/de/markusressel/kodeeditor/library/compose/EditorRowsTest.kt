@@ -12,7 +12,7 @@ class EditorRowsTest {
     private fun rowsOf(state: KodeEditorState, cells: Int = 10): WrappedRows {
         val rows = WrappedRows(state) { text, start, end, width -> cellBreaks(text, start, end, width.toInt()) }
         rows.update(cells.toFloat())
-        state.rowObserver = rows::onSplice
+        state.addSpliceObserver(SplicePhase.Rows) { rows.onSplice(it) }
         return rows
     }
 

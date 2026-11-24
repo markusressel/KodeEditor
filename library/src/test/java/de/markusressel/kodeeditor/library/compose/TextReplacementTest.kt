@@ -116,7 +116,7 @@ class TextReplacementTest {
             calls++
             cellBreaks(text, start, end, width.toInt())
         }
-        state.rowObserver = { rows.onSplice(it, settledWidth = if (state.replacingText) 50f else null) }
+        state.addSpliceObserver(SplicePhase.Rows) { rows.onSplice(it, settledWidth = if (state.replacingText) 50f else null) }
         rows.update(100f)
         calls = 0
         val text = List(10) { "word ".repeat(40) }.joinToString("\n")

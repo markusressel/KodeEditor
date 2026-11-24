@@ -217,11 +217,11 @@ class KodeEditorSearch(private val state: KodeEditorState) {
      * @param dispatcher where the text is searched
      */
     suspend fun keepUpdated(dispatcher: CoroutineDispatcher = Dispatchers.Default) {
-        state.addSpliceListener(spliceListener)
+        state.addSpliceObserver(SplicePhase.Listeners, spliceListener)
         try {
             search(dispatcher)
         } finally {
-            state.removeSpliceListener(spliceListener)
+            state.removeSpliceObserver(SplicePhase.Listeners, spliceListener)
         }
     }
 

@@ -2,6 +2,9 @@ package de.markusressel.kodeeditor.library.compose
 
 import android.app.Application
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.MotionDurationScale
@@ -36,8 +39,21 @@ private class InsertScene(private val rule: ComposeContentTestRule, text: String
     val state = KodeEditorState(text)
     var layout: EditorLineLayout? = null
 
+    /** whether a second editor shows the same state */
+    var showOther by mutableStateOf(false)
+
     fun show(animations: KodeEditorAnimations, lineWrapping: Boolean = false, width: Int = 400) {
         rule.setContent {
+            if (showOther) {
+                KodeEditor(
+                    modifier = Modifier.size(width.dp, 100.dp),
+                    state = state,
+                    languageRuleBook = noRules,
+                    colorScheme = noColors,
+                    animations = animations,
+                    gutterColumns = emptyList(),
+                )
+            }
             KodeEditor(
                 modifier = Modifier.size(width.dp, 400.dp),
                 state = state,
@@ -137,6 +153,27 @@ class InsertSlideTest {
         val after = scene.settled(10)
 
         assertTrue("on its way: $before $moving $after", moving.y > before.y + 1 && moving.y < after.y - 1)
+    }
+
+    @Test
+    fun `an editor that goes away does not stop the text of another one on the same state from sliding`() {
+        val scene = InsertScene(composeRule, "hello world")
+        scene.showOther = true
+        scene.show(appearance)
+        composeRule.runOnIdle { scene.showOther = false }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.waitForIdle()
+        val before = scene.shown(6)
+
+        composeRule.runOnIdle { scene.state.applyRemote(listOf(TextSplice(6, 0, "brave ")), appear = true) }
+        scene.frame()
+        scene.frame()
+        scene.frame()
+        val moving = scene.shown(12)
+        val after = scene.settled(12)
+
+        assertTrue("on its way: $before $moving $after", moving.x > before.x + 1 && moving.x < after.x - 1)
+        assertTrue("it still appears", scene.state.rangeAlphas.isNotEmpty())
     }
 
     @Test

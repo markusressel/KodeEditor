@@ -12,7 +12,7 @@ class EditorFoldsTest {
     private fun foldsOf(text: String): Pair<KodeEditorState, EditorFolds> {
         val state = KodeEditorState(text)
         val folds = EditorFolds(state, MarkdownFoldProvider)
-        state.foldObserver = folds.spliceObserver
+        state.addSpliceObserver(SplicePhase.Folds, folds.spliceObserver)
         state.addListener(folds)
         return state to folds
     }

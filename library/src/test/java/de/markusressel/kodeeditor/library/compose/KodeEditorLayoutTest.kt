@@ -127,7 +127,7 @@ class KodeEditorLayoutTest {
                 override fun getStyles(type: LanguageRule) = setOf<StyleFactory<SpanStyle>>({ style })
             },
         )
-        state.spliceObserver = highlighting.spliceObserver
+        state.addSpliceObserver(SplicePhase.Highlighting, highlighting.spliceObserver)
         fun range() = highlighting.styles.map { it.start to it.end }
 
         assertEquals(listOf(2 to 6), range())

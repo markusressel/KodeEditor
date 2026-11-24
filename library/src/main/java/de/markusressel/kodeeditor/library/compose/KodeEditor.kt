@@ -395,17 +395,18 @@ fun KodeEditor(
         EditorHighlighting(state, languageRuleBook, colorScheme.withEmbeddedFallback(darkBackground))
     }
     DisposableEffect(highlighting) {
-        state.spliceObserver = highlighting.spliceObserver
-        onDispose { state.spliceObserver = null }
+        state.addSpliceObserver(SplicePhase.Highlighting, highlighting.spliceObserver)
+        onDispose { state.removeSpliceObserver(SplicePhase.Highlighting, highlighting.spliceObserver) }
     }
     LaunchedEffect(highlighting) { highlighting.keepUpdated() }
 
     val folds = remember(state, foldProvider) { foldProvider?.let { EditorFolds(state, it) } }
     val appearance = animations.appearance
     val appearSlide = with(LocalDensity.current) { (appearance?.slide ?: 0.dp).toPx() }
+    val appearanceOwner = remember { Any() }
     DisposableEffect(state, appearance) {
-        state.appearance = appearance
-        onDispose { state.appearance = null }
+        state.showAppearance(appearanceOwner, appearance)
+        onDispose { state.showAppearance(appearanceOwner, null) }
     }
     if (appearance != null) {
         LaunchedEffect(state, appearance) {
@@ -420,10 +421,10 @@ fun KodeEditor(
 
     DisposableEffect(state, folds) {
         if (folds == null) return@DisposableEffect onDispose {}
-        state.foldObserver = folds.spliceObserver
+        state.addSpliceObserver(SplicePhase.Folds, folds.spliceObserver)
         state.addListener(folds)
         onDispose {
-            state.foldObserver = null
+            state.removeSpliceObserver(SplicePhase.Folds, folds.spliceObserver)
             state.removeListener(folds)
         }
     }
@@ -582,11 +583,11 @@ fun KodeEditor(
         )
     }
     DisposableEffect(state, layout) {
-        state.rowObserver = layout.rowObserver
-        state.beforeRemoteObserver = layout.beforeRemoteChange
+        state.addSpliceObserver(SplicePhase.Rows, layout.rowObserver)
+        state.addBeforeRemoteObserver(layout.beforeRemoteChange)
         onDispose {
-            state.rowObserver = null
-            state.beforeRemoteObserver = null
+            state.removeSpliceObserver(SplicePhase.Rows, layout.rowObserver)
+            state.removeBeforeRemoteObserver(layout.beforeRemoteChange)
         }
     }
 
@@ -597,8 +598,8 @@ fun KodeEditor(
     val currentRemoteCursors = rememberUpdatedState(remoteCursors)
     val glides = remember(layout) { RemoteCursorGlides(layout) { settledGeometry.visibleSize.width } }
     DisposableEffect(state, glides) {
-        state.addSpliceListener(glides.spliceListener)
-        onDispose { state.removeSpliceListener(glides.spliceListener) }
+        state.addSpliceObserver(SplicePhase.Listeners, glides.spliceListener)
+        onDispose { state.removeSpliceObserver(SplicePhase.Listeners, glides.spliceListener) }
     }
     SideEffect {
         glides.config = animations.appearance?.cursorGlide

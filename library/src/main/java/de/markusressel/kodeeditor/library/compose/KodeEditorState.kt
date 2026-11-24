@@ -69,9 +69,6 @@ class KodeEditorState(
 
     internal var inputLink: InputLink? = null
 
-    /** told about every change of the text, wherever it came from */
-    internal var spliceObserver: ((TextSplice) -> Unit)? = null
-
     /** whether the text changes because the whole text was set, which nobody has to see as a movement */
     internal var replacingText = false
         private set
@@ -92,28 +89,31 @@ class KodeEditorState(
     internal var textReplacements by mutableIntStateOf(0)
         private set
 
-    /** told about every change of the text too, for the folds */
-    internal var foldObserver: ((TextSplice) -> Unit)? = null
-
-    /** told about every change of the text too, for the wrapped rows */
-    internal var rowObserver: ((TextSplice) -> Unit)? = null
-
     /** told right before each change of somebody else, see [applyRemote] */
-    internal var beforeRemoteObserver: (() -> Unit)? = null
+    private val beforeRemoteObservers = mutableListOf<() -> Unit>()
+
+    internal fun addBeforeRemoteObserver(observer: () -> Unit) {
+        beforeRemoteObservers += observer
+    }
+
+    internal fun removeBeforeRemoteObserver(observer: () -> Unit) {
+        beforeRemoteObservers -= observer
+    }
 
     /** the text the last change removed, for the observers */
     internal var lastRemoved = ""
         private set
 
-    /** told about each change of the text, right after the range styles moved */
-    private val spliceListeners = mutableListOf<(TextSplice) -> Unit>()
+    /** told about each change of the text, by [SplicePhase], each editor that shows this state adds its own */
+    private val spliceObservers = Array(SplicePhase.entries.size) { mutableListOf<(TextSplice) -> Unit>() }
 
-    internal fun addSpliceListener(listener: (TextSplice) -> Unit) {
-        spliceListeners += listener
+    /** @param phase when it is told, all observers of a phase before those of the next one */
+    internal fun addSpliceObserver(phase: SplicePhase, observer: (TextSplice) -> Unit) {
+        spliceObservers[phase.ordinal] += observer
     }
 
-    internal fun removeSpliceListener(listener: (TextSplice) -> Unit) {
-        spliceListeners -= listener
+    internal fun removeSpliceObserver(phase: SplicePhase, observer: (TextSplice) -> Unit) {
+        spliceObservers[phase.ordinal] -= observer
     }
 
     /** the version without observing it, for code that is not a part of the UI */
@@ -150,12 +150,23 @@ class KodeEditorState(
      */
     internal val rangeAlphas: List<AnnotatedString.Range<Float>> get() = rangeAlphasState
 
-    /** how text appears, set by the editor that shows this state, null while none shows it or it does not animate */
-    internal var appearance: KodeEditorAppearance? = null
-        set(value) {
-            field = value
-            if (value == null) finishAppearing()
-        }
+    /** how text appears, of the editor that showed this state last, null while none shows it or it does not animate */
+    internal var appearance: KodeEditorAppearance?
+        get() = appearances.values.lastOrNull()
+        set(value) = showAppearance(this, value)
+
+    /** the appearance of each editor that shows this state, by the editor, in the order they came */
+    private val appearances = LinkedHashMap<Any, KodeEditorAppearance>()
+
+    /**
+     * @param owner the editor that shows this state
+     * @param appearance its appearance, null when it goes away or does not animate
+     */
+    internal fun showAppearance(owner: Any, appearance: KodeEditorAppearance?) {
+        appearances.remove(owner)
+        if (appearance != null) appearances[owner] = appearance
+        if (appearances.isEmpty()) finishAppearing()
+    }
 
     /** the time of the frame each appearing range started in and how long it takes, by its tag */
     private val appearStarts = HashMap<String, AppearTiming>()
@@ -241,7 +252,7 @@ class KodeEditorState(
             undoState++
             // The keyboard only hears where things are now. Starting it over would end what it does at the moment, and
             // what it sends in that moment would get lost.
-            beforeRemoteObserver?.invoke()
+            beforeRemoteObservers.toList().forEach { it() }
             applyingRemote = true
             try {
                 replace(cleaned, selectionState.mapped(cleaned), compositionState?.mappedInside(cleaned))
@@ -539,10 +550,7 @@ class KodeEditorState(
             lines.apply(old, splice)
             versionState.intValue++
             moveRangeStyles(splice)
-            spliceListeners.toList().forEach { it(splice) }
-            spliceObserver?.invoke(splice)
-            foldObserver?.invoke(splice)
-            rowObserver?.invoke(splice)
+            spliceObservers.forEach { phase -> phase.toList().forEach { it(splice) } }
             val local = appearance?.local
             if (applyingBigChange && !applyingRemote && local?.bigChanges == true && splice.inserted.isNotEmpty()) {
                 val end = splice.start + splice.inserted.length
@@ -583,6 +591,21 @@ fun rememberKodeEditorState(
     initialText: String = "",
     initialSelection: TextRange = TextRange(0),
 ): KodeEditorState = remember { KodeEditorState(initialText, initialSelection) }
+
+/** in which order the observers of a [KodeEditorState] hear about a change of the text */
+internal enum class SplicePhase {
+    /** right after the range styles moved, e.g. a reveal, the search, the cursors of others */
+    Listeners,
+
+    /** the styles of the highlighting */
+    Highlighting,
+
+    /** the folds, which the rows need */
+    Folds,
+
+    /** the wrapped rows, and what moves with them */
+    Rows,
+}
 
 /** how the state tells the connected keyboard about changes */
 internal interface InputLink {

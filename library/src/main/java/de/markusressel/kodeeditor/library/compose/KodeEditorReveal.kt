@@ -182,7 +182,7 @@ class KodeEditorReveal(
      */
     suspend fun keepRevealing() {
         state.addListener(listener)
-        state.addSpliceListener(spliceListener)
+        state.addSpliceObserver(SplicePhase.Listeners, spliceListener)
         try {
             snapshotFlow { isRevealing }.collectLatest { revealing ->
                 if (!revealing) return@collectLatest
@@ -202,7 +202,7 @@ class KodeEditorReveal(
             }
         } finally {
             state.removeListener(listener)
-            state.removeSpliceListener(spliceListener)
+            state.removeSpliceObserver(SplicePhase.Listeners, spliceListener)
         }
     }
 

@@ -17,7 +17,7 @@ class EditorInlineFoldsTest {
         val state = KodeEditorState(text)
         state.setSelection(TextRange(cursor))
         val folds = EditorFolds(state, MarkdownFoldProvider)
-        state.foldObserver = folds.spliceObserver
+        state.addSpliceObserver(SplicePhase.Folds, folds.spliceObserver)
         state.addListener(folds)
         return state to folds
     }
