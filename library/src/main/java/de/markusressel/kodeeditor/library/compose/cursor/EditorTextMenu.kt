@@ -13,15 +13,22 @@ import de.markusressel.kodeeditor.library.compose.input.EditorClipboardActions
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 
 /** how long the selection has to stay before its menu shows up */
 private const val MENU_DELAY_MS = 250L
 
 /**
+ * how long a selection that others move has to stay before its menu moves with it. The system hides a menu while it
+ * moves and shows it 50 ms after its last move, so a menu that follows each change of an agent would never show
+ */
+private const val MENU_MOVE_DELAY_MS = 300L
+
+/**
  * Shows the text menu of the system above the selection, after a touch selected something or asked for the menu at
  * the cursor. It hides while the user moves the selection or the view, and shows up again when they stopped. When
- * others change the text, e.g. an agent that writes, the menu stays open and only moves with the selection, so the user
- * can still use it.
+ * others change the text, e.g. an agent that writes, the menu stays open where it is, so the user can still use it, and
+ * moves to the selection once it rested for [MENU_MOVE_DELAY_MS] and moved by half a line or more.
  *
  * @param state the text
  * @param layout the layout of the text
@@ -55,7 +62,8 @@ internal fun EditorTextMenuEffect(
     // what the menu was shown with last, it is only shown again when that changes
     val shown = remember { arrayOfNulls<Any>(1) }
 
-    fun showMenu() {
+    /** @param moving whether the menu is open and only moves, it stays for a move of less than half a line */
+    fun showMenu(moving: Boolean = false) {
         val current = state.selection
         val attached = coordinates()?.takeIf { it.isAttached } ?: return
         val startRect = layout.getCursorRect(current.min)
@@ -73,7 +81,16 @@ internal fun EditorTextMenuEffect(
         val canSelectAll = current.length < state.rawText.length
         // a menu that is shown with the same place and items is left alone, showing it again redraws it
         val content = listOf(rect, hasSelection, canPaste, canSelectAll)
-        if (textToolbar.status == TextToolbarStatus.Shown && content == shown[0]) return
+        val open = textToolbar.status == TextToolbarStatus.Shown
+        if (open && content == shown[0]) return
+        val before = (shown[0] as? List<*>)?.firstOrNull() as? Rect
+        val near = layout.lineHeight / 2 * zoom
+        if (moving && open && before != null && content.drop(1) == (shown[0] as List<*>).drop(1) &&
+            abs(before.left - rect.left) < near && abs(before.top - rect.top) < near &&
+            abs(before.bottom - rect.bottom) < near
+        ) {
+            return
+        }
         shown[0] = content
         textToolbar.showMenu(
             rect = rect,
@@ -97,9 +114,11 @@ internal fun EditorTextMenuEffect(
             showMenu()
         }
     }
-    // others change the text, or the view keeps its place for that: the menu stays open and moves with the selection.
-    // The system moves a menu that is shown again without closing it
+    // others change the text, or the view keeps its place for that: the menu stays open where it is, and moves to the
+    // selection once that rests. The system hides a menu while it moves, so it would not show while an agent writes
     LaunchedEffect(selection, offset, zoom) {
-        if (wanted && textToolbar.status == TextToolbarStatus.Shown) showMenu()
+        if (!wanted || textToolbar.status != TextToolbarStatus.Shown) return@LaunchedEffect
+        delay(MENU_MOVE_DELAY_MS)
+        if (textToolbar.status == TextToolbarStatus.Shown) showMenu(moving = true)
     }
 }
