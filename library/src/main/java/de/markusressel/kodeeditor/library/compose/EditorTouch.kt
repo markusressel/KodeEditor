@@ -1,4 +1,4 @@
-package de.markusressel.kodeeditor.library.compose.input
+package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -9,21 +9,11 @@ import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.text.TextRange
-import de.markusressel.kodeeditor.library.compose.input.HandleKind
+import de.markusressel.kodeeditor.library.compose.cursor.HandleKind
+import de.markusressel.kodeeditor.library.compose.input.EditorGestureHandler
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
-
-internal const val CURSOR_HANDLE_TAG = "kodeeditor-cursor-handle"
-internal const val SELECTION_START_HANDLE_TAG = "kodeeditor-selection-start-handle"
-internal const val SELECTION_END_HANDLE_TAG = "kodeeditor-selection-end-handle"
-
-/** the handles that can be dragged, with the test tags of their views */
-internal enum class HandleKind(val tag: String) {
-    Cursor(CURSOR_HANDLE_TAG),
-    SelectionStart(SELECTION_START_HANDLE_TAG),
-    SelectionEnd(SELECTION_END_HANDLE_TAG),
-}
 
 /** What the fingers, a mouse and the selection handles do to the editor right now */
 @Stable
@@ -33,6 +23,8 @@ internal class EditorTouch {
 
     /** a long press on nothing to select asks for the menu at the cursor */
     var cursorMenuRequested by mutableStateOf(false)
+
+    /** the handle that is dragged, or the end a long press drags while it selects */
     var draggedHandle by mutableStateOf<HandleKind?>(null)
 
     /** where the dragged handle or the finger that selects is, in the coordinates of the editor */
@@ -40,6 +32,8 @@ internal class EditorTouch {
 
     /** the word a long press selected, dragging extends the selection from it */
     var pressedWord by mutableStateOf<TextRange?>(null)
+
+    /** whether the view moves on after a swipe */
     var flinging by mutableStateOf(false)
 
     /** whether the touch that is down stopped a fling, then it does nothing else */

@@ -1,8 +1,5 @@
 package de.markusressel.kodeeditor.library.compose
 
-import androidx.compose.animation.core.animateIntAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -20,8 +17,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.isSpecified
@@ -41,8 +36,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.semantics.setSelection
-import androidx.compose.ui.semantics.setText
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -54,14 +47,12 @@ import androidx.compose.ui.zIndex
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
 import de.markusressel.kodeeditor.library.compose.cursor.EditorCursor
+import de.markusressel.kodeeditor.library.compose.cursor.EditorSelectionHandles
 import de.markusressel.kodeeditor.library.compose.cursor.EditorTextMenuEffect
-import de.markusressel.kodeeditor.library.compose.cursor.HandleDrag
-import de.markusressel.kodeeditor.library.compose.cursor.HandleEdgeScrollEffect
 import de.markusressel.kodeeditor.library.compose.cursor.KodeEditorRemoteCursor
 import de.markusressel.kodeeditor.library.compose.cursor.RemoteCaretLayer
 import de.markusressel.kodeeditor.library.compose.cursor.RemoteCursorLabels
 import de.markusressel.kodeeditor.library.compose.cursor.RemoteSelectionLayer
-import de.markusressel.kodeeditor.library.compose.cursor.SelectionHandle
 import de.markusressel.kodeeditor.library.compose.cursor.rememberRemoteCursorGlides
 import de.markusressel.kodeeditor.library.compose.fold.EditorFolds
 import de.markusressel.kodeeditor.library.compose.fold.FoldColumn
@@ -72,14 +63,12 @@ import de.markusressel.kodeeditor.library.compose.gutter.EditorGutter
 import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorGutterColumn
 import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorLineDecoration
 import de.markusressel.kodeeditor.library.compose.gutter.LineDecorationLayer
+import de.markusressel.kodeeditor.library.compose.gutter.animateGutterWidth
 import de.markusressel.kodeeditor.library.compose.gutter.gutterColumnAt
 import de.markusressel.kodeeditor.library.compose.gutter.rememberLineNumberColumn
 import de.markusressel.kodeeditor.library.compose.input.EditorClipboardActions
 import de.markusressel.kodeeditor.library.compose.input.EditorKeyboardActions
 import de.markusressel.kodeeditor.library.compose.input.EditorKeys
-import de.markusressel.kodeeditor.library.compose.input.EditorTouch
-import de.markusressel.kodeeditor.library.compose.input.EditorTouchGestures
-import de.markusressel.kodeeditor.library.compose.input.HandleKind
 import de.markusressel.kodeeditor.library.compose.input.KeyZoom
 import de.markusressel.kodeeditor.library.compose.input.KeyboardCommand
 import de.markusressel.kodeeditor.library.compose.input.KeyboardCursor
@@ -95,13 +84,11 @@ import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.layout.EditorTextLines
 import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
 import de.markusressel.kodeeditor.library.compose.layout.LINE_LAYOUT_CACHE_SIZE
-import de.markusressel.kodeeditor.library.compose.layout.RemoteScrollAnchorEffect
 import de.markusressel.kodeeditor.library.compose.layout.RowBreaker
 import de.markusressel.kodeeditor.library.compose.layout.SelectionLayer
 import de.markusressel.kodeeditor.library.compose.layout.ShownEditorLayout
 import de.markusressel.kodeeditor.library.compose.layout.VisibleLines
 import de.markusressel.kodeeditor.library.compose.layout.placedAt
-import de.markusressel.kodeeditor.library.compose.layout.remoteScrollAnchorIn
 import de.markusressel.kodeeditor.library.compose.layout.withEmbeddedFallback
 import de.markusressel.kodeeditor.library.compose.search.KodeEditorSearch
 import de.markusressel.kodeeditor.library.compose.search.SearchFoldsEffect
@@ -114,11 +101,9 @@ import de.markusressel.kodeeditor.library.compose.state.SplicePhase
 import de.markusressel.kodeeditor.library.compose.state.TextSplice
 import de.markusressel.kodeeditor.library.compose.state.rememberKodeEditorState
 import de.markusressel.kodeeditor.library.compose.view.CursorFollower
-import de.markusressel.kodeeditor.library.compose.view.CursorVisibility
 import de.markusressel.kodeeditor.library.compose.view.DrawWindow
 import de.markusressel.kodeeditor.library.compose.view.EditorGeometry
 import de.markusressel.kodeeditor.library.compose.view.EditorScrollbars
-import de.markusressel.kodeeditor.library.compose.view.EditorViewportAdapter
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorScrollbarStyle
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
 import de.markusressel.kodeeditor.library.compose.view.ZoomLayout
@@ -134,7 +119,6 @@ import kotlin.math.floor
 import kotlin.math.roundToInt
 
 private const val KEYBOARD_ZOOM_STEP = 1.1f
-internal const val GUTTER_ANIMATION_MS = 150
 internal val TEXT_START_PADDING = 4.dp
 private val FOLD_COLUMN_WIDTH = 24.dp
 
@@ -147,8 +131,8 @@ private val FOLD_COLUMN_WIDTH = 24.dp
  * @param colorScheme the color scheme to apply, remember it for the same reason. Rules it has no style for, like those
  * of a language in a code block of Markdown, get the colors of `GitHubDarkTheme` or `GitHubLightTheme`, whichever fits
  * the brightness of `textFieldBackgroundColor`
- * @param modifier compose modifiers
- * @param colors the color scheme to use for highlighting
+ * @param modifier modifiers of the editor, its size included
+ * @param colors the colors of the editor itself: background, text, cursor, bar, folds, search and scrollbars
  * @param textStyle the text style used for the editor text
  * @param enabled whether the editor is enabled
  * @param readOnly whether the contents of the editor can be changed by the user
@@ -314,6 +298,7 @@ fun KodeEditor(
         folds?.let { FoldColumn(it, foldColumnWidth, foldColor) }
     }
     val columns = if (foldColumn == null) gutterColumns else gutterColumns + foldColumn
+    val currentColumns by rememberUpdatedState(columns)
     val foldedBackground = shownColors.foldedLineBackground
     val foldPlaceholderColor = shownColors.foldPlaceholder
     val foldDecoration = remember(folds, foldedBackground, foldPlaceholderColor) {
@@ -325,16 +310,7 @@ fun KodeEditor(
     val targetGutterWidth by remember(state, gutterColumns, foldColumn) {
         derivedStateOf { columns.sumOf { it.width(state.lineCount) } }
     }
-    // a whole new text is not a change of the text that is there
-    val textReplacements = state.textReplacements
-    val seenTextReplacements = remember(state) { intArrayOf(textReplacements) }
-    val gutterSnaps = !animations.gutterWidth || seenTextReplacements[0] != textReplacements
-    SideEffect { seenTextReplacements[0] = textReplacements }
-    val gutterWidth by animateIntAsState(
-        targetValue = targetGutterWidth,
-        animationSpec = if (gutterSnaps) snap() else tween(GUTTER_ANIMATION_MS),
-        label = "gutterWidth",
-    )
+    val gutterWidth by animateGutterWidth(state, targetGutterWidth, animations.gutterWidth)
 
     // Text Editor
     var totalSize by remember { mutableStateOf(IntSize.Zero) }
@@ -404,69 +380,16 @@ fun KodeEditor(
         }
     }
 
-    // what the user works on, the cursor and the moving end of a selection first
-    fun anchors() = if (focused) listOf(state.selection.end, state.selection.start) else emptyList()
-
-    // the cursor or the selection stays where it is when the lines wrap differently, otherwise the top of the view does
-    LaunchedEffect(layout, wrapWidth.value) {
-        layout.takePositionAfterResize(offset.y, anchors(), settledGeometry.visibleSize.height)?.let { y ->
-            val before = offset.y
-            offset = EditorGeometry.coerce(offset.copy(y = y), maxOffset)
-            layout.onScrolledByReflow(offset.y - before)
-        }
-    }
-
-    // text that others insert or remove in front of what the user looks at moves the view with it, in the same frame
-    RemoteScrollAnchorEffect(
-        layout = layout,
-        enabled = keepViewOnRemoteChanges,
-        anchor = {
-            val visible = settledGeometry.visibleSize
-            val view = Rect(offset, Size(visible.width.toFloat(), visible.height.toFloat()))
-            remoteScrollAnchorIn(layout, state.selection.end, focused, view, textStartPadding)
-        },
-        scrollBy = { distance ->
-            val before = offset
-            offset = EditorGeometry.coerce(before + distance, maxOffset)
-            offset - before
-        },
-    )
-
-    // the text can get shorter and the zoom can change, the view must not stay beyond the end of the text
-    LaunchedEffect(maxOffset) {
-        val before = offset.y
-        offset = EditorGeometry.coerce(offset, maxOffset)
-        layout.onScrolledByReflow(offset.y - before)
-    }
-
-    val selection = state.selection
-
-    // Follow the cursor while the user edits: when the selection moves or the editor changes its size.
-    // Panning or remote changes of the text alone don't scroll, also not when they move the selection.
-    LaunchedEffect(keepCursorVisible, focused, selection, totalSize, zoom, wrapWidth.value) {
-        val follow = cursorFollower.shouldFollow(selection, focused, selection == state.selectionMovedByOthers)
-        // a dragged handle scrolls the view itself
-        if (!keepCursorVisible || !follow || totalSize == IntSize.Zero || touch.draggedHandle != null) {
-            return@LaunchedEffect
-        }
-        offset = CursorVisibility.offsetFor(
-            offset = offset,
-            cursor = layout.getCursorRect(selection.end).translate(textStartPadding, 0f),
-            viewport = settledGeometry.visibleSize,
-            maxOffset = maxOffset,
-        )
-    }
-
     val viewport = remember(layout, textStartPadding) {
-        EditorViewportAdapter(
+        EditorViewController(
             state = state,
             layout = layout,
             textStartPadding = textStartPadding,
             offsetState = offsetState,
             zoomState = zoomState,
             scope = viewScope,
-            geometry = { settledGeometry },
-            size = { totalSize },
+            geometryOf = { settledGeometry },
+            sizeOf = { totalSize },
             maxOffsetOf = { maxOffset },
             zoomRangeOf = { currentZoomRange },
             animatesOf = { currentAnimations.scrolling },
@@ -474,6 +397,25 @@ fun KodeEditor(
             onMoved = cursorFollower::onUserMovedView,
         )
     }
+    // what the user works on, the cursor and the moving end of a selection first
+    fun anchors() = if (focused) listOf(state.selection.end, state.selection.start) else emptyList()
+
+    KeepViewEffects(
+        view = viewport,
+        state = state,
+        wrapWidth = wrapWidth.value,
+        anchors = ::anchors,
+        focused = { focused },
+        keepViewOnRemoteChanges = keepViewOnRemoteChanges,
+        keepCursorVisible = keepCursorVisible,
+        cursorFollower = cursorFollower,
+        size = totalSize,
+        zoom = zoom,
+        handleDragged = { touch.draggedHandle != null },
+    )
+
+    val selection = state.selection
+
     val viewportReady = totalSize != IntSize.Zero
     DisposableEffect(viewState, viewport, viewportReady) {
         if (viewportReady) viewState.viewport = viewport
@@ -491,12 +433,15 @@ fun KodeEditor(
     // else
     val contentVisibility = if (viewportReady && !viewState.jumpPending) Modifier else Modifier.alpha(0f)
 
+    /** the user starts to move the view: what moves it on its own stops, and the app is told */
+    fun onUserMovesView() {
+        viewState.interrupt()
+        currentOnUserMovedView()
+    }
+
     /** Zooms without fingers to zoom around, so the cursor or the selection stays in its place if it is visible */
     fun zoomAroundCursor(newZoom: Float) {
-        if (newZoom != zoom) {
-            viewState.interrupt()
-            currentOnUserMovedView()
-        }
+        if (newZoom != zoom) onUserMovesView()
         val visible = geometry.visibleSize
         val anchor = anchors().map { layout.getCursorRect(it).topLeft }
             .firstOrNull { it.y >= offset.y && it.y < offset.y + visible.height }
@@ -525,7 +470,7 @@ fun KodeEditor(
         if (position.x >= geometry.gutterOnScreen) return false
         val lines = layout.lineCount
         val x = position.x / geometry.gutterScale + targetGutterWidth - geometry.gutterWidth
-        val column = gutterColumnAt(columns, lines, x) ?: return false
+        val column = gutterColumnAt(currentColumns, lines, x) ?: return false
         return column.onTap(layout.getLineForVerticalPosition(geometry.toText(position, offset).y))
     }
 
@@ -543,38 +488,6 @@ fun KodeEditor(
             tapTrailingText = { layout.tapTrailingText(it, currentDecorations) },
         )
     }
-
-    /** the point the handle at this text position points at, null outside the visible text */
-    fun handleAnchor(position: Int): Offset? {
-        val cursor = layout.localCursorRect(position)
-        val point = geometry.toEditor(cursor.bottomCenter, offset)
-        val visibleX = point.x >= geometry.gutterOnScreen && point.x <= totalSize.width
-        return point.takeIf { visibleX && it.y >= 0f && it.y <= totalSize.height }
-    }
-
-    fun moveHandle(kind: HandleKind, target: Offset) {
-        val word = touch.pressedWord
-        if (word != null) {
-            gestures.onSelectionDrag(target)
-            return
-        }
-        val point = geometry.toText(target, offset)
-        val position = layout.getOffsetForPosition(Offset(point.x, point.y - layout.lineHeight / 2))
-        state.setSelection(HandleDrag.selectionFor(kind, position, state.selection))
-    }
-
-    HandleEdgeScrollEffect(
-        touch = touch,
-        viewState = viewState,
-        area = { Size(totalSize.width.toFloat(), totalSize.height.toFloat()) },
-        textLeft = { geometry.gutterOnScreen },
-        scrolled = { distance ->
-            EditorGeometry.coerce(offset + distance / zoom, maxOffset).takeIf { it != offset }
-        },
-        scrollTo = { offset = it },
-        onUserMovedView = { currentOnUserMovedView() },
-        moveHandle = ::moveHandle,
-    )
 
     EditorTextMenuEffect(
         state = state,
@@ -611,14 +524,6 @@ fun KodeEditor(
         }
     }
 
-    val hasSelection = !selection.collapsed
-    val handlesWanted = focused && touch.touchInput
-    val handles = when {
-        !handlesWanted -> emptyList()
-        hasSelection -> listOf(HandleKind.SelectionStart, HandleKind.SelectionEnd)
-        !readOnly && state.text.isNotEmpty() -> listOf(HandleKind.Cursor)
-        else -> emptyList()
-    }
     Box(
         modifier = Modifier
             .clipToBounds()
@@ -678,8 +583,7 @@ fun KodeEditor(
             minZoom = minZoom,
             maxZoom = maxZoom,
             onOffsetChanged = {
-                cursorFollower.onUserMovedView()
-                offset = EditorGeometry.coerce(it, maxOffset)
+                viewport.moveTo(it)
             },
             onZoomChanged = {
                 cursorFollower.onUserMovedView()
@@ -690,10 +594,7 @@ fun KodeEditor(
             contentStart = { geometry.gutterOnScreen(it) },
             onMovingChanged = { moving ->
                 viewState.gestureMoving = moving
-                if (moving) {
-                    viewState.interrupt()
-                    currentOnUserMovedView()
-                }
+                if (moving) onUserMovesView()
             },
             flingStops = flingStops,
         ) {
@@ -774,13 +675,11 @@ fun KodeEditor(
                     onDragStart = {
                         flingStops++
                         viewState.scrollbarMoving = true
-                        viewState.interrupt()
                         cursorFollower.onUserMovedView()
-                        currentOnUserMovedView()
+                        onUserMovesView()
                     },
                     onDrag = {
-                        cursorFollower.onUserMovedView()
-                        offset = EditorGeometry.coerce(it, maxOffset)
+                        viewport.moveTo(it)
                     },
                     onDragEnd = { viewState.scrollbarMoving = false },
                 )
@@ -788,35 +687,24 @@ fun KodeEditor(
         }
 
         // above the scrollbars, a handle at the edge must stay reachable
-        Box(modifier = Modifier.zIndex(3f).matchParentSize()) {
-            handles.forEach { kind ->
-                key(kind) {
-                    SelectionHandle(
-                        kind = kind,
-                        color = shownColors.handle,
-                        anchor = {
-                            handleAnchor(
-                                if (kind == HandleKind.SelectionEnd) state.selection.max
-                                else state.selection.min
-                            )
-                        },
-                        editorCoordinates = { editorCoordinates },
-                        onDrag = {
-                            touch.dragTarget = it
-                            touch.draggedHandle = kind
-                            moveHandle(kind, it)
-                        },
-                        onDragEnd = {
-                            touch.draggedHandle = null
-                            touch.dragTarget = null
-                        },
-                        onTap = {
-                            if (kind == HandleKind.Cursor) touch.cursorMenuRequested = !touch.cursorMenuRequested
-                        },
-                    )
-                }
-            }
-        }
+        EditorSelectionHandles(
+            modifier = Modifier.zIndex(3f).matchParentSize(),
+            state = state,
+            layout = layout,
+            touch = touch,
+            gestures = gestures,
+            viewState = viewState,
+            shown = focused,
+            editable = !readOnly,
+            color = shownColors.handle,
+            geometry = { geometry },
+            offset = { offset },
+            size = { totalSize },
+            editorCoordinates = { editorCoordinates },
+            maxOffset = { maxOffset },
+            scrollTo = viewport::scrollTo,
+            onUserMovesView = ::onUserMovesView,
+        )
     }
 }
 

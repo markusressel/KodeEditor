@@ -3,8 +3,6 @@ package de.markusressel.kodeeditor.library.compose.input
 import android.view.KeyEvent as AndroidKeyEvent
 import android.view.View
 import android.view.inputmethod.BaseInputConnection
-import de.markusressel.kodeeditor.library.compose.fold.EditorFolds
-import de.markusressel.kodeeditor.library.compose.input.EditorClipboardActions
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 
 /**
@@ -19,14 +17,14 @@ internal class EditorKeyboardActions(
     view: View,
     private val state: KodeEditorState,
     private val menu: EditorClipboardActions,
-    private val folds: () -> EditorFolds?,
+    private val folds: () -> KeyFolds?,
 ) : KeyboardActions {
     private val keySender = BaseInputConnection(view, false)
 
     // on the queue of the window, like a key of a hardware keyboard, which ends up in the key handler of the editor
     override fun onKeyEvent(event: AndroidKeyEvent) = keySender.sendKeyEvent(event)
 
-    override fun openFoldInsteadOfDelete(backward: Boolean) = folds()?.inline?.openInsteadOfDelete(backward) == true
+    override fun openFoldInsteadOfDelete(backward: Boolean) = folds()?.openInsteadOfDelete(backward) == true
 
     override fun onContextMenuAction(id: Int): Boolean {
         when (id) {

@@ -1,5 +1,8 @@
 package de.markusressel.kodeeditor.library.compose.gutter
 
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.LocalTextStyle
@@ -34,7 +37,6 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
-import de.markusressel.kodeeditor.library.compose.GUTTER_ANIMATION_MS
 import de.markusressel.kodeeditor.library.compose.KodeEditorColors
 import de.markusressel.kodeeditor.library.compose.KodeEditorDefaults
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
@@ -42,11 +44,14 @@ import de.markusressel.kodeeditor.library.compose.layout.FadingDraws
 import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
 import de.markusressel.kodeeditor.library.compose.layout.LINE_LAYOUT_CACHE_SIZE
 import de.markusressel.kodeeditor.library.compose.layout.placedAt
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.view.EditorGeometry
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+
+internal const val GUTTER_ANIMATION_MS = 150
 
 /**
  * A column of the bar next to the text, e.g. line numbers, warning markers or bookmarks.
@@ -394,4 +399,25 @@ internal fun EditorGutter(
             )
         }
     }
+}
+
+/**
+ * The width of the bar, which animates to a new width unless the animation is off or the whole text was replaced. A
+ * whole new text is not a change of the text that is there.
+ *
+ * @param state the text
+ * @param targetWidth the width the columns need
+ * @param animate whether a change of the width animates
+ */
+@Composable
+internal fun animateGutterWidth(state: KodeEditorState, targetWidth: Int, animate: Boolean): State<Int> {
+    val textReplacements = state.textReplacements
+    val seenTextReplacements = remember(state) { intArrayOf(textReplacements) }
+    val snaps = !animate || seenTextReplacements[0] != textReplacements
+    SideEffect { seenTextReplacements[0] = textReplacements }
+    return animateIntAsState(
+        targetValue = targetWidth,
+        animationSpec = if (snaps) snap() else tween(GUTTER_ANIMATION_MS),
+        label = "gutterWidth",
+    )
 }

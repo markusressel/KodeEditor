@@ -8,7 +8,6 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.PointerType
-import de.markusressel.kodeeditor.library.compose.view.ZoomLayout
 
 /** what the pointer gestures on the text mean */
 internal interface EditorGestureHandler {
@@ -28,10 +27,10 @@ private sealed interface PressResult {
 }
 
 /**
- * Tells apart a tap, a double tap and a long press from the movement of the fingers, which the [ZoomLayout] below this
+ * Tells apart a tap, a double tap and a long press from the movement of the fingers, which the `ZoomLayout` below this
  * uses for panning and zooming. Only a long press takes the following movement away from it.
  *
- * Must be on a parent of the [ZoomLayout] and of the handles, whose consumed events end a gesture here.
+ * Must be on a parent of the `ZoomLayout` and of the handles, whose consumed events end a gesture here.
  */
 internal suspend fun PointerInputScope.detectEditorGestures(handler: EditorGestureHandler) {
     var lastTapTime = 0L
