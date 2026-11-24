@@ -1,8 +1,5 @@
 package de.markusressel.kodeeditor.library.compose
 
-import android.view.KeyCharacterMap
-import android.view.KeyEvent as AndroidKeyEvent
-import android.view.inputmethod.BaseInputConnection
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -13,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -28,21 +24,13 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.takeOrElse
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isCtrlPressed
-import androidx.compose.ui.input.key.isMetaPressed
-import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.onInterceptKeyBeforeSoftKeyboard
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.key.utf16CodePoint
-import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
@@ -54,18 +42,9 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.platform.TextToolbarStatus
-import androidx.compose.ui.semantics.disabled
-import androidx.compose.ui.semantics.editableText
-import androidx.compose.ui.semantics.insertTextAtCursor
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setSelection
 import androidx.compose.ui.semantics.setText
-import androidx.compose.ui.semantics.textSelectionRange
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
@@ -75,7 +54,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
+import de.markusressel.kodeeditor.library.compose.cursor.EditorCursor
+import de.markusressel.kodeeditor.library.compose.cursor.EditorTextMenuEffect
 import de.markusressel.kodeeditor.library.compose.cursor.HandleDrag
+import de.markusressel.kodeeditor.library.compose.cursor.HandleEdgeScrollEffect
 import de.markusressel.kodeeditor.library.compose.cursor.HandleKind
 import de.markusressel.kodeeditor.library.compose.cursor.HandleMenu
 import de.markusressel.kodeeditor.library.compose.cursor.KodeEditorRemoteCursor
@@ -95,20 +77,19 @@ import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorLineDecoratio
 import de.markusressel.kodeeditor.library.compose.gutter.LineDecorationLayer
 import de.markusressel.kodeeditor.library.compose.gutter.gutterColumnAt
 import de.markusressel.kodeeditor.library.compose.gutter.rememberLineNumberColumn
-import de.markusressel.kodeeditor.library.compose.input.EditorGestureHandler
-import de.markusressel.kodeeditor.library.compose.input.KeyboardActions
+import de.markusressel.kodeeditor.library.compose.input.EditorKeyboardActions
+import de.markusressel.kodeeditor.library.compose.input.EditorKeys
+import de.markusressel.kodeeditor.library.compose.input.EditorTouch
+import de.markusressel.kodeeditor.library.compose.input.EditorTouchGestures
+import de.markusressel.kodeeditor.library.compose.input.KeyZoom
 import de.markusressel.kodeeditor.library.compose.input.KeyboardCommand
 import de.markusressel.kodeeditor.library.compose.input.KeyboardCursor
 import de.markusressel.kodeeditor.library.compose.input.KodeEditorKeyBinding
 import de.markusressel.kodeeditor.library.compose.input.ViewInputLink
 import de.markusressel.kodeeditor.library.compose.input.detectEditorGestures
 import de.markusressel.kodeeditor.library.compose.input.editorInput
-import de.markusressel.kodeeditor.library.compose.input.indentOf
+import de.markusressel.kodeeditor.library.compose.input.editorSemantics
 import de.markusressel.kodeeditor.library.compose.input.isFromTextKeyboard
-import de.markusressel.kodeeditor.library.compose.input.nextCharacter
-import de.markusressel.kodeeditor.library.compose.input.nextWord
-import de.markusressel.kodeeditor.library.compose.input.previousCharacter
-import de.markusressel.kodeeditor.library.compose.input.previousWord
 import de.markusressel.kodeeditor.library.compose.input.toKeyboardCommand
 import de.markusressel.kodeeditor.library.compose.layout.EditorHighlighting
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
@@ -122,6 +103,7 @@ import de.markusressel.kodeeditor.library.compose.layout.ShownEditorLayout
 import de.markusressel.kodeeditor.library.compose.layout.VisibleLines
 import de.markusressel.kodeeditor.library.compose.layout.placedAt
 import de.markusressel.kodeeditor.library.compose.layout.remoteScrollAnchorIn
+import de.markusressel.kodeeditor.library.compose.layout.withEmbeddedFallback
 import de.markusressel.kodeeditor.library.compose.search.KodeEditorSearch
 import de.markusressel.kodeeditor.library.compose.search.SearchFoldsEffect
 import de.markusressel.kodeeditor.library.compose.search.SearchLayer
@@ -137,44 +119,25 @@ import de.markusressel.kodeeditor.library.compose.view.CursorVisibility
 import de.markusressel.kodeeditor.library.compose.view.DrawWindow
 import de.markusressel.kodeeditor.library.compose.view.EditorGeometry
 import de.markusressel.kodeeditor.library.compose.view.EditorScrollbars
-import de.markusressel.kodeeditor.library.compose.view.EditorViewport
+import de.markusressel.kodeeditor.library.compose.view.EditorViewportState
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorScrollbarStyle
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
-import de.markusressel.kodeeditor.library.compose.view.LinePosition
 import de.markusressel.kodeeditor.library.compose.view.ZoomLayout
 import de.markusressel.kodeeditor.library.compose.view.rememberKodeEditorViewState
 import de.markusressel.kodeeditor.library.compose.view.zoomedOffset
 import de.markusressel.kodehighlighter.core.LanguageRuleBook
 import de.markusressel.kodehighlighter.core.StyleFactory
 import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
-import de.markusressel.kodehighlighter.core.colorscheme.GitHubDarkTheme
-import de.markusressel.kodehighlighter.core.colorscheme.GitHubLightTheme
-import de.markusressel.kodehighlighter.core.colorscheme.withFallback
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import de.markusressel.kodehighlighter.core.rule.RuleHelper
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
 import kotlin.math.floor
 import kotlin.math.roundToInt
-import kotlinx.coroutines.delay
 
 private const val KEYBOARD_ZOOM_STEP = 1.1f
-private const val VISIBLE_RANGE_EDGE = 0.01f
-private const val CURSOR_BLINK_MS = 500L
-private val CURSOR_WIDTH = 2.dp
-private const val MENU_DELAY_MS = 250L
 internal const val GUTTER_ANIMATION_MS = 150
-private val HANDLE_EDGE_SIZE = 48.dp
-private val HANDLE_EDGE_SPEED = 12.dp
 internal val TEXT_START_PADDING = 4.dp
 private val FOLD_COLUMN_WIDTH = 24.dp
-private const val FOLDED_LINE_SELECTION_ALPHA = 0.5f
-
-/** how much of the selection color is in the box behind a folded part of a line */
-private const val INLINE_FOLD_SELECTION_ALPHA = 0.7f
-private const val FOLD_PLACEHOLDER_ALPHA = 0.6f
-private const val SCROLLBAR_ALPHA = 0.4f
-private val SEARCH_MATCH_COLOR = Color(0x55FFB300)
-private val CURRENT_SEARCH_MATCH_COLOR = Color(0xAAFF8F00)
 
 /**
  * A code editor that keeps its text in a [KodeEditorState].
@@ -274,15 +237,7 @@ fun KodeEditor(
     val textToolbar = LocalTextToolbar.current
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
-    // whether the last input was a touch, the handles are only there for touch input
-    var touchInput by remember { mutableStateOf(false) }
-    var cursorMenuRequested by remember { mutableStateOf(false) }
-    var draggedHandle by remember { mutableStateOf<HandleKind?>(null) }
-    var dragTarget by remember { mutableStateOf<Offset?>(null) }
-    // the word a long press selected, dragging extends the selection from it
-    var pressedWord by remember { mutableStateOf<TextRange?>(null) }
-    var flinging by remember { mutableStateOf(false) }
-    var stoppedFling by remember { mutableStateOf(false) }
+    val touch = remember { EditorTouch() }
     // a dragged scrollbar takes the view from a fling
     var flingStops by remember { mutableIntStateOf(0) }
     var editorCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -328,7 +283,7 @@ fun KodeEditor(
     DisposableEffect(state) {
         val listener = object : KodeEditorListener {
             override fun onLocalEdit(splice: TextSplice) {
-                touchInput = false
+                touch.touchInput = false
             }
         }
         state.addListener(listener)
@@ -350,57 +305,25 @@ fun KodeEditor(
 
     val currentFolds by rememberUpdatedState(folds)
     val keyboardActions = remember(view, menuActions, state) {
-        object : KeyboardActions {
-            private val keySender = BaseInputConnection(view, false)
-
-            // on the queue of the window, like a key of a hardware keyboard, which ends up in the key handler below
-            override fun onKeyEvent(event: AndroidKeyEvent) = keySender.sendKeyEvent(event)
-
-            override fun openFoldInsteadOfDelete(backward: Boolean) =
-                currentFolds?.inline?.openInsteadOfDelete(backward) == true
-
-            override fun onContextMenuAction(id: Int): Boolean {
-                when (id) {
-                    android.R.id.selectAll -> menuActions.selectAll()
-                    android.R.id.copy -> if (!state.selection.collapsed) menuActions.copy()
-                    android.R.id.cut -> if (!state.selection.collapsed) menuActions.cut()
-                    android.R.id.paste, android.R.id.pasteAsPlainText -> menuActions.paste()
-                    android.R.id.undo -> state.undo()
-                    android.R.id.redo -> state.redo()
-                    else -> return false
-                }
-                return true
-            }
-        }
+        EditorKeyboardActions(view, state, menuActions) { currentFolds }
     }
 
-    val fieldColors = colors.textFieldColors(enabled = enabled).value
-    val fieldTextColor = fieldColors.textColor(enabled).value
-    val fieldTextStyle = textStyle.copy(color = textStyle.color.takeOrElse { fieldTextColor })
+    val shownColors = colors.resolve(enabled, textStyle)
+    val fieldTextStyle = shownColors.textStyle
     val foldColumnWidth = LocalDensity.current.run { FOLD_COLUMN_WIDTH.roundToPx() }
-    val foldColor = colors.lineNumberTextColor().value.takeOrElse { fieldTextStyle.color }
+    val foldColor = shownColors.gutterText
     val foldColumn = remember(folds, foldColumnWidth, foldColor) {
         folds?.let { FoldColumn(it, foldColumnWidth, foldColor) }
     }
     val columns = if (foldColumn == null) gutterColumns else gutterColumns + foldColumn
-    val selectionColor = LocalTextSelectionColors.current.backgroundColor
-    val foldedBackground = colors.foldedLineBackgroundColor().value
-        .takeOrElse { selectionColor.copy(alpha = selectionColor.alpha * FOLDED_LINE_SELECTION_ALPHA) }
-    val foldPlaceholderColor = colors.foldPlaceholderColor().value
-        .takeOrElse { foldColor.copy(alpha = foldColor.alpha * FOLD_PLACEHOLDER_ALPHA) }
+    val foldedBackground = shownColors.foldedLineBackground
+    val foldPlaceholderColor = shownColors.foldPlaceholder
     val foldDecoration = remember(folds, foldedBackground, foldPlaceholderColor) {
         folds?.let { FoldedLineDecoration(it, foldedBackground, foldPlaceholderColor) }
     }
     val decorations = if (foldDecoration == null) lineDecorations else listOf(foldDecoration) + lineDecorations
-    val inlineFoldBackground = colors.inlineFoldBackgroundColor().value
-        .takeOrElse { selectionColor.copy(alpha = selectionColor.alpha * INLINE_FOLD_SELECTION_ALPHA) }
-    val inlineFoldText = colors.inlineFoldTextColor().value.takeOrElse { foldColor }
+    val inlineFoldText = shownColors.inlineFoldText
     val currentDecorations by rememberUpdatedState(decorations)
-    val searchMatchColor = colors.searchMatchBackgroundColor().value.takeOrElse { SEARCH_MATCH_COLOR }
-    val currentSearchMatchColor = colors.currentSearchMatchBackgroundColor().value
-        .takeOrElse { CURRENT_SEARCH_MATCH_COLOR }
-    val scrollbarColor = colors.scrollbarColor().value
-        .takeOrElse { foldColor.copy(alpha = foldColor.alpha * SCROLLBAR_ALPHA) }
     val targetGutterWidth by remember(state, gutterColumns, foldColumn) {
         derivedStateOf { columns.sumOf { it.width(state.lineCount) } }
     }
@@ -441,8 +364,8 @@ fun KodeEditor(
     val measurer = rememberTextMeasurer(cacheSize = LINE_LAYOUT_CACHE_SIZE)
     val breakMeasurer = rememberTextMeasurer(cacheSize = 0)
     val layout = remember(
-        state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping, animations.reflow, animations.folding, folds,
-        inlineFoldText,
+        state, measurer, breakMeasurer, fieldTextStyle, highlighting, lineWrapping, animations.reflow, animations.folding,
+        folds, inlineFoldText,
     ) {
         EditorLineLayout(
             state = state,
@@ -525,7 +448,7 @@ fun KodeEditor(
     LaunchedEffect(keepCursorVisible, focused, selection, totalSize, zoom, wrapWidth.value) {
         val follow = cursorFollower.shouldFollow(selection, focused, selection == state.selectionMovedByOthers)
         // a dragged handle scrolls the view itself
-        if (!keepCursorVisible || !follow || totalSize == IntSize.Zero || draggedHandle != null) {
+        if (!keepCursorVisible || !follow || totalSize == IntSize.Zero || touch.draggedHandle != null) {
             return@LaunchedEffect
         }
         offset = CursorVisibility.offsetFor(
@@ -537,97 +460,21 @@ fun KodeEditor(
     }
 
     val viewport = remember(layout, textStartPadding) {
-        val shownRange = derivedStateOf {
-            val height = settledGeometry.visibleSize.height
-            if (height <= 0f) return@derivedStateOf null
-            // the bottom edge of the view is the top of the next row when it is exactly at the end of a row
-            val lastY = offset.y + height - VISIBLE_RANGE_EDGE
-            TextRange(layout.startOfRow(layout.rowAt(offset.y)), layout.endOfRow(layout.rowAt(lastY)))
-        }
-        val currentMaxOffset = { maxOffset }
-        object : EditorViewport {
-            override val scope get() = viewScope
-            override val offset: Offset get() = offsetState.value
-            override val visibleSize: Size get() = settledGeometry.visibleSize
-            override val animates: Boolean get() = currentAnimations.scrolling
-            override val visibleRange: TextRange? get() = shownRange.value
-
-            override fun moveTo(offset: Offset) {
-                // the view stays there when the editor changes its size, as if the user moved it
-                cursorFollower.onUserMovedView()
-                offsetState.value = EditorGeometry.coerce(offset, maxOffset)
-            }
-
-            private fun rectOf(position: Int): Rect {
-                val inText = position.coerceIn(0, state.rawText.length)
-                return layout.getCursorRect(inText).translate(textStartPadding, 0f)
-            }
-
-            override fun offsetShowing(position: Int) = CursorVisibility.offsetFor(
-                offset = offset,
-                cursor = rectOf(position),
-                viewport = visibleSize,
-                maxOffset = maxOffset,
-            )
-
-            override fun offsetCentering(start: Int, end: Int) = CursorVisibility.centeredOffsetFor(
-                offset = offset,
-                top = rectOf(minOf(start, end)).top,
-                bottom = rectOf(maxOf(start, end)).bottom,
-                viewport = visibleSize,
-                maxOffset = maxOffset,
-            )
-
-            override val maxOffset: Offset get() = currentMaxOffset()
-            override val zoom: Float get() = zoomState.floatValue
-            override val zoomRange get() = currentZoomRange
-            override val folds get() = currentFolds
-
-            override fun zoomTo(zoom: Float) {
-                val oldZoom = zoomState.floatValue
-                val newZoom = zoom.coerceIn(currentZoomRange)
-                if (newZoom == oldZoom) return
-                val size = totalSize
-                val start = settledGeometry.gutterOnScreen(oldZoom)
-                // the middle of the text, right of the bar
-                val middle = Offset(start + (size.width - start) / 2f, size.height / 2f)
-                val moved = zoomedOffset(
-                    offset = offsetState.value,
-                    oldZoom = oldZoom,
-                    newZoom = newZoom,
-                    centroid = middle,
-                    pan = Offset.Zero,
-                    oldStart = start,
-                    newStart = settledGeometry.gutterOnScreen(newZoom),
-                )
-                cursorFollower.onUserMovedView()
-                offsetState.value = Offset(moved.x.coerceAtLeast(0f), moved.y.coerceAtLeast(0f))
-                zoomState.floatValue = newZoom
-            }
-
-            override fun offsetPutting(line: Int, fraction: Float, y: Float): Offset {
-                val shown = line.coerceIn(0, (layout.lineCount - 1).coerceAtLeast(0))
-                val top = layout.getLineTop(shown)
-                val bottom = layout.getLineBottom(shown)
-                val place = top + (bottom - top) * fraction.coerceIn(0f, 1f)
-                return EditorGeometry.coerce(offset.copy(y = place - y), maxOffset)
-            }
-
-            override fun lineAt(y: Float): LinePosition {
-                val line = layout.getLineForVerticalPosition(y)
-                val top = layout.getLineTop(line)
-                val height = layout.getLineBottom(line) - top
-                val fraction = if (height > 0f) ((y - top) / height).coerceIn(0f, 1f) else 0f
-                return LinePosition(line, fraction)
-            }
-
-            override fun isVisible(position: Int): Boolean {
-                val visible = visibleSize
-                val rect = rectOf(position)
-                val inRows = rect.top >= offset.y && rect.bottom <= offset.y + visible.height
-                return inRows && rect.left >= offset.x && rect.left <= offset.x + visible.width
-            }
-        }
+        EditorViewportState(
+            state = state,
+            layout = layout,
+            textStartPadding = textStartPadding,
+            offsetState = offsetState,
+            zoomState = zoomState,
+            scope = viewScope,
+            geometry = { settledGeometry },
+            size = { totalSize },
+            maxOffsetOf = { maxOffset },
+            zoomRangeOf = { currentZoomRange },
+            animatesOf = { currentAnimations.scrolling },
+            foldsOf = { currentFolds },
+            onMoved = cursorFollower::onUserMovedView,
+        )
     }
     val viewportReady = totalSize != IntSize.Zero
     DisposableEffect(viewState, viewport, viewportReady) {
@@ -670,8 +517,6 @@ fun KodeEditor(
         zoom = newZoom
     }
 
-    fun offsetAt(position: Offset) = layout.getOffsetForPosition(geometry.toText(position, offset))
-
     /** @return true if a column of the bar took the tap */
     fun tapGutter(position: Offset): Boolean {
         if (position.x >= geometry.gutterOnScreen) return false
@@ -682,65 +527,21 @@ fun KodeEditor(
     }
 
     val gestures = remember(state, layout, enabled, readOnly, viewState) {
-        object : EditorGestureHandler {
-            private fun focusAndShowKeyboard() {
+        EditorTouchGestures(
+            state = state,
+            layout = layout,
+            enabled = enabled,
+            viewState = viewState,
+            touch = touch,
+            haptics = haptics,
+            focus = {
                 focusRequester.requestFocus()
                 if (!readOnly) keyboard?.show()
-            }
-
-            override fun onDown(type: PointerType) {
-                viewState.interrupt()
-                touchInput = type == PointerType.Touch
-                cursorMenuRequested = false
-                stoppedFling = flinging
-            }
-
-            override fun onTap(position: Offset) {
-                // this touch only stops the fling
-                if (!enabled || stoppedFling || tapGutter(position)) return
-                val point = geometry.toText(position, offset)
-                if (layout.tapTrailingText(point, currentDecorations)) return
-                focusAndShowKeyboard()
-                val fold = layout.foldedRangeAt(point)
-                state.setSelection(TextRange(offsetAt(position).let { if (fold == null) it else it.coerceIn(fold.min, fold.max) }))
-                fold?.let(layout::openFold)
-            }
-
-            override fun onDoubleTap(position: Offset) {
-                // two quick taps on a button of the bar are two taps
-                if (!enabled || stoppedFling || tapGutter(position)) return
-                focusAndShowKeyboard()
-                state.setSelection(layout.getWordBoundary(offsetAt(position)))
-            }
-
-            override fun onSelectionStart(position: Offset, type: PointerType) {
-                if (!enabled) return
-                focusAndShowKeyboard()
-                val target = offsetAt(position)
-                val word = layout.foldedRangeAt(geometry.toText(position, offset))
-                    ?: if (type == PointerType.Mouse) TextRange(target) else layout.getWordBoundary(target)
-                if (type != PointerType.Mouse) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                state.setSelection(word)
-                // nothing to select here, so the menu offers what can be done at the cursor
-                cursorMenuRequested = word.collapsed && type != PointerType.Mouse
-                pressedWord = word
-                dragTarget = position
-                draggedHandle = HandleKind.SelectionEnd
-            }
-
-            override fun onSelectionDrag(position: Offset) {
-                val word = pressedWord ?: return
-                dragTarget = position
-                val target = offsetAt(position)
-                state.setSelection(TextRange(minOf(word.min, target), maxOf(word.max, target)))
-            }
-
-            override fun onSelectionEnd() {
-                pressedWord = null
-                dragTarget = null
-                draggedHandle = null
-            }
-        }
+            },
+            toText = { geometry.toText(it, offset) },
+            tapGutter = ::tapGutter,
+            tapTrailingText = { layout.tapTrailingText(it, currentDecorations) },
+        )
     }
 
     /** the point the handle at this text position points at, null outside the visible text */
@@ -752,212 +553,65 @@ fun KodeEditor(
     }
 
     fun moveHandle(kind: HandleKind, target: Offset) {
-        val word = pressedWord
+        val word = touch.pressedWord
         if (word != null) {
             gestures.onSelectionDrag(target)
             return
         }
         val point = geometry.toText(target, offset)
         val position = layout.getOffsetForPosition(Offset(point.x, point.y - layout.lineHeight / 2))
-        val current = state.selection
-        state.setSelection(
-            when (kind) {
-                HandleKind.Cursor -> TextRange(position)
-                HandleKind.SelectionStart -> TextRange(
-                    position.coerceAtMost(current.max - 1).coerceAtLeast(0),
-                    current.max,
-                )
-
-                HandleKind.SelectionEnd -> TextRange(
-                    current.min,
-                    position.coerceAtLeast(current.min + 1),
-                )
-            },
-        )
+        state.setSelection(HandleDrag.selectionFor(kind, position, state.selection))
     }
 
-    // Near an edge of the editor a dragged handle scrolls the view, so it can reach the whole text.
-    val edgeSize = LocalDensity.current.run { HANDLE_EDGE_SIZE.toPx() }
-    val edgeSpeed = LocalDensity.current.run { HANDLE_EDGE_SPEED.toPx() }
-    LaunchedEffect(draggedHandle) {
-        val kind = draggedHandle ?: return@LaunchedEffect
-        try {
-            while (true) {
-                withFrameNanos { }
-                val target = dragTarget ?: continue
-                val area = Size(totalSize.width.toFloat(), totalSize.height.toFloat())
-                val scrolled = EditorGeometry.coerce(
-                    offset + HandleDrag.edgeScroll(target, area, geometry.gutterOnScreen, edgeSize, edgeSpeed) / zoom,
-                    maxOffset,
-                )
-                if (scrolled != offset) {
-                    if (!viewState.handleMoving) {
-                        viewState.handleMoving = true
-                        viewState.interrupt()
-                        currentOnUserMovedView()
-                    }
-                    offset = scrolled
-                    moveHandle(kind, target)
-                }
-            }
-        } finally {
-            viewState.handleMoving = false
-        }
-    }
+    HandleEdgeScrollEffect(
+        touch = touch,
+        viewState = viewState,
+        area = { Size(totalSize.width.toFloat(), totalSize.height.toFloat()) },
+        textLeft = { geometry.gutterOnScreen },
+        scrolled = { distance ->
+            EditorGeometry.coerce(offset + distance / zoom, maxOffset).takeIf { it != offset }
+        },
+        scrollTo = { offset = it },
+        onUserMovedView = { currentOnUserMovedView() },
+        moveHandle = ::moveHandle,
+    )
 
-    fun showMenu() {
-        val current = state.selection
-        val coordinates = editorCoordinates?.takeIf { it.isAttached } ?: return
-        val startRect = layout.getCursorRect(current.min)
-        val endRect = layout.getCursorRect(current.max)
-        val top = coordinates.localToRoot(geometry.toEditor(startRect.topLeft, offset))
-        val bottom = coordinates.localToRoot(geometry.toEditor(endRect.bottomRight, offset))
-        val hasSelection = !current.collapsed
-        textToolbar.showMenu(
-            rect = Rect(
-                left = minOf(top.x, bottom.x),
-                top = top.y,
-                right = maxOf(top.x, bottom.x),
-                bottom = bottom.y,
-            ),
-            onCopyRequested = menuActions::copy.takeIf { hasSelection },
-            onPasteRequested = menuActions::paste.takeIf { !readOnly && clipboard.hasText() },
-            onCutRequested = menuActions::cut.takeIf { !readOnly && hasSelection },
-            onSelectAllRequested = menuActions::selectAll.takeIf { current.length < state.rawText.length },
-        )
-    }
+    EditorTextMenuEffect(
+        state = state,
+        layout = layout,
+        menu = menuActions,
+        readOnly = readOnly,
+        focused = focused,
+        touch = touch,
+        hasClipboardText = { clipboard.hasText() },
+        coordinates = { editorCoordinates },
+        toEditor = { geometry.toEditor(it, offset) },
+        view = offset to zoom,
+    )
 
-    LaunchedEffect(selection, focused, touchInput, cursorMenuRequested, draggedHandle, offset, zoom) {
-        val wanted = focused && touchInput && draggedHandle == null &&
-            (!selection.collapsed || cursorMenuRequested)
-        if (textToolbar.status == TextToolbarStatus.Shown) textToolbar.hide()
-        if (wanted) {
-            delay(MENU_DELAY_MS)
-            showMenu()
-        }
-    }
+    val keys = remember(state, menuActions, keyboardCursor) { EditorKeys(state, menuActions, keyboardCursor) }
 
     fun onKeyEvent(event: KeyEvent): Boolean {
         if (!enabled || event.type != KeyEventType.KeyDown || !event.isFromTextKeyboard()) return false
-        val current = state.selection
-        val editable = !readOnly
-        return when (val command = event.toKeyboardCommand(keyBindings)) {
-            null -> editable && event.insertTypedCharacter(state)
-
-            is KeyboardCommand.Move -> {
-                val target = keyboardCursor.move(
-                    text = state.rawText,
-                    selection = current,
-                    move = command.move,
-                    extend = event.isShiftPressed,
-                    lines = EditorTextLines(layout),
-                    pageHeight = totalSize.height / zoom,
-                )
-                touchInput = false
-                state.setSelection(target)
-                true
-            }
-
-            // a read-only editor has nothing to insert it into, so tab moves the focus
-            KeyboardCommand.InsertTab -> {
-                if (editable) state.replaceSelection("\t")
-                editable
-            }
-
-            KeyboardCommand.InsertLine -> {
-                if (editable) state.replaceSelection("\n")
-                editable
-            }
-
-            // like in IntelliJ: the current line and a selection in it stay as they are
-            KeyboardCommand.StartNewLine -> {
-                if (editable) {
-                    val line = state.lineOf(current.end)
-                    val end = state.lineEnd(line)
-                    state.localEdit(end, end, "\n" + indentOf(state.rawText, state.lineStart(line)))
-                }
-                editable
-            }
-
-            KeyboardCommand.Backspace -> {
-                if (editable && folds?.inline?.openInsteadOfDelete(backward = true) != true) {
-                    deleteTo(state, previousCharacter(state.rawText, current.min))
-                }
-                editable
-            }
-
-            KeyboardCommand.Delete -> {
-                if (editable && folds?.inline?.openInsteadOfDelete(backward = false) != true) {
-                    deleteTo(state, nextCharacter(state.rawText, current.max))
-                }
-                editable
-            }
-
-            KeyboardCommand.BackspaceWord -> {
-                if (editable && folds?.inline?.openInsteadOfDelete(backward = true) != true) {
-                    deleteTo(state, previousWord(state.rawText, current.min))
-                }
-                editable
-            }
-
-            KeyboardCommand.DeleteWord -> {
-                if (editable && folds?.inline?.openInsteadOfDelete(backward = false) != true) {
-                    deleteTo(state, nextWord(state.rawText, current.max))
-                }
-                editable
-            }
-
-            KeyboardCommand.Copy -> {
-                if (!current.collapsed) menuActions.copy()
-                true
-            }
-
-            KeyboardCommand.Cut -> {
-                if (editable && !current.collapsed) menuActions.cut()
-                editable
-            }
-
-            KeyboardCommand.Paste -> {
-                if (editable) menuActions.paste()
-                editable
-            }
-
-            KeyboardCommand.SelectAll -> {
-                menuActions.selectAll()
-                true
-            }
-
-            KeyboardCommand.Undo -> {
-                if (editable) state.undo()
-                editable
-            }
-
-            KeyboardCommand.Redo -> {
-                if (editable) state.redo()
-                editable
-            }
-
-            KeyboardCommand.ZoomIn -> {
-                // the keys of IntelliJ, where there is nothing to fold they zoom
-                if (folds?.expandAtCursor() != true) zoomAroundCursor((zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(maxZoom))
-                true
-            }
-
-            KeyboardCommand.ZoomOut -> {
-                if (folds?.collapseAtCursor() != true) zoomAroundCursor((zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(minZoom))
-                true
-            }
-
-            KeyboardCommand.ZoomReset -> {
-                zoomAroundCursor(1f.coerceIn(minZoom, maxZoom))
-                true
+        return keys.onKeyDown(
+            event = event,
+            editable = !readOnly,
+            keyBindings = keyBindings,
+            folds = folds,
+            lines = { EditorTextLines(layout) },
+            pageHeight = { totalSize.height / zoom },
+            onCursorMoved = { touch.touchInput = false },
+        ) { step ->
+            when (step) {
+                KeyZoom.In -> zoomAroundCursor((zoom * KEYBOARD_ZOOM_STEP).coerceAtMost(maxZoom))
+                KeyZoom.Out -> zoomAroundCursor((zoom / KEYBOARD_ZOOM_STEP).coerceAtLeast(minZoom))
+                KeyZoom.Reset -> zoomAroundCursor(1f.coerceIn(minZoom, maxZoom))
             }
         }
     }
 
-    val handleColor = LocalTextSelectionColors.current.handleColor
     val hasSelection = !selection.collapsed
-    val handlesWanted = focused && touchInput
+    val handlesWanted = focused && touch.touchInput
     val handles = when {
         !handlesWanted -> emptyList()
         hasSelection -> listOf(HandleKind.SelectionStart, HandleKind.SelectionEnd)
@@ -987,33 +641,9 @@ fun KodeEditor(
             }
             .focusRequester(focusRequester)
             .editorInput(state, enabled && !readOnly, autoCorrect, keyboardActions)
-            .semantics {
-                if (!enabled) disabled()
-                editableText = AnnotatedString(state.text)
-                textSelectionRange = state.selection
-                setSelection { start, end, _ ->
-                    if (!enabled || start !in 0..state.rawText.length || end !in 0..state.rawText.length) {
-                        return@setSelection false
-                    }
-                    state.setSelection(TextRange(start, end))
-                    true
-                }
-                onClick {
-                    if (!enabled) return@onClick false
-                    focusRequester.requestFocus()
-                    if (!readOnly) keyboard?.show()
-                    true
-                }
-                if (enabled && !readOnly) {
-                    setText {
-                        state.setText(it.text)
-                        true
-                    }
-                    insertTextAtCursor {
-                        state.replaceSelection(it.text)
-                        true
-                    }
-                }
+            .editorSemantics(state, enabled, readOnly) {
+                focusRequester.requestFocus()
+                if (!readOnly) keyboard?.show()
             }
             .focusable(enabled = enabled),
     ) {
@@ -1058,7 +688,7 @@ fun KodeEditor(
                 zoom = it
             },
             coerceOffset = { EditorGeometry.coerce(it, maxOffset) },
-            onFlingChanged = { flinging = it },
+            onFlingChanged = { touch.flinging = it },
             contentStart = { geometry.gutterOnScreen(it) },
             onMovingChanged = { moving ->
                 viewState.gestureMoving = moving
@@ -1083,8 +713,8 @@ fun KodeEditor(
                         layout = layout,
                         search = search,
                         window = drawWindow,
-                        matchColor = searchMatchColor,
-                        currentColor = currentSearchMatchColor,
+                        matchColor = shownColors.searchMatch,
+                        currentColor = shownColors.currentSearchMatch,
                     )
                 }
                 SelectionLayer(
@@ -1099,14 +729,14 @@ fun KodeEditor(
                     layout = layout,
                     window = drawWindow,
                     decorations = decorations,
-                    foldBoxColor = inlineFoldBackground,
+                    foldBoxColor = shownColors.inlineFoldBackground,
                     appearSlide = appearSlide,
                 )
                 if (focused && enabled && !readOnly && selection.collapsed) {
                     EditorCursor(
                         state = state,
                         layout = layout,
-                        color = fieldColors.cursorColor().value,
+                        color = shownColors.cursor,
                         blinking = windowInfo.isWindowFocused,
                     )
                 }
@@ -1137,7 +767,7 @@ fun KodeEditor(
         if (scrollbars) {
             Box(modifier = Modifier.zIndex(2f).matchParentSize().then(contentVisibility)) {
                 EditorScrollbars(
-                    color = scrollbarColor,
+                    color = shownColors.scrollbar,
                     style = scrollbarStyle,
                     geometry = { geometry },
                     offset = { offset },
@@ -1165,7 +795,7 @@ fun KodeEditor(
                 key(kind) {
                     SelectionHandle(
                         kind = kind,
-                        color = handleColor,
+                        color = shownColors.handle,
                         anchor = {
                             handleAnchor(
                                 if (kind == HandleKind.SelectionEnd) state.selection.max
@@ -1174,71 +804,22 @@ fun KodeEditor(
                         },
                         editorCoordinates = { editorCoordinates },
                         onDrag = {
-                            dragTarget = it
-                            draggedHandle = kind
+                            touch.dragTarget = it
+                            touch.draggedHandle = kind
                             moveHandle(kind, it)
                         },
                         onDragEnd = {
-                            draggedHandle = null
-                            dragTarget = null
+                            touch.draggedHandle = null
+                            touch.dragTarget = null
                         },
                         onTap = {
-                            if (kind == HandleKind.Cursor) cursorMenuRequested = !cursorMenuRequested
+                            if (kind == HandleKind.Cursor) touch.cursorMenuRequested = !touch.cursorMenuRequested
                         },
                     )
                 }
             }
         }
     }
-}
-
-/** removes the selection, or without one the text up to [target] from the cursor */
-private fun deleteTo(state: KodeEditorState, target: Int) {
-    val selection = state.selection
-    when {
-        !selection.collapsed -> state.replaceSelection("")
-        target < selection.min -> state.localEdit(target, selection.min, "")
-        target > selection.max -> state.localEdit(selection.max, target, "")
-    }
-}
-
-/** types the character of a key of a hardware keyboard */
-private fun KeyEvent.insertTypedCharacter(state: KodeEditorState): Boolean {
-    val code = utf16CodePoint
-    val isAccentOnly = code and KeyCharacterMap.COMBINING_ACCENT != 0
-    if (code == 0 || isAccentOnly || Character.isISOControl(code) || isCtrlPressed || isMetaPressed) return false
-    state.replaceSelection(String(Character.toChars(code)))
-    return true
-}
-
-/**
- * The cursor of the editor. It has its own small layer, so blinking only changes the alpha of that layer.
- */
-@Composable
-private fun EditorCursor(state: KodeEditorState, layout: EditorLineLayout, color: Color, blinking: Boolean) {
-    var alpha by remember { mutableFloatStateOf(1f) }
-    val width = LocalDensity.current.run { CURSOR_WIDTH.roundToPx() }.coerceAtLeast(1)
-
-    if (blinking) {
-        LaunchedEffect(state.version, state.selection) {
-            alpha = 1f
-            while (true) {
-                delay(CURSOR_BLINK_MS)
-                alpha = 1f - alpha
-            }
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .placedAt {
-                val rect = layout.localCursorRect(state.selection.end)
-                val left = rect.left.roundToInt()
-                IntRect(left, rect.top.roundToInt(), left + width, rect.bottom.roundToInt())
-            }
-            .graphicsLayer { this.alpha = alpha }
-            .background(color),
-    )
 }
 
 private data class DummyData(
@@ -1261,10 +842,6 @@ private data class DummyData(
 )
 
 private val dummyData = DummyData()
-
-/** styles the rules this color scheme doesn't know, like those of another language in the text, with a GitHub theme */
-internal fun ColorScheme<SpanStyle>.withEmbeddedFallback(dark: Boolean): ColorScheme<SpanStyle> =
-    withFallback(if (dark) GitHubDarkTheme.spanStyleColorScheme else GitHubLightTheme.spanStyleColorScheme)
 
 @Preview
 @Composable

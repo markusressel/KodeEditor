@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.markusressel.kodeeditor.library.compose.cursor.CURSOR_HANDLE_TAG
 import de.markusressel.kodeeditor.library.compose.cursor.HandleDrag
+import de.markusressel.kodeeditor.library.compose.cursor.HandleKind
 import de.markusressel.kodeeditor.library.compose.cursor.HandleMenu
 import de.markusressel.kodeeditor.library.compose.cursor.SELECTION_END_HANDLE_TAG
 import de.markusressel.kodeeditor.library.compose.cursor.SELECTION_START_HANDLE_TAG
@@ -170,6 +171,16 @@ class SelectionHandlesTest {
         assertEquals(Offset(0f, 5f), HandleDrag.edgeScroll(Offset(500f, 1975f), area, 100f, 50f, 10f))
         assertEquals(Offset(0f, 10f), HandleDrag.edgeScroll(Offset(500f, 2500f), area, 100f, 50f, 10f))
         assertEquals(Offset(-10f, 0f), HandleDrag.edgeScroll(Offset(90f, 1000f), area, 100f, 50f, 10f))
+    }
+
+    @Test
+    fun `the ends of a selection do not pass each other`() {
+        val selection = TextRange(5, 10)
+        assertEquals(TextRange(7), HandleDrag.selectionFor(HandleKind.Cursor, 7, selection))
+        assertEquals(TextRange(2, 10), HandleDrag.selectionFor(HandleKind.SelectionStart, 2, selection))
+        assertEquals(TextRange(9, 10), HandleDrag.selectionFor(HandleKind.SelectionStart, 20, selection))
+        assertEquals(TextRange(5, 12), HandleDrag.selectionFor(HandleKind.SelectionEnd, 12, selection))
+        assertEquals(TextRange(5, 6), HandleDrag.selectionFor(HandleKind.SelectionEnd, 0, selection))
     }
 
     @Test

@@ -10,8 +10,8 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
     - `view`: `KodeEditorViewState`, `ZoomLayout`, scrollbars, geometry, following the cursor.
     - `layout`: `KodeEditorLayout`, `EditorLineLayout`, rows, the drawn layers, typing runs and the scroll anchor of remote changes.
     - `animation`: `KodeEditorAnimations`/`KodeEditorAppearance`, `ReflowTransition` and `TypingMotion` (the typing rules of cursor and text in one place).
-    - `reveal`: `KodeEditorReveal`. `cursor`: remote cursors (`KodeEditorRemoteCursor`, `RemoteCursorGlides`, `GlideCurves`), selection handles.
-    - `fold` and `fold.providers`: folding and the fold providers. `search`, `gutter` (`KodeEditorGutterColumn`, `KodeEditorLineDecoration`), `input` (keyboard, key bindings, gestures).
+    - `reveal`: `KodeEditorReveal`. `cursor`: the local cursor, remote cursors (`KodeEditorRemoteCursor`, `RemoteCursorGlides`, `GlideCurves`), selection handles and the text menu.
+    - `fold` and `fold.providers`: folding and the fold providers. `search`, `gutter` (`KodeEditorGutterColumn`, `KodeEditorLineDecoration`), `input` (keyboard, keys and key bindings, touch gestures, accessibility semantics).
 - `app`: demo app, package `de.markusressel.kodeeditor.demo`. `ComposeMainActivity` (launcher) shows the editor.
 - `build-logic`: Gradle convention plugins (`kodeeditor.android.library`, `...compose`, `...publishing`, ...). Versions live in `gradle/libs.versions.toml`.
 
