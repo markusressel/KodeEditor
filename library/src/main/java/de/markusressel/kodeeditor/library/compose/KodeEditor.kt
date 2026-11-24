@@ -409,11 +409,11 @@ fun KodeEditor(
     }
     if (appearance != null) {
         LaunchedEffect(state, appearance) {
-            // the system setting that scales animations, 0 when they are off
-            val scale = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
+            // the system setting that scales animations, 0 when they are off. It can change at any time
+            val motion = coroutineContext[MotionDurationScale]
             snapshotFlow { state.rangeAlphas.isNotEmpty() }.collectLatest { appearing ->
                 // no frames while nothing appears
-                while (appearing && withFrameMillis { state.onAppearFrame(it, scale) }) Unit
+                while (appearing && withFrameMillis { state.onAppearFrame(it, motion?.scaleFactor ?: 1f) }) Unit
             }
         }
     }
@@ -605,13 +605,14 @@ fun KodeEditor(
         // the text behind what others insert moves out of the way like their cursors move
         val slideMs = animations.appearance?.let { it.cursorGlide?.durationMs ?: KodeEditorCursorGlide().durationMs }
         // the system setting is known a little later
-        layout.insertSlideMs = { ((slideMs ?: 0) * glides.durationScale).toInt() }
+        layout.insertSlideMs = { ((slideMs ?: 0) * glides.durationScale()).toInt() }
         layout.remoteCarets = glides::drawnCarets
         glides.update(remoteCursors)
     }
     LaunchedEffect(glides) {
         // the system setting that scales animations, 0 when they are off
-        glides.durationScale = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
+        val motion = coroutineContext[MotionDurationScale]
+        glides.durationScale = { motion?.scaleFactor ?: 1f }
         snapshotFlow { glides.isGliding to glides.starts }.collectLatest { (gliding) ->
             // frames only while a cursor glides, they only draw and place again
             while (gliding && withFrameMillis { glides.onFrame(it) }) Unit

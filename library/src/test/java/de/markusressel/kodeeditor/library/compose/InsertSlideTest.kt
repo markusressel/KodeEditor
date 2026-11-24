@@ -184,3 +184,33 @@ class InsertSlideWithoutAnimationsTest {
         assertEquals(scene.settled(12), scene.shown(12))
     }
 }
+
+@RunWith(AndroidJUnit4::class)
+@Config(application = Application::class, sdk = [36], qualifiers = "w411dp-h891dp")
+class InsertSlideAnimationsTurnedOffTest {
+
+    /** the system setting, which the user can change while the editor is shown */
+    private val motion = object : MotionDurationScale {
+        override var scaleFactor = 1f
+    }
+
+    @get:Rule
+    val composeRule = createComposeRule(effectContext = motion)
+
+    @Test
+    fun `turning animations off while the editor is shown makes changes of others jump and shows appearing text`() {
+        val scene = InsertScene(composeRule, "hello world")
+        scene.show(KodeEditorAnimations(appearance = KodeEditorAppearance()))
+        composeRule.runOnIdle { scene.state.applyRemote(listOf(TextSplice(0, 0, "a ")), appear = true) }
+        scene.frame()
+        assertTrue("text appears with animations on", scene.state.rangeAlphas.isNotEmpty())
+
+        motion.scaleFactor = 0f
+        scene.frame()
+        assertTrue("appearing text shows at once", scene.state.rangeAlphas.isEmpty())
+        composeRule.runOnIdle { scene.state.applyRemote(listOf(TextSplice(8, 0, "brave ")), appear = true) }
+        scene.frame()
+
+        assertEquals(scene.settled(14), scene.shown(14))
+    }
+}

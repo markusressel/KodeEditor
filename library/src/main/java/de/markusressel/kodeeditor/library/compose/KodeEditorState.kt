@@ -370,6 +370,11 @@ class KodeEditorState(
     internal fun onAppearFrame(nowMs: Long, scale: Float = 1f): Boolean {
         val ranges = rangeAlphasState
         if (ranges.isEmpty()) return false
+        if (scale <= 0f) {
+            // animations were turned off while text appeared
+            finishAppearing()
+            return false
+        }
         val config = appearance ?: KodeEditorAppearance()
         // the rates first, with all that arrived in this frame
         ranges.forEach { range ->

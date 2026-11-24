@@ -153,14 +153,14 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
     /** how cursors glide, null jumps */
     var config: KodeEditorCursorGlide? = null
 
-    /** the system setting of the animation speed, 0 turns animations off */
-    var durationScale = 1f
+    /** the system setting of the animation speed, 0 turns animations off. It can change at any time */
+    var durationScale: () -> Float = { 1f }
 
     /** how long a glide takes */
-    private val durationMs: Long get() = ((config?.durationMs ?: 0) * durationScale).toLong()
+    private val durationMs: Long get() = ((config?.durationMs ?: 0) * durationScale()).toLong()
 
     /** how long a user who left takes to fade out */
-    private val fadeOutMs: Long get() = ((config?.fadeOutMs ?: 0) * durationScale).toLong()
+    private val fadeOutMs: Long get() = ((config?.fadeOutMs ?: 0) * durationScale()).toLong()
 
     /** the text changed, a cursor that moves with it does not glide */
     val spliceListener: (TextSplice) -> Unit = { splice ->
