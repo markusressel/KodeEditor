@@ -17,7 +17,6 @@ import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
@@ -80,13 +79,12 @@ import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
 import de.markusressel.kodeeditor.library.compose.cursor.HandleDrag
 import de.markusressel.kodeeditor.library.compose.cursor.HandleKind
 import de.markusressel.kodeeditor.library.compose.cursor.HandleMenu
-import de.markusressel.kodeeditor.library.compose.cursor.KodeEditorCursorGlide
 import de.markusressel.kodeeditor.library.compose.cursor.KodeEditorRemoteCursor
 import de.markusressel.kodeeditor.library.compose.cursor.RemoteCaretLayer
-import de.markusressel.kodeeditor.library.compose.cursor.RemoteCursorGlides
 import de.markusressel.kodeeditor.library.compose.cursor.RemoteCursorLabels
 import de.markusressel.kodeeditor.library.compose.cursor.RemoteSelectionLayer
 import de.markusressel.kodeeditor.library.compose.cursor.SelectionHandle
+import de.markusressel.kodeeditor.library.compose.cursor.rememberRemoteCursorGlides
 import de.markusressel.kodeeditor.library.compose.fold.EditorFolds
 import de.markusressel.kodeeditor.library.compose.fold.FoldColumn
 import de.markusressel.kodeeditor.library.compose.fold.FoldedLineDecoration
@@ -95,6 +93,7 @@ import de.markusressel.kodeeditor.library.compose.fold.KodeEditorFoldProviders
 import de.markusressel.kodeeditor.library.compose.gutter.EditorGutter
 import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorGutterColumn
 import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorLineDecoration
+import de.markusressel.kodeeditor.library.compose.gutter.LineDecorationLayer
 import de.markusressel.kodeeditor.library.compose.gutter.gutterColumnAt
 import de.markusressel.kodeeditor.library.compose.gutter.rememberLineNumberColumn
 import de.markusressel.kodeeditor.library.compose.input.EditorGestureHandler
@@ -117,15 +116,18 @@ import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.layout.EditorTextLines
 import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
 import de.markusressel.kodeeditor.library.compose.layout.LINE_LAYOUT_CACHE_SIZE
-import de.markusressel.kodeeditor.library.compose.layout.LineDecorationLayer
+import de.markusressel.kodeeditor.library.compose.layout.RemoteScrollAnchorEffect
 import de.markusressel.kodeeditor.library.compose.layout.RowBreaker
-import de.markusressel.kodeeditor.library.compose.layout.SearchLayer
 import de.markusressel.kodeeditor.library.compose.layout.SelectionLayer
 import de.markusressel.kodeeditor.library.compose.layout.ShownEditorLayout
 import de.markusressel.kodeeditor.library.compose.layout.VisibleLines
 import de.markusressel.kodeeditor.library.compose.layout.placedAt
+import de.markusressel.kodeeditor.library.compose.layout.remoteScrollAnchorIn
 import de.markusressel.kodeeditor.library.compose.search.KodeEditorSearch
+import de.markusressel.kodeeditor.library.compose.search.SearchFoldsEffect
+import de.markusressel.kodeeditor.library.compose.search.SearchLayer
 import de.markusressel.kodeeditor.library.compose.search.toRegex
+import de.markusressel.kodeeditor.library.compose.state.AppearingTextEffect
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorListener
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.state.SplicePhase
@@ -155,7 +157,6 @@ import de.markusressel.kodehighlighter.core.rule.RuleMatch
 import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 
 private const val KEYBOARD_ZOOM_STEP = 1.1f
 private const val VISIBLE_RANGE_EDGE = 0.01f
@@ -471,21 +472,7 @@ fun KodeEditor(
     val folds = remember(state, foldProvider) { foldProvider?.let { EditorFolds(state, it) } }
     val appearance = animations.appearance
     val appearSlide = with(LocalDensity.current) { (appearance?.slide ?: 0.dp).toPx() }
-    val appearanceOwner = remember { Any() }
-    DisposableEffect(state, appearance) {
-        state.showAppearance(appearanceOwner, appearance)
-        onDispose { state.showAppearance(appearanceOwner, null) }
-    }
-    if (appearance != null) {
-        LaunchedEffect(state, appearance) {
-            // the system setting that scales animations, 0 when they are off. It can change at any time
-            val motion = coroutineContext[MotionDurationScale]
-            snapshotFlow { state.rangeAlphas.isNotEmpty() }.collectLatest { appearing ->
-                // no frames while nothing appears
-                while (appearing && withFrameMillis { state.onAppearFrame(it, motion?.scaleFactor ?: 1f) }) Unit
-            }
-        }
-    }
+    AppearingTextEffect(state, appearance)
 
     DisposableEffect(state, folds) {
         if (folds == null) return@DisposableEffect onDispose {}
@@ -497,20 +484,7 @@ fun KodeEditor(
         }
     }
     LaunchedEffect(folds) { folds?.inline?.keepUpdated() }
-    DisposableEffect(search, folds) {
-        if (search == null) return@DisposableEffect onDispose {}
-        val reveal: (TextRange) -> Unit = { range -> folds?.reveal(range) }
-        search.reveal = reveal
-        onDispose {
-            if (search.reveal === reveal) search.reveal = null
-            folds?.inline?.shownMatch = null
-        }
-    }
-    // a folded part of a line is open while it has the current match
-    LaunchedEffect(search, folds) {
-        val inline = folds?.inline ?: return@LaunchedEffect
-        snapshotFlow { search?.current }.collect { inline.shownMatch = it }
-    }
+    if (search != null) SearchFoldsEffect(search, folds)
 
     DisposableEffect(state, view) {
         val link = ViewInputLink(view, state)
@@ -664,28 +638,8 @@ fun KodeEditor(
     }
 
     val currentRemoteCursors = rememberUpdatedState(remoteCursors)
-    val glides = remember(layout) { RemoteCursorGlides(layout) { settledGeometry.visibleSize.width } }
-    DisposableEffect(state, glides) {
-        state.addSpliceObserver(SplicePhase.Listeners, glides.spliceListener)
-        onDispose { state.removeSpliceObserver(SplicePhase.Listeners, glides.spliceListener) }
-    }
-    SideEffect {
-        glides.config = animations.appearance?.cursorGlide
-        // the text behind what others insert moves out of the way like their cursors move
-        val slideMs = animations.appearance?.let { it.cursorGlide?.durationMs ?: KodeEditorCursorGlide().durationMs }
-        // the system setting is known a little later
-        layout.insertSlideMs = { ((slideMs ?: 0) * glides.durationScale()).toInt() }
-        layout.remoteCarets = glides::drawnCarets
-        glides.update(remoteCursors)
-    }
-    LaunchedEffect(glides) {
-        // the system setting that scales animations, 0 when they are off
-        val motion = coroutineContext[MotionDurationScale]
-        glides.durationScale = { motion?.scaleFactor ?: 1f }
-        snapshotFlow { glides.isGliding to glides.starts }.collectLatest { (gliding) ->
-            // frames only while a cursor glides, they only draw and place again
-            while (gliding && withFrameMillis { glides.onFrame(it) }) Unit
-        }
+    val glides = rememberRemoteCursorGlides(state, layout, animations.appearance, remoteCursors) {
+        settledGeometry.visibleSize.width
     }
 
     val maxOffset by remember(layout, textStartPadding) {
@@ -708,28 +662,20 @@ fun KodeEditor(
     }
 
     // text that others insert or remove in front of what the user looks at moves the view with it, in the same frame
-    val currentKeepView by rememberUpdatedState(keepViewOnRemoteChanges)
-    DisposableEffect(layout) {
-        layout.scrollAnchor.anchor = anchor@{
-            if (!currentKeepView) return@anchor null
+    RemoteScrollAnchorEffect(
+        layout = layout,
+        enabled = keepViewOnRemoteChanges,
+        anchor = {
             val visible = settledGeometry.visibleSize
-            val caret = state.selection.end
-            val rect = layout.getCursorRect(caret).translate(textStartPadding, 0f)
-            val inView = rect.top >= offset.y && rect.bottom <= offset.y + visible.height &&
-                rect.left >= offset.x && rect.left <= offset.x + visible.width
-            // the cursor if the user sees it, otherwise the first visible line
-            if (focused && inView) caret else layout.startOfRow(layout.rowAt(offset.y))
-        }
-        layout.scrollAnchor.shift = { distance ->
+            val view = Rect(offset, Size(visible.width.toFloat(), visible.height.toFloat()))
+            remoteScrollAnchorIn(layout, state.selection.end, focused, view, textStartPadding)
+        },
+        scrollBy = { distance ->
             val before = offset
             offset = EditorGeometry.coerce(before + distance, maxOffset)
             offset - before
-        }
-        onDispose {
-            layout.scrollAnchor.anchor = { null }
-            layout.scrollAnchor.shift = { Offset.Zero }
-        }
-    }
+        },
+    )
 
     // the text can get shorter and the zoom can change, the view must not stay beyond the end of the text
     LaunchedEffect(maxOffset) {

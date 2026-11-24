@@ -1,7 +1,6 @@
 package de.markusressel.kodeeditor.library.compose.layout
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -13,7 +12,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.toRect
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -27,14 +25,9 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.dp
-import de.markusressel.kodeeditor.library.compose.gutter.DecoratedLine
 import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorLineDecoration
-import de.markusressel.kodeeditor.library.compose.search.KodeEditorSearch
 import kotlinx.coroutines.flow.collectLatest
 
 /** enough single line layouts for the lines of a whole window at the lowest zoom, so unchanged lines are reused */
@@ -42,18 +35,6 @@ internal const val LINE_LAYOUT_CACHE_SIZE = 2048
 
 /** the corner radius of the box behind a placeholder, as a part of the line height */
 private const val FOLD_BOX_RADIUS = 0.2f
-
-/**
- * Places the content at the rectangle given by [rect] and takes no space in the parent, so it works at any size of
- * the document. Reading the rectangle only affects the placement, nothing recomposes when it changes.
- */
-internal fun Modifier.placedAt(rect: () -> IntRect) = layout { measurable, constraints ->
-    val target = rect()
-    val placeable = measurable.measure(Constraints.fixed(target.width, target.height))
-    layout(constraints.minWidth, constraints.minHeight) {
-        placeable.place(target.left, target.top)
-    }
-}
 
 /**
  * Draws that are not part of the text, and know nothing about being faded. What has the same alpha goes through one
@@ -122,7 +103,7 @@ internal fun VisibleLines(
                 }
 
                 /** draws the parts with an alpha of their own in a small layer each, the rest of the row as usual */
-                fun drawFadingRow(line: EditorLineLayout.DrawnLine, parts: List<EditorLineLayout.FadingPart>) {
+                fun drawFadingRow(line: EditorLineLayout.DrawnLine, parts: List<FadingPart>) {
                     // only this row is drawn with these clips, so they can reach far above and below it
                     val height = line.layout.size.height
                     val top = line.position.y - height
@@ -170,17 +151,17 @@ internal fun VisibleLines(
                 }
 
                 // where text is not drawn yet ahead of the cursors of others, the same for all rows
-                val cuts = layout.caretCuts()
+                val cuts = layout.appearing.caretCuts()
                 translate(left, top) {
                     layout.linesWithin(area).forEach { line ->
                         val parts = layout.movingParts(line)
                         if (parts == null) {
-                            val fadingParts = layout.fadingParts(line, cuts)
+                            val fadingParts = layout.appearing.fadingParts(line, cuts)
                             if (fadingParts == null) drawRowContent(line) else drawFadingRow(line, fadingParts)
                         } else {
                             val rowAlpha = layout.rowAlpha(line.row)
                             // text that still appears keeps its alpha while it moves, or it flashes up for the move
-                            val fadingParts = layout.fadingParts(line, cuts)
+                            val fadingParts = layout.appearing.fadingParts(line, cuts)
                             parts.forEach { part ->
                                 val drawPart = {
                                     translate(part.distance.x, part.distance.y) {
@@ -222,180 +203,3 @@ internal fun VisibleLines(
             },
     )
 }
-
-/**
- * Draws the backgrounds of the [decorations] in a layer of its own, below the selection and the text.
- *
- * @param layout where the lines are
- * @param decorations what to draw
- * @param window the part of the document that is drawn
- * @param textPadding the padding in front of the text, which the backgrounds cover too
- */
-@Composable
-internal fun LineDecorationLayer(
-    layout: EditorLineLayout,
-    decorations: List<KodeEditorLineDecoration>,
-    window: State<IntRect>,
-    textPadding: Float,
-) {
-    Box(
-        modifier = Modifier
-            .placedAt { window.value }
-            .graphicsLayer {}
-            .drawBehind {
-                val area = window.value
-                val first = layout.getLineForVerticalPosition(area.top.toFloat())
-                val last = layout.getLineForVerticalPosition(area.bottom.toFloat())
-                val fading = FadingDraws()
-
-                fun drawLine(line: Int, top: Float, height: Float, alpha: Float) {
-                    val decorated = DecoratedLine(
-                        line = line,
-                        width = area.width + textPadding,
-                        height = height,
-                        textStart = textPadding - area.left,
-                    )
-                    val draw = {
-                        translate(-textPadding, top - area.top) {
-                            decorations.forEach { decoration -> with(decoration) { drawBackground(decorated) } }
-                        }
-                    }
-                    if (alpha >= 1f) draw() else fading.add(alpha, draw)
-                }
-
-                for (line in first..last) {
-                    if (layout.isLineHidden(line)) continue
-                    val top = layout.getLineTop(line)
-                    val height = layout.getLineBottom(line) - top
-                    drawLine(line, top + layout.shownLineDistance(line), height, layout.lineAlpha(line))
-                }
-                layout.shownLeavingRows.forEach { row -> drawLine(row.line, row.top, layout.lineHeight, row.alpha) }
-                with(fading) { drawAll() }
-            },
-    )
-}
-
-/**
- * Draws the selection in a layer of its own.
- *
- * @param layout where the text is
- * @param selection the current selection, null to show none
- * @param window the part of the document that is drawn
- */
-@Composable
-internal fun SelectionLayer(layout: EditorLineLayout, selection: () -> TextRange?, window: State<IntRect>) {
-    val color = LocalTextSelectionColors.current.backgroundColor
-    Box(
-        modifier = Modifier
-            .placedAt { window.value }
-            .graphicsLayer {}
-            .drawBehind {
-                val range = selection()?.takeIf { !it.collapsed } ?: return@drawBehind
-                val area = window.value
-                translate(-area.left.toFloat(), -area.top.toFloat()) {
-                    drawPath(layout.shownPathForRange(range.min, range.max), color)
-                }
-            },
-    )
-}
-
-/**
- * Draws the matches of a [KodeEditorSearch] in a layer of its own, below the selection and the text. A match in folded
- * lines marks the start of the row of its fold instead.
- *
- * @param layout where the text is
- * @param search the matches to draw
- * @param window the part of the document that is drawn
- * @param matchColor the color behind each match
- * @param currentColor the color behind the current match
- */
-@Composable
-internal fun SearchLayer(
-    layout: EditorLineLayout,
-    search: KodeEditorSearch,
-    window: State<IntRect>,
-    matchColor: Color,
-    currentColor: Color,
-) {
-    Box(
-        modifier = Modifier
-            .placedAt { window.value }
-            .graphicsLayer {}
-            .drawBehind {
-                val matches = search.matches
-                if (matches.isEmpty()) return@drawBehind
-                val current = search.current
-                val area = window.value
-                val first = layout.getLineForVerticalPosition(area.top.toFloat())
-                val last = layout.getLineForVerticalPosition(area.bottom.toFloat())
-                val start = layout.getLineStart(first)
-                val end = layout.getLineEnd(last)
-                val markWidth = FOLDED_MATCH_MARK_WIDTH.toPx()
-                var lastMarkTop = Float.NaN
-                translate(-area.left.toFloat(), -area.top.toFloat()) {
-                    // the first match that ends behind the start of the drawn lines
-                    var index = matches.binarySearchBy(start) { it.max }.let { if (it < 0) -it - 1 else it }
-                    while (index < matches.size && matches[index].min <= end) {
-                        val match = matches[index++]
-                        val color = if (match == current) currentColor else matchColor
-                        val line = layout.getLineForOffset(match.min)
-                        if (layout.isLineHidden(line)) {
-                            val top = layout.getLineTop(line) + layout.shownLineDistance(line)
-                            if (top != lastMarkTop || match == current) {
-                                drawRect(color, Offset(0f, top), Size(markWidth, layout.lineHeight))
-                                lastMarkTop = top
-                            }
-                        } else {
-                            drawPath(layout.shownPathForRange(match.min, match.max), color)
-                        }
-                    }
-                }
-            },
-    )
-}
-
-/** how wide the mark of a match in folded lines is */
-private val FOLDED_MATCH_MARK_WIDTH = 3.dp
-
-/**
- * A part of a row drawn with an alpha of its own.
- *
- * @param left where it starts in the row
- * @param right where it ends in the row
- * @param alpha how visible it is, without [stops]
- * @param stops how visible it is along the row, from left to right: where in the row and the alpha there
- */
-internal class FadingRun(val left: Float, val right: Float, val alpha: Float, val stops: List<Pair<Float, Float>>?)
-
-/**
- * Joins the parts of [parts] that are one behind the other in the row. Each has its alpha in its middle, and the alpha
- * goes from one to the next in a straight line, so neighbours that appear a bit apart have no edge between them. Parts
- * that are not drawn (alpha 0) are not joined.
- */
-internal fun gradientRuns(parts: List<EditorLineLayout.FadingPart>): List<FadingRun> {
-    val sorted = parts.filter { it.alpha > 0f && it.right > it.left }.sortedBy { it.left }
-    val runs = ArrayList<FadingRun>()
-    var index = 0
-    while (index < sorted.size) {
-        var last = index
-        while (last + 1 < sorted.size && sorted[last + 1].left <= sorted[last].right + GRADIENT_GAP) last++
-        val first = sorted[index]
-        if (last == index) {
-            runs += FadingRun(first.left, first.right, first.alpha, null)
-        } else {
-            val stops = ArrayList<Pair<Float, Float>>(last - index + 3)
-            stops += first.left to first.alpha
-            for (part in index..last) {
-                val piece = sorted[part]
-                stops += (piece.left + piece.right) / 2 to piece.alpha
-            }
-            stops += sorted[last].right to sorted[last].alpha
-            runs += FadingRun(first.left, sorted[last].right, first.alpha, stops)
-        }
-        index = last + 1
-    }
-    return runs
-}
-
-/** how far apart two parts can be and still be one behind the other, in px */
-private const val GRADIENT_GAP = 0.5f
