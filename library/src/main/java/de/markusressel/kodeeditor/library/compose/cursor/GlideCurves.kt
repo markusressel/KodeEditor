@@ -3,8 +3,8 @@ package de.markusressel.kodeeditor.library.compose.cursor
 import androidx.compose.ui.geometry.Offset
 
 /*
- * The way of a cursor that glides, R5 of docs/reveal.md. A glide is kept as the distance from the place of the cursor,
- * which shrinks to 0.
+ * The way of a cursor that glides, the cursor glide (R5) of docs/reveal.md. A glide is kept as the distance from the
+ * place of the cursor, which shrinks to 0.
  */
 
 /**

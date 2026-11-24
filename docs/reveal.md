@@ -26,14 +26,14 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   of its own.
 - It can be cancelled and run again, e.g. on rotation: the hidden text, the speed and the carry stay.
 - `insert` works while it does not run, the text stays hidden until it runs again or `stop()` is called. Changes that
-  show the hidden text (R1) are only noticed while it runs, so call `stop()` when the editor goes away.
+  show the hidden text (the queue, R1) are only noticed while it runs, so call `stop()` when the editor goes away.
 - `insert` and `applyRemote` can be mixed in one call on the main thread, no frame comes in between.
 - The reveal keeps all range styles that are not its own. An app that sets its own range styles must keep those of the
   reveal (their tag starts with the tag of the reveal), or their text shows at once. Two reveals keep each other's.
 
 ## Rules
 
-### R1: a queue per writer, a chunk is hidden at once
+### Queue (R1): one per writer, a chunk is hidden at once
 
 - A chunk is inserted into the text at once, and hidden in the same change, so no frame shows it. KodeEditor hides it
   with a transparent range style, so it keeps its space and the text below does not move.
@@ -47,13 +47,13 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 - Only a pure insert of the writer is a chunk. The new text of a replace, also one of the writer, shows at once and
   appears like the text of others (`applyRemote(appear = true)`), and finishes the reveal if it touches hidden text.
 
-### R2: the head walks the queue
+### Head (R2): it walks the queue
 
 - The head is the start of the hidden text of the first entry of the queue. When that entry is all shown, the head goes
   on to the start of the next one, in the same frame if there are steps left.
-- The cursor of the writer is at the head. It is a remote cursor like any other, so it glides (R5).
+- The cursor of the writer is at the head. It is a remote cursor like any other, so it glides (cursor glide, R5).
 
-### R3: the speed, per frame
+### Speed (R3): how much is shown per frame
 
 - Each frame reveals `rate × elapsed` characters, with `elapsed` the time since the frame before. The fraction that is
   left is carried to the next frame. The first frame after a rest counts as 16 ms, so a chunk starts to show at once.
@@ -69,7 +69,7 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 - A collapsed part, like a folded link or folded lines, counts as one character and shows as a whole.
 - With animations off (a duration scale of 0), all hidden text shows at once.
 
-### R4: each piece appears
+### Fade-in (R4): each piece appears
 
 - The characters revealed in a frame appear as one piece, with the appearance animation of the editor
   (`KodeEditorAppearance`), if it has one.
@@ -102,11 +102,11 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   a little in alpha, which the gradient smooths. A reveal has about one piece per frame alive, about 31 at 500 ms and 63 at 1000 ms, far
   below 256.
 
-### R5: the cursor glides with its speed
+### Cursor glide (R5): the cursor glides with its speed
 
 - A cursor glides from where it is drawn to its new place in 120 ms (`KodeEditorCursorGlide.durationMs`) if the move
   fits: in its row by at most 0.4 × the width of the text, to the row above or below by at most 3 line heights.
-  Anything else jumps, except at the head of a reveal over a wrap or a line break, see R8.
+  Anything else jumps, except at the head of a reveal over a wrap or a line break, see the wrap carry (R8).
 - A cursor at rest glides with the cubic ease-out: `d(t) = d0 × (1 - t)³`, with `d0` how far it is drawn from its new
   place at the start, and `t` from 0 to 1 over the duration `T`.
 - A cursor that gets a new place while it glides, as at the head of a reveal, starts a new glide from where it is drawn
@@ -118,39 +118,40 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   A cursor that gets a new place within 90 ms after its glide ended catches up the same way. If that glide ended at
   most 20 ms before the frame, the new one starts in that frame, otherwise one frame (16 ms) earlier, so it moves in
   its first frame already. A jump forgets the time of the last new place.
-- R5b, typing: a step of at most 3 characters in the same row, at most 250 ms after the last new place of the cursor,
-  glides at an even speed (linear) from where the cursor is drawn, for `clamp(1.5 × interval, 32, 250)` ms. The interval
-  is the time between its steps, smoothed: the first step of a run takes the time since the last new place, each one
-  after it `interval + 0.3 × (time since the last new place - interval)`. The factor 1.5 keeps it on its way when the
-  next step comes, so it does not stop and start again at each one. So the cursor of somebody who types keeps moving
-  between their keys instead of starting fast and stopping at each one ("pumping"). It ends about one key interval
-  behind. The first step after a rest, and every larger move, keep the rules above. For a reveal at about one character
-  per frame this is a glide of 32 ms, about 1 character behind the head.
-- R5c, slow typing is crisp: the speed of the typing decides the curve and the time of such a step. With
+- Even typing glide (R5b): a step of at most 3 characters in the same row, at most 250 ms after the last new place of
+  the cursor, glides at an even speed (linear) from where the cursor is drawn, for `clamp(1.5 × interval, 32, 250)` ms.
+  The interval is the time between its steps, smoothed: the first step of a run takes the time since the last new place,
+  each one after it `interval + 0.3 × (time since the last new place - interval)`. The factor 1.5 keeps it on its way
+  when the next step comes, so it does not stop and start again at each one. So the cursor of somebody who types keeps
+  moving between their keys instead of starting fast and stopping at each one ("pumping"). It ends about one key
+  interval behind. The first step after a rest, and every larger move, keep the rules above. For a reveal at about one
+  character per frame this is a glide of 32 ms, about 1 character behind the head.
+- Crisp slow typing (R5c): the speed of the typing decides the curve and the time of such a step. With
   `crisp = clamp((interval - 100) / (200 - 100), 0, 1)`:
   - the time is `lerp(clamp(1.5 × interval, 32, 250), 100, crisp)` ms;
   - the way at the part `t` of it is `lerp(t, 1 - (1 - t)³, crisp)`, an even glide blended with the cubic ease-out.
   So fast typing (keys at most 100 ms apart) glides on evenly as above, and slow typing (200 ms or more) takes quick
   steps of 100 ms that slow down at their place, like a single key. In between, both blend, so a typist who gets
   faster or slower changes smoothly, without a jump of the cursor. Each step starts from where the cursor is drawn.
-- R3 and R5 go together: revealed per frame at about one character, the cursor stays about 1 to 1.5 characters behind
-  the head with an even speed. Revealed in steps of several characters, the Hermite glide is smooth but lags more, about
-  6 characters at 8 characters every 32 ms.
+- Speed and cursor glide (R3 and R5) go together: revealed per frame at about one character, the cursor stays about 1 to
+  1.5 characters behind the head with an even speed. Revealed in steps of several characters, the Hermite glide is
+  smooth but lags more, about 6 characters at 8 characters every 32 ms.
 
-### R6: the text behind the chunk slides
+### Slide (R6): the text behind the chunk slides
 
 - With an appearance, the text behind text that somebody else inserted, removed or replaced slides to its new place in
   120 ms with the cubic ease-out, into the next rows too when the line breaks anew. As a chunk is hidden but keeps its
   space, this happens when it arrives. Removed text is gone at once, the text behind it closes the gap.
 - A slide that starts while one runs starts from where the text is drawn, so the text never jumps: the one before
   stops where it is, and the new one takes the text on from there to its new place.
-- Typing (R6b): an insertion of at most 3 characters right behind the one before, at most 250 ms after it, slides at an
-  even speed (linear) for `clamp(1.5 × interval, 32, 250)` ms, with the time between the keys smoothed like in R5b. It
-  starts a frame (16 ms) early, so the text does not stand still for a frame at each key. A crisp step of R5c starts
-  less early, `16 × (1 - crisp)` ms, so a step of slow typing starts at once. A cursor at the end of the
-  insertion is drawn where the text behind it is drawn on its way, so the text behind the cursor of somebody who types
-  moves exactly with their cursor, at the even speed of R5b. The time and the curve follow R5c, with the same
-  numbers, so slow typing moves the text behind the cursor in crisp steps too.
+- Typing slide (R6b): an insertion of at most 3 characters right behind the one before, at most 250 ms after it, slides
+  at an even speed (linear) for `clamp(1.5 × interval, 32, 250)` ms, with the time between the keys smoothed like in the
+  even typing glide (R5b). It starts a frame (16 ms) early, so the text does not stand still for a frame at each key. A
+  step of crisp slow typing (R5c) starts less early, `16 × (1 - crisp)` ms, so a step of slow typing starts at once. A
+  cursor at the end of the insertion is drawn where the text behind it is drawn on its way, so the text behind the
+  cursor of somebody who types moves exactly with their cursor, at the even speed of the even typing glide (R5b). The
+  time and the curve follow crisp slow typing (R5c), with the same numbers, so slow typing moves the text behind the
+  cursor in crisp steps too.
 - While the text behind a key or a backspace slides, a cursor at the end of the change glides no extra way of its
   own: the slide carries it. So the cursor and the text behind it stay together whatever the curve.
 - The same for backspace: a removal of at most 3 characters right in front of where the cursor was after the change
@@ -164,7 +165,7 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   revealed.
 - Only the changes of others slide, those of the user are where they are at once.
 
-### R7: nothing shows ahead of the cursor
+### Caret cut (R7): nothing shows ahead of the cursor
 
 - Appearing text that ends at the place of a remote cursor (several pieces one behind the other, and pieces right
   behind that place, whose cursor update comes a frame later) is drawn only left of where that cursor's caret is drawn
@@ -175,25 +176,26 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
 - Apps should apply the cursor of a person together with their change of the text, in one call before the next frame,
   so the insertion and the cursor that caused it are drawn together.
 
-### R8: a word goes over the wrap like a typed one
+### Wrap carry (R8): a word goes over the wrap like a typed one
 
-A chunk keeps its room from the start (R1), so its rows are broken as if all of it was there: a word that does not fit
-at the end of a row already starts the next one. Somebody who types puts the beginning of such a word at the end of the
-row, and only when it does not fit anymore does it go to the next row, with the cursor at its end. The reveal does the
-same:
+A chunk keeps its room from the start (queue, R1), so its rows are broken as if all of it was there: a word that does
+not fit at the end of a row already starts the next one. Somebody who types puts the beginning of such a word at the end
+of the row, and only when it does not fit anymore does it go to the next row, with the cursor at its end. The reveal
+does the same:
 
 - While the revealed part of the word at the start of a row that continues a wrapped line fits behind the end of the row
   above (within the wrap width), it is drawn there, and the cursor at its end is drawn there too. So the cursor glides
-  on in its row with R5b instead of jumping to the next row before any of the word shows.
-- When it does not fit anymore, or the head leaves the word, the word slides to its place at the start of its row in
-  the time of R6 (120 ms) with the cubic ease-out, and carries the cursor with it. The rest of the row stays.
+  on in its row with the even typing glide (R5b) instead of jumping to the next row before any of the word shows.
+- When it does not fit anymore, or the head leaves the word, the word slides to its place at the start of its row in the
+  time of a slide (R6, 120 ms) with the cubic ease-out, and carries the cursor with it. The rest of the row stays.
 - After a revealed line break only the cursor glides that way, from the end of the line above to the start of the new
   line, in the same time. The text stays at its place.
 - Only text that appears is carried: the word from the start of its row to the head, or the line break, must still be
   fading in. Text that was there before never moves. Without wrapping, without an appearance or with animations off,
   nothing is carried.
 - Hit tests, the selection and the cursor of the user use the place of the text in its row, only the drawing and the
-  cursors of others use where it is drawn. R7 cuts the carried word in its own row, at where the caret would be there.
+  cursors of others use where it is drawn. The caret cut (R7) cuts the carried word in its own row, at where the caret
+  would be there.
 
 ## Changes of the user
 
@@ -204,11 +206,11 @@ Big changes of the user animate, so it is easy to see what they changed. This is
 (`KodeEditorAppearance(local = KodeEditorLocalAnimations())`), `local = null` or `bigChanges = false` turns it off:
 
 - Paste (the text menu and Ctrl+V), undo, redo, and replacing with `KodeEditorSearch.replaceCurrent` and `replaceAll`.
-- The text behind the change slides to its new place like with the changes of others (R6), in 120 ms with the cubic
-  ease-out, also across rows.
-- The inserted or restored text fades in, in `appearMs` (400 ms), with the alpha curve of R4. `replaceAll` is one
-  change from the first to the last match, so all of that fades in. Removed text is gone at once, the text behind it
-  closes the gap.
+- The text behind the change slides to its new place like with the changes of others (slide, R6), in 120 ms with the
+  cubic ease-out, also across rows.
+- The inserted or restored text fades in, in `appearMs` (400 ms), with the alpha curve of the fade-in (R4). `replaceAll`
+  is one change from the first to the last match, so all of that fades in. Removed text is gone at once, the text behind
+  it closes the gap.
 - The cursor, the selection and its handles are at their new place at once, also while the text behind them slides.
   The keyboard, accessibility, scrolling to the cursor and taps use the new layout.
 - A paste through the keyboard (its clipboard) arrives like typing and does not animate.
@@ -224,7 +226,7 @@ Text that others insert or remove in front of what the user looks at does not mo
   in the same frame: up and down always, sideways only without wrapping, where only a change in the row of the anchor
   moves it sideways. The widths come from the measured text before and after the change, with tabs, wide characters
   and collapsed parts. A change behind the anchor moves nothing.
-- The slide of R6 starts where the text was on the screen, so the anchor does not move at all while it runs, and the
+- The slide (R6) starts where the text was on the screen, so the anchor does not move at all while it runs, and the
   text in front of the change moves out of the way instead.
 - Near the end of the text the view cannot scroll further, there the anchor can move.
 - A selection that moves only because of a change of others is no move of the user: the view does not follow it to

@@ -6,8 +6,8 @@ import androidx.compose.ui.text.AnnotatedString
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 
 /**
- * The parts of the drawn rows that appear with an alpha of their own (R4 of docs/reveal.md), and where appearing text
- * is not drawn yet because the caret of its writer has not passed it (R7).
+ * The parts of the drawn rows that appear with an alpha of their own (the fade-in, R4 of docs/reveal.md), and where
+ * appearing text is not drawn yet because the caret of its writer has not passed it (the caret cut, R7).
  *
  * @param state the text, with its appearing ranges
  * @param lineHeight the height of a row

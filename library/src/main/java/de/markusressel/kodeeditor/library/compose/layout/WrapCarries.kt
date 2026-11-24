@@ -13,10 +13,10 @@ import de.markusressel.kodeeditor.library.compose.state.TextSplice
 import de.markusressel.kodeeditor.library.compose.state.mapPosition
 
 /**
- * The word that hidden text is revealed into at the start of a wrapped row, drawn at the end of the row above while
- * it still fits there, like the word of somebody who types (R8 of docs/reveal.md). A chunk keeps its room from the
- * start, so its rows are broken as if it was all there. Without this, the head of the reveal jumps to the next row at
- * the start of a word that does not fit, before any of the word is shown.
+ * The word that hidden text is revealed into at the start of a wrapped row, drawn at the end of the row above while it
+ * still fits there, like the word of somebody who types (the wrap carry, R8 of docs/reveal.md). A chunk keeps its room
+ * from the start, so its rows are broken as if it was all there. Without this, the head of the reveal jumps to the next
+ * row at the start of a word that does not fit, before any of the word is shown.
  *
  * - While the revealed part of the word fits behind the end of the row above, it is drawn there, and so is the cursor
  *   at its end.
