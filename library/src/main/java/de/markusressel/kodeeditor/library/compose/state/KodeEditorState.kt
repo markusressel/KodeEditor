@@ -513,7 +513,7 @@ class KodeEditorState(
             val local = appearance?.local
             if (applyingBigChange && !applyingRemote && local?.bigChanges == true && splice.inserted.isNotEmpty()) {
                 val end = splice.start + splice.inserted.length
-                appear(splice.start, end, LOCAL_APPEAR_TAG, local.highlightMs.toLong())
+                appear(splice.start, end, LOCAL_APPEAR_TAG, local.appearMs.toLong())
             }
         }
         selectionState = selection.coercedIn(currentText.length)

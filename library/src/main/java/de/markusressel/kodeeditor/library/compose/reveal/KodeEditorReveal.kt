@@ -241,10 +241,19 @@ class KodeEditorReveal(
  *
  * @param state the text the chunks are inserted into
  * @param tag tells the text of this writer apart from the others, use one per writer
+ * @param minCharsPerSecond how fast the text is revealed when there is little of it
+ * @param catchUpMs how long text stays hidden at the most
  */
 @Composable
-fun rememberKodeEditorReveal(state: KodeEditorState, tag: String = "reveal"): KodeEditorReveal {
-    val reveal = remember(state, tag) { KodeEditorReveal(state, tag) }
+fun rememberKodeEditorReveal(
+    state: KodeEditorState,
+    tag: String = "reveal",
+    minCharsPerSecond: Float = 60f,
+    catchUpMs: Long = 4000,
+): KodeEditorReveal {
+    val reveal = remember(state, tag, minCharsPerSecond, catchUpMs) {
+        KodeEditorReveal(state, tag, minCharsPerSecond, catchUpMs)
+    }
     LaunchedEffect(reveal) { reveal.keepRevealing() }
     return reveal
 }

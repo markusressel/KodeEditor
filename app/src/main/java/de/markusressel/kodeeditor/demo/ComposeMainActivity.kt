@@ -19,14 +19,12 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -445,7 +443,7 @@ private const val SHOWCASE_APPEAR_MS = 250
 @Composable
 private fun DefaultPreview() {
     KodeEditorTheme {
-        var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        val state = remember {
             val initialText = """
                 # Heading
                     
@@ -455,14 +453,13 @@ private fun DefaultPreview() {
                     
                 Subheading Text
                 """.trimIndent()
-            mutableStateOf(TextFieldValue(initialText))
+            KodeEditorState(initialText)
         }
 
         KodeEditor(
             languageRuleBook = MarkdownRuleBook(),
             colorScheme = DarkBackgroundColorSchemeWithSpanStyle(),
-            text = text,
-            onValueChange = { text = it }
+            state = state,
         )
     }
 }

@@ -23,18 +23,11 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pinch
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.createFontFamilyResolver
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.markusressel.kodeeditor.library.compose.layout.EditorHighlighting
 import de.markusressel.kodeeditor.library.compose.layout.KodeEditorLayout
@@ -49,7 +42,6 @@ import de.markusressel.kodehighlighter.core.colorscheme.ColorScheme
 import de.markusressel.kodehighlighter.core.rule.LanguageRule
 import de.markusressel.kodehighlighter.core.rule.RuleMatch
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -75,14 +67,13 @@ class KodeEditorLayoutTest {
     }
 
     private fun show(text: String, overlay: @Composable BoxScope.(KodeEditorLayout) -> Unit = {}) {
-        val value = mutableStateOf(TextFieldValue(text))
+        val state = KodeEditorState(text)
         composeRule.setContent {
             KodeEditor(
                 modifier = Modifier.size(400.dp),
-                text = value.value,
+                state = state,
                 languageRuleBook = noRules,
                 colorScheme = noColors,
-                onValueChange = { value.value = it },
                 onTextLayout = { layout = it },
                 overlay = overlay,
             )
@@ -161,24 +152,23 @@ class KodeEditorLayoutTest {
 
             override fun getRules() = listOf<LanguageRule>(rule)
         }
-        var value by mutableStateOf(TextFieldValue("some text"))
+        val state = KodeEditorState("some text")
         composeRule.setContent {
             KodeEditor(
                 modifier = Modifier.size(400.dp),
-                text = value,
+                state = state,
                 languageRuleBook = countingRules,
                 colorScheme = noColors,
-                onValueChange = { value = it },
             )
         }
         composeRule.waitForIdle()
         assertEquals(1, runs.get())
 
-        value = value.copy(selection = TextRange(2))
+        state.setSelection(TextRange(2))
         composeRule.waitForIdle()
         assertEquals(1, runs.get())
 
-        value = value.copy(text = "some more text")
+        state.setText("some more text")
         composeRule.waitForIdle()
         composeRule.waitUntil(5_000) { runs.get() == 2 }
     }

@@ -67,7 +67,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntRect
@@ -176,171 +175,6 @@ private const val FOLD_PLACEHOLDER_ALPHA = 0.6f
 private const val SCROLLBAR_ALPHA = 0.4f
 private val SEARCH_MATCH_COLOR = Color(0x55FFB300)
 private val CURRENT_SEARCH_MATCH_COLOR = Color(0xAAFF8F00)
-
-/**
- * A code editor for a [TextFieldValue] that the application keeps.
- *
- * The editor keeps the text itself too, see [KodeEditorState]. A [text] that it reported itself to [onValueChange] is
- * not applied again, however late it comes back, so nothing the user typed in the meantime gets lost. Any other value
- * replaces the text of the editor. For that reason a value handed to [onValueChange] can not be rejected by keeping
- * the old one, the application has to set a different one to change it.
- *
- * @param modifier compose modifiers
- * @param text the current text of the editor
- * @param languageRuleBook the language rule book to use for highlighting, remember it so the highlighting of an
- * unchanged text can be reused
- * @param colorScheme the color scheme to apply, remember it for the same reason. Rules it has no style for, like those
- * of a language in a code block of Markdown, get the colors of `GitHubDarkTheme` or `GitHubLightTheme`, whichever fits
- * the brightness of `textFieldBackgroundColor`
- * @param onValueChange callback for changes to the text and/or cursor selection
- * @param colors the color scheme to use for highlighting
- * @param textStyle the text style used for the editor text
- * @param enabled whether the editor is enabled
- * @param readOnly whether the contents of the editor can be changed by the user
- * @param onTextLayout callback that is executed when the text changed
- * @param overlay content drawn on top of the editor text, e.g. the cursors and selections of other users.
- * It is placed inside the zoom and scroll transformation and uses the coordinate system of the given
- * [KodeEditorLayout]. The content should not consume pointer input.
- * Its box has the size of the editor, not of the document, which can be too large to measure anything at.
- * Content is not clipped to that box, so draw and place it at text coordinates anywhere in the document.
- * @param keepCursorVisible while the editor has the focus, scroll so the cursor stays visible when it moves or
- * the editor gets smaller (e.g. when the soft keyboard opens and the app shrinks the editor by the IME insets)
- * @param keepViewOnRemoteChanges whether text that others insert or remove in front of the cursor, or in front of the
- * first visible line while the cursor is not in view, scrolls the view with it, so the cursor or that line stays where
- * it is on the screen
- * @param minZoom the smallest zoom factor the user can reach
- * @param maxZoom the largest zoom factor the user can reach
- * @param autoCorrect whether the keyboard may correct words on its own, which is rarely right for code and markup.
- * It can still offer suggestions without this
- * @param lineWrapping whether lines longer than the width of the editor continue in the next row, instead of the view
- * scrolling sideways. They keep one line number. A monospaced font makes this cheap for long documents, all other
- * fonts have to measure each long line
- * @param gutterColumns what the bar next to the text shows, from left to right. No columns remove the bar
- * @param animations what the editor animates
- * @param foldProvider finds what can be folded, which adds a column with arrows to the end of the bar, null folds
- * nothing. The built-in provider of the language of the [languageRuleBook] by default, see [KodeEditorFoldProviders]
- * @param lineDecorations what the editor shows on whole lines, from bottom to top
- * @param keyBindings what the keys of a hardware keyboard do, a key without a binding is left to the rest of the app
- * @param viewState scrolls to a place in the text and tells what is visible
- * @param onUserMovedView called once per gesture when the user starts to pan or zoom, also for a zoom with the keyboard
- * for a dragged selection handle that scrolls the view and for a dragged scrollbar. Not for what moves the view on
- * its own, like [viewState], following the cursor or lines that wrap differently
- * @param scrollbars whether scrollbars show up while the view moves, whose thumbs can be dragged to move it
- * @param scrollbarStyle the size of the scrollbars and when they show and hide
- */
-@Composable
-fun KodeEditor(
-    modifier: Modifier = Modifier,
-    text: TextFieldValue,
-    languageRuleBook: LanguageRuleBook,
-    colorScheme: ColorScheme<SpanStyle>,
-    onValueChange: (TextFieldValue) -> Unit,
-    colors: KodeEditorColors = KodeEditorDefaults.editorColors(),
-    textStyle: TextStyle = LocalTextStyle.current,
-    enabled: Boolean = true,
-    readOnly: Boolean = enabled.not(),
-    onTextLayout: (KodeEditorLayout) -> Unit = {},
-    overlay: @Composable BoxScope.(layout: KodeEditorLayout) -> Unit = {},
-    keepCursorVisible: Boolean = true,
-    keepViewOnRemoteChanges: Boolean = true,
-    minZoom: Float = 0.25f,
-    maxZoom: Float = 10f,
-    autoCorrect: Boolean = false,
-    lineWrapping: Boolean = false,
-    gutterColumns: List<KodeEditorGutterColumn> = listOf(rememberLineNumberColumn(textStyle, colors, enabled)),
-    animations: KodeEditorAnimations = KodeEditorAnimations(),
-    foldProvider: KodeEditorFoldProvider? = KodeEditorFoldProviders.forLanguage(languageRuleBook.language),
-    lineDecorations: List<KodeEditorLineDecoration> = emptyList(),
-    keyBindings: List<KodeEditorKeyBinding> = KodeEditorDefaults.keyBindings,
-    viewState: KodeEditorViewState = rememberKodeEditorViewState(),
-    onUserMovedView: () -> Unit = {},
-    scrollbars: Boolean = true,
-    scrollbarStyle: KodeEditorScrollbarStyle = KodeEditorScrollbarStyle(),
-) {
-    val state = remember { KodeEditorState(text.text, text.selection) }
-    val controlled = remember(state) { ControlledValue(state) }
-    controlled.onValueChange = onValueChange
-    SideEffect { controlled.onValueFromApplication(text) }
-    DisposableEffect(state) {
-        state.addListener(controlled)
-        onDispose { state.removeListener(controlled) }
-    }
-    KodeEditor(
-        state = state,
-        languageRuleBook = languageRuleBook,
-        colorScheme = colorScheme,
-        modifier = modifier,
-        colors = colors,
-        textStyle = textStyle,
-        enabled = enabled,
-        readOnly = readOnly,
-        onTextLayout = onTextLayout,
-        overlay = overlay,
-        keepCursorVisible = keepCursorVisible,
-        keepViewOnRemoteChanges = keepViewOnRemoteChanges,
-        minZoom = minZoom,
-        maxZoom = maxZoom,
-        autoCorrect = autoCorrect,
-        lineWrapping = lineWrapping,
-        gutterColumns = gutterColumns,
-        animations = animations,
-        foldProvider = foldProvider,
-        lineDecorations = lineDecorations,
-        keyBindings = keyBindings,
-        viewState = viewState,
-        onUserMovedView = onUserMovedView,
-        scrollbars = scrollbars,
-        scrollbarStyle = scrollbarStyle,
-    )
-}
-
-/**
- * Tells stale values of the application from real changes.
- *
- * Reported values come back through the state of the application, one recomposition later or more. Newer input may be
- * in the editor by then, and applying the old value would remove it.
- */
-internal class ControlledValue(private val state: KodeEditorState) : KodeEditorListener {
-    var onValueChange: (TextFieldValue) -> Unit = {}
-
-    private class Reported(val text: String, val selection: TextRange)
-
-    private val reported = ArrayDeque<Reported>()
-    private var lastFromApplication: TextFieldValue? = null
-    private var applying = false
-
-    override fun onStateChanged() {
-        if (applying) return
-        reported.addLast(Reported(state.rawText, state.selection))
-        if (reported.size > MAX_REPORTED) reported.removeFirst()
-        onValueChange(TextFieldValue(state.rawText, state.selection, state.composition))
-    }
-
-    fun onValueFromApplication(value: TextFieldValue) {
-        if (value === lastFromApplication) return
-        lastFromApplication = value
-        if (value.text == state.rawText && value.selection == state.selection) {
-            reported.clear()
-            return
-        }
-        val echo = reported.indexOfFirst { it.selection == value.selection && it.text == value.text }
-        if (echo >= 0) {
-            repeat(echo + 1) { reported.removeFirst() }
-            return
-        }
-        reported.clear()
-        applying = true
-        try {
-            state.setText(value.text, value.selection)
-        } finally {
-            applying = false
-        }
-    }
-
-    private companion object {
-        const val MAX_REPORTED = 256
-    }
-}
 
 /**
  * A code editor that keeps its text in a [KodeEditorState].
@@ -1435,7 +1269,7 @@ internal fun ColorScheme<SpanStyle>.withEmbeddedFallback(dark: Boolean): ColorSc
 @Preview
 @Composable
 private fun KodeEditorPreview() {
-    var text by remember {
+    val state = remember {
         val initialText = """
             # Hello World
             Code: `readResourceFileAsText(R.raw.sample_text)`
@@ -1454,7 +1288,7 @@ private fun KodeEditorPreview() {
             This is a code block.
             ```
         """.trimIndent()
-        mutableStateOf(TextFieldValue(text = initialText))
+        KodeEditorState(initialText)
     }
 
     val languageRuleBook by remember {
@@ -1466,9 +1300,8 @@ private fun KodeEditorPreview() {
 
     KodeEditor(
         modifier = Modifier.fillMaxSize(),
-        text = text,
+        state = state,
         languageRuleBook = languageRuleBook,
         colorScheme = colorScheme,
-        onValueChange = { text = it }
     )
 }

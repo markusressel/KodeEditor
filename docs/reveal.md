@@ -186,7 +186,7 @@ Big changes of the user animate, so it is easy to see what they changed. This is
 - Paste (the text menu and Ctrl+V), undo, redo, and replacing with `KodeEditorSearch.replaceCurrent` and `replaceAll`.
 - The text behind the change slides to its new place like with the changes of others (R6), in 120 ms with the cubic
   ease-out, also across rows.
-- The inserted or restored text fades in, in `highlightMs` (400 ms), with the alpha curve of R4. `replaceAll` is one
+- The inserted or restored text fades in, in `appearMs` (400 ms), with the alpha curve of R4. `replaceAll` is one
   change from the first to the last match, so all of that fades in. Removed text is gone at once, the text behind it
   closes the gap.
 - The cursor, the selection and its handles are at their new place at once, also while the text behind them slides.
