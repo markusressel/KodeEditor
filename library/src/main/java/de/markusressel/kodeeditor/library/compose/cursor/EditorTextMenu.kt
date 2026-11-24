@@ -7,8 +7,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
+import de.markusressel.kodeeditor.library.compose.EditorTouch
 import de.markusressel.kodeeditor.library.compose.input.EditorClipboardActions
-import de.markusressel.kodeeditor.library.compose.input.EditorTouch
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import kotlinx.coroutines.delay

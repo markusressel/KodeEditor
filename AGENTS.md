@@ -5,7 +5,7 @@ KodeEditor is an Android code editor library with syntax highlighting (via [Kode
 ## Layout
 
 - `library`: the published library, package `de.markusressel.kodeeditor.library`.
-  - `compose`: the Compose editor, `KodeEditor` and its colors (`KodeEditorColors`/`KodeEditorDefaults`). There is no text field: `KodeEditorState` holds the only copy of the text, `EditorInputConnection` connects the keyboard to it, and only visible lines are measured and drawn. Its packages, each with its public API and the `internal` code behind it:
+  - `compose`: the Compose editor, `KodeEditor` and its colors (`KodeEditorColors`/`KodeEditorDefaults`). There is no text field: `KodeEditorState` holds the only copy of the text, `EditorInputConnection` connects the keyboard to it, and only visible lines are measured and drawn. Next to `KodeEditor`, the root package holds the glue between the packages: the touch state and gestures (`EditorTouch`), the view (`EditorViewController`, `KeepViewEffects`) and the resolved colors. Its packages, each with its public API and the `internal` code behind it:
     - `state`: `KodeEditorState`, `TextSplice`, the line index, undo and the timing of appearing text.
     - `view`: `KodeEditorViewState`, `ZoomLayout`, scrollbars, geometry, following the cursor.
     - `layout`: `KodeEditorLayout`, `EditorLineLayout`, rows, the drawn layers, typing runs and the scroll anchor of remote changes.

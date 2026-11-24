@@ -9,8 +9,6 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.IntRect
-import de.markusressel.kodeeditor.library.compose.gutter.DecoratedLine
-import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorLineDecoration
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.layout.FadingDraws
 import de.markusressel.kodeeditor.library.compose.layout.placedAt

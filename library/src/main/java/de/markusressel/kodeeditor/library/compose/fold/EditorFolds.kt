@@ -17,6 +17,7 @@ import de.markusressel.kodeeditor.library.compose.gutter.DecoratedLine
 import de.markusressel.kodeeditor.library.compose.gutter.GutterCell
 import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorGutterColumn
 import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorLineDecoration
+import de.markusressel.kodeeditor.library.compose.input.KeyFolds
 import de.markusressel.kodeeditor.library.compose.layout.EditorRows
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorListener
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
@@ -129,7 +130,7 @@ internal class FoldedRows(private val base: EditorRows, private val hidden: Hidd
 internal class EditorFolds(
     private val state: KodeEditorState,
     private val provider: KodeEditorFoldProvider,
-) : KodeEditorListener {
+) : KodeEditorListener, KeyFolds {
 
     private class Fold(var header: Int, var hiddenStart: Int, var hiddenEnd: Int)
 
@@ -259,15 +260,17 @@ internal class EditorFolds(
         }
     }
 
+    override fun openInsteadOfDelete(backward: Boolean) = inline.openInsteadOfDelete(backward)
+
     /** @return true if something at the cursor was folded, which is shown now */
-    fun expandAtCursor(): Boolean {
+    override fun expandAtCursor(): Boolean {
         if (inline.openAtCursor()) return true
         val line = state.lineOf(state.selection.end)
         return isFolded(line) && toggle(line)
     }
 
     /** @return true if something at the cursor could be folded, and is now */
-    fun collapseAtCursor(): Boolean {
+    override fun collapseAtCursor(): Boolean {
         if (inline.closeAtCursor()) return true
         val line = state.lineOf(state.selection.end)
         return canFold(line) && !isFolded(line) && toggle(line)

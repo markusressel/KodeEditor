@@ -1,4 +1,4 @@
-package de.markusressel.kodeeditor.library.compose.view
+package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.MutableState
@@ -11,13 +11,20 @@ import androidx.compose.ui.unit.IntSize
 import de.markusressel.kodeeditor.library.compose.fold.EditorFolds
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.view.CursorVisibility
+import de.markusressel.kodeeditor.library.compose.view.EditorGeometry
+import de.markusressel.kodeeditor.library.compose.view.EditorViewport
+import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
+import de.markusressel.kodeeditor.library.compose.view.LinePosition
+import de.markusressel.kodeeditor.library.compose.view.zoomedOffset
 import kotlinx.coroutines.CoroutineScope
 
 /** where the bottom edge of the view counts as the row above, so a view that ends exactly at a row does not show it */
 private const val VISIBLE_RANGE_EDGE = 0.01f
 
 /**
- * The view of one editor as [KodeEditorViewState] sees it: where it is, what it shows, and how to move it there.
+ * Where the view of one editor is and how it moves: for [KodeEditorViewState], and for the editor itself, which moves
+ * it with [scrollTo] and [scrollBy] and never beyond [maxOffset].
  *
  * @param state the text
  * @param layout the layout of the text
@@ -25,23 +32,23 @@ private const val VISIBLE_RANGE_EDGE = 0.01f
  * @param offsetState the top left corner of the view in the text
  * @param zoomState the zoom factor
  * @param scope where the animations of the view state run
- * @param geometry the room of the text, with the bar at the width it animates to
- * @param size the size of the editor
+ * @param geometryOf the room of the text, with the bar at the width it animates to
+ * @param sizeOf the size of the editor
  * @param maxOffsetOf the largest offset, at the end of the text
  * @param zoomRangeOf the zoom factors the user can reach
  * @param animatesOf whether the view state animates its moves
  * @param foldsOf the folds of the editor, null if it does not fold
  * @param onMoved called when the view moved like the user moved it, so the cursor is no longer followed
  */
-internal class EditorViewportAdapter(
+internal class EditorViewController(
     private val state: KodeEditorState,
-    private val layout: EditorLineLayout,
-    private val textStartPadding: Float,
+    val layout: EditorLineLayout,
+    val textStartPadding: Float,
     private val offsetState: MutableState<Offset>,
     private val zoomState: MutableFloatState,
     override val scope: CoroutineScope,
-    private val geometry: () -> EditorGeometry,
-    private val size: () -> IntSize,
+    private val geometryOf: () -> EditorGeometry,
+    private val sizeOf: () -> IntSize,
     private val maxOffsetOf: () -> Offset,
     private val zoomRangeOf: () -> ClosedFloatingPointRange<Float>,
     private val animatesOf: () -> Boolean,
@@ -50,7 +57,7 @@ internal class EditorViewportAdapter(
 ) : EditorViewport {
 
     private val shownRange = derivedStateOf {
-        val height = geometry().visibleSize.height
+        val height = geometryOf().visibleSize.height
         if (height <= 0f) return@derivedStateOf null
         val offset = offsetState.value
         // the bottom edge of the view is the top of the next row when it is exactly at the end of a row
@@ -58,8 +65,12 @@ internal class EditorViewportAdapter(
         TextRange(layout.startOfRow(layout.rowAt(offset.y)), layout.endOfRow(layout.rowAt(lastY)))
     }
 
-    override val offset: Offset get() = offsetState.value
-    override val visibleSize: Size get() = geometry().visibleSize
+    override var offset: Offset
+        get() = offsetState.value
+        set(value) {
+            offsetState.value = value
+        }
+    override val visibleSize: Size get() = geometryOf().visibleSize
     override val animates: Boolean get() = animatesOf()
     override val visibleRange: TextRange? get() = shownRange.value
     override val maxOffset: Offset get() = maxOffsetOf()
@@ -67,10 +78,25 @@ internal class EditorViewportAdapter(
     override val zoomRange get() = zoomRangeOf()
     override val folds get() = foldsOf()
 
+    /** the room of the text, with the bar at the width it animates to */
+    val geometry: EditorGeometry get() = geometryOf()
+
+    /** moves the view as far towards the offset as the text allows, without counting it as a move of the user */
+    fun scrollTo(offset: Offset) {
+        offsetState.value = EditorGeometry.coerce(offset, maxOffset)
+    }
+
+    /** @return how far the view moved */
+    fun scrollBy(distance: Offset): Offset {
+        val before = offsetState.value
+        scrollTo(before + distance)
+        return offsetState.value - before
+    }
+
     override fun moveTo(offset: Offset) {
         // the view stays there when the editor changes its size, as if the user moved it
         onMoved()
-        offsetState.value = EditorGeometry.coerce(offset, maxOffset)
+        scrollTo(offset)
     }
 
     private fun rectOf(position: Int): Rect {
@@ -97,8 +123,8 @@ internal class EditorViewportAdapter(
         val oldZoom = zoomState.floatValue
         val newZoom = zoom.coerceIn(zoomRange)
         if (newZoom == oldZoom) return
-        val size = size()
-        val start = geometry().gutterOnScreen(oldZoom)
+        val size = sizeOf()
+        val start = geometryOf().gutterOnScreen(oldZoom)
         // the middle of the text, right of the bar
         val middle = Offset(start + (size.width - start) / 2f, size.height / 2f)
         val moved = zoomedOffset(
@@ -108,7 +134,7 @@ internal class EditorViewportAdapter(
             centroid = middle,
             pan = Offset.Zero,
             oldStart = start,
-            newStart = geometry().gutterOnScreen(newZoom),
+            newStart = geometryOf().gutterOnScreen(newZoom),
         )
         onMoved()
         offsetState.value = Offset(moved.x.coerceAtLeast(0f), moved.y.coerceAtLeast(0f))

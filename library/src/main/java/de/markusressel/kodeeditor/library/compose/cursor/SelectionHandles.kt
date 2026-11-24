@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -28,11 +29,26 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import de.markusressel.kodeeditor.library.compose.input.EditorTouch
-import de.markusressel.kodeeditor.library.compose.input.HandleKind
+import de.markusressel.kodeeditor.library.compose.EditorTouch
+import de.markusressel.kodeeditor.library.compose.input.EditorGestureHandler
+import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
+import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
+import de.markusressel.kodeeditor.library.compose.view.EditorGeometry
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
 import kotlin.math.roundToInt
+
+internal const val CURSOR_HANDLE_TAG = "kodeeditor-cursor-handle"
+internal const val SELECTION_START_HANDLE_TAG = "kodeeditor-selection-start-handle"
+internal const val SELECTION_END_HANDLE_TAG = "kodeeditor-selection-end-handle"
+
+/** the handles that can be dragged, with the test tags of their views */
+internal enum class HandleKind(val tag: String) {
+    Cursor(CURSOR_HANDLE_TAG),
+    SelectionStart(SELECTION_START_HANDLE_TAG),
+    SelectionEnd(SELECTION_END_HANDLE_TAG),
+}
 
 private val HANDLE_TOUCH_SIZE: Dp = 40.dp
 private val HANDLE_RADIUS: Dp = 11.dp
@@ -194,18 +210,18 @@ private fun DrawScope.rotate45(pivot: Offset, block: DrawScope.() -> Unit) {
  * @param textLeft where the text starts in the editor, after the bar
  * @param scrolled the offset of the view after scrolling by a distance on screen, null if it can not move
  * @param scrollTo moves the view to an offset
- * @param onUserMovedView called when the handle starts to move the view
+ * @param onUserMovesView called when the handle starts to move the view, stops what moves it on its own
  * @param moveHandle moves the handle of this kind to the point it is dragged to, after the view moved
  */
 @Composable
-internal fun HandleEdgeScrollEffect(
+private fun HandleEdgeScrollEffect(
     touch: EditorTouch,
     viewState: KodeEditorViewState,
     area: () -> Size,
     textLeft: () -> Float,
     scrolled: (Offset) -> Offset?,
     scrollTo: (Offset) -> Unit,
-    onUserMovedView: () -> Unit,
+    onUserMovesView: () -> Unit,
     moveHandle: (HandleKind, Offset) -> Unit,
 ) {
     val edgeSize = LocalDensity.current.run { HANDLE_EDGE_SIZE.toPx() }
@@ -220,14 +236,124 @@ internal fun HandleEdgeScrollEffect(
                 val moved = scrolled(distance) ?: continue
                 if (!viewState.handleMoving) {
                     viewState.handleMoving = true
-                    viewState.interrupt()
-                    onUserMovedView()
+                    onUserMovesView()
                 }
                 scrollTo(moved)
                 moveHandle(kind, target)
             }
         } finally {
             viewState.handleMoving = false
+        }
+    }
+}
+
+/**
+ * The handles of the cursor and the selection, for touch input. Dragging one moves its end of the selection, near an
+ * edge of the editor it scrolls the view, and a tap on the cursor handle shows or hides the text menu.
+ *
+ * @param modifier modifiers of the box of the handles
+ * @param state the text
+ * @param layout the layout of the text
+ * @param touch what the touch does, the handles are only there while the last input was a touch
+ * @param gestures a drag after a long press extends the selection from the pressed word
+ * @param viewState is told while a handle moves the view
+ * @param shown whether the editor has the focus, the handles are hidden without it
+ * @param editable whether the text can be changed, a cursor handle is only there then
+ * @param color the color of the handles
+ * @param geometry the room of the text
+ * @param offset the top left corner of the view in the text
+ * @param size the size of the editor
+ * @param editorCoordinates the coordinates of the editor
+ * @param maxOffset the largest offset, at the end of the text
+ * @param scrollTo moves the view to an offset
+ * @param onUserMovesView called when a handle starts to move the view
+ */
+@Composable
+internal fun EditorSelectionHandles(
+    modifier: Modifier = Modifier,
+    state: KodeEditorState,
+    layout: EditorLineLayout,
+    touch: EditorTouch,
+    gestures: EditorGestureHandler,
+    viewState: KodeEditorViewState,
+    shown: Boolean,
+    editable: Boolean,
+    color: Color,
+    geometry: () -> EditorGeometry,
+    offset: () -> Offset,
+    size: () -> IntSize,
+    editorCoordinates: () -> LayoutCoordinates?,
+    maxOffset: () -> Offset,
+    scrollTo: (Offset) -> Unit,
+    onUserMovesView: () -> Unit,
+) {
+    /** the point the handle at this text position points at, null outside the visible text */
+    fun handleAnchor(position: Int): Offset? {
+        val shownGeometry = geometry()
+        val totalSize = size()
+        val cursor = layout.localCursorRect(position)
+        val point = shownGeometry.toEditor(cursor.bottomCenter, offset())
+        val visibleX = point.x >= shownGeometry.gutterOnScreen && point.x <= totalSize.width
+        return point.takeIf { visibleX && it.y >= 0f && it.y <= totalSize.height }
+    }
+
+    fun moveHandle(kind: HandleKind, target: Offset) {
+        if (touch.pressedWord != null) {
+            gestures.onSelectionDrag(target)
+            return
+        }
+        val point = geometry().toText(target, offset())
+        val position = layout.getOffsetForPosition(Offset(point.x, point.y - layout.lineHeight / 2))
+        state.setSelection(HandleDrag.selectionFor(kind, position, state.selection))
+    }
+
+    HandleEdgeScrollEffect(
+        touch = touch,
+        viewState = viewState,
+        area = { size().let { Size(it.width.toFloat(), it.height.toFloat()) } },
+        textLeft = { geometry().gutterOnScreen },
+        scrolled = { distance ->
+            val current = offset()
+            EditorGeometry.coerce(current + distance / geometry().zoom, maxOffset()).takeIf { it != current }
+        },
+        scrollTo = scrollTo,
+        onUserMovesView = onUserMovesView,
+        moveHandle = ::moveHandle,
+    )
+
+    val handles = when {
+        !shown || !touch.touchInput -> emptyList()
+        !state.selection.collapsed -> listOf(HandleKind.SelectionStart, HandleKind.SelectionEnd)
+        editable && state.text.isNotEmpty() -> listOf(HandleKind.Cursor)
+        else -> emptyList()
+    }
+    Box(modifier = modifier) {
+        handles.forEach { kind ->
+            key(kind) {
+                SelectionHandle(
+                    kind = kind,
+                    color = color,
+                    anchor = {
+                        handleAnchor(
+                            if (kind == HandleKind.SelectionEnd) state.selection.max
+                            else state.selection.min
+                        )
+                    },
+                    editorCoordinates = editorCoordinates,
+                    onDrag = {
+                        touch.dragTarget = it
+                        touch.draggedHandle = kind
+                        moveHandle(kind, it)
+                    },
+                    onDragEnd = {
+                        touch.draggedHandle = null
+                        touch.dragTarget = null
+                    },
+                    onTap = {
+                        if (kind == HandleKind.Cursor) touch.cursorMenuRequested = !touch.cursorMenuRequested
+                    },
+                )
+            }
         }
     }
 }

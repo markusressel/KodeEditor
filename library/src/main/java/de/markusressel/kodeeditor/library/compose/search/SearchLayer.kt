@@ -15,7 +15,6 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.layout.placedAt
-import de.markusressel.kodeeditor.library.compose.search.KodeEditorSearch
 
 /**
  * Draws the matches of a [KodeEditorSearch] in a layer of its own, below the selection and the text. A match in folded

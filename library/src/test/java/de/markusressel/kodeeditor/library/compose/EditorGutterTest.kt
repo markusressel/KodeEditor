@@ -1,5 +1,8 @@
 package de.markusressel.kodeeditor.library.compose
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import android.app.Application
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.remember
@@ -18,6 +21,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import de.markusressel.kodeeditor.library.compose.gutter.GUTTER_ANIMATION_MS
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
 import de.markusressel.kodeeditor.library.compose.gutter.GutterCell
 import de.markusressel.kodeeditor.library.compose.gutter.GutterLine
@@ -251,6 +255,32 @@ class EditorGutterTest {
         assertEquals(listOf(1), first.tapped)
         assertEquals(listOf(2), second.tapped)
         assertEquals("a used tap leaves the cursor alone", TextRange(0), state.selection)
+    }
+
+    @Test
+    fun `a tap reaches the columns the editor has now`() {
+        val old = TestColumn(40)
+        val new = TestColumn(40)
+        val state = KodeEditorState("one\ntwo\nthree")
+        var columns by mutableStateOf(listOf<KodeEditorGutterColumn>(old))
+        composeRule.setContent {
+            KodeEditor(
+                modifier = Modifier.size(400.dp).testTag("editor"),
+                state = remember { state },
+                languageRuleBook = noRules,
+                colorScheme = noColors,
+                onTextLayout = { layout = it },
+                gutterColumns = columns,
+            )
+        }
+        composeRule.waitForIdle()
+
+        columns = listOf(new)
+        composeRule.waitForIdle()
+        tap(10f, 1)
+
+        assertEquals(emptyList<Int>(), old.tapped)
+        assertEquals(listOf(1), new.tapped)
     }
 
     @Test
