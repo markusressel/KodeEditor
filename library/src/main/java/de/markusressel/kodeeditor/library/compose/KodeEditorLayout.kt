@@ -807,12 +807,13 @@ internal class EditorLineLayout(
 
     /**
      * @param line a row that is drawn
+     * @param cuts where appearing text is not drawn yet, see [caretCuts], once for all rows of a frame
      * @return the parts of the row that are drawn with an alpha of their own, null if there are none
      */
-    fun fadingParts(line: DrawnLine): List<FadingPart>? {
+    fun fadingParts(line: DrawnLine, cuts: List<CaretCut> = caretCuts()): List<FadingPart>? {
         val alphas = state.rangeAlphas
         if (alphas.isEmpty()) return null
-        val hidden = behindCarets(line, alphas)
+        val hidden = behindCarets(line, cuts)
         val rows = rows
         val start = rows.start(line.row)
         val end = rows.end(line.row)
@@ -850,44 +851,72 @@ internal class EditorLineLayout(
     var remoteCarets: () -> List<Pair<Int, Offset>> = { emptyList() }
 
     /**
+     * The appearing text right at the cursor of somebody else, which may be several pieces one behind the other, and
+     * pieces behind it, whose cursor update comes a frame later.
+     *
+     * @param start where that text starts
+     * @param end where it ends
+     * @param caret the top left of where their caret is drawn
+     * @param hiddenBehind whether hidden text follows it, so nothing shown is cut off at its end
+     */
+    class CaretCut(val start: Int, val end: Int, val caret: Offset, val hiddenBehind: Boolean)
+
+    /**
      * Text that appears in front of the cursor of somebody else, which they just typed or which is revealed for them,
-     * shows only where their caret has passed already. It is not drawn behind the caret, so it never shows ahead of it
-     * while the caret glides.
+     * shows only where their caret has passed already, see [fadingParts]. Read once for all rows of a frame.
+     *
+     * @return the appearing text at each caret of the others
+     */
+    fun caretCuts(): List<CaretCut> {
+        val alphas = state.rangeAlphas
+        if (alphas.isEmpty()) return emptyList()
+        val carets = remoteCarets()
+        if (carets.isEmpty()) return emptyList()
+        // the first range in the list that ends or starts at a position, like a search from its start
+        val endingAt = HashMap<Int, AnnotatedString.Range<Float>>()
+        val startingAt = HashMap<Int, AnnotatedString.Range<Float>>()
+        alphas.forEach {
+            if (it.start < it.end) {
+                endingAt.putIfAbsent(it.end, it)
+                startingAt.putIfAbsent(it.start, it)
+            }
+        }
+        val rangeStyles = state.rangeStyles
+        return carets.mapNotNull { (offset, drawn) ->
+            var start = offset
+            while (true) start = endingAt[start]?.start ?: break
+            var end = offset
+            while (true) end = startingAt[end]?.end ?: break
+            if (start == end) return@mapNotNull null
+            val hiddenBehind = rangeStyles.any { it.item.color == Color.Transparent && it.start <= end && end < it.end }
+            CaretCut(start, end, drawn, hiddenBehind)
+        }
+    }
+
+    /**
+     * Text that appears in front of the cursor of somebody else is not drawn behind the caret, so it never shows ahead
+     * of it while the caret glides.
      *
      * @return the parts of the [line] that are not drawn yet, as parts without alpha
      */
-    private fun behindCarets(line: DrawnLine, alphas: List<AnnotatedString.Range<Float>>): List<FadingPart> {
-        val carets = remoteCarets()
-        if (carets.isEmpty()) return emptyList()
+    private fun behindCarets(line: DrawnLine, cuts: List<CaretCut>): List<FadingPart> {
+        if (cuts.isEmpty()) return emptyList()
         val rows = rows
         val rowStart = rows.start(line.row)
         val rowEnd = rows.end(line.row)
         var parts: MutableList<FadingPart>? = null
-        carets.forEach { (offset, drawn) ->
-            // the appearing text right in front of the caret, which may be several pieces one behind the other, and
-            // pieces behind it, whose caret comes a frame later
-            var start = offset
-            while (true) {
-                start = alphas.firstOrNull { it.end == start && it.start < start }?.start ?: break
-            }
-            var end = offset
-            while (true) {
-                end = alphas.firstOrNull { it.start == end && it.end > end }?.end ?: break
-            }
-            if (start == end) return@forEach
-            val from = start.coerceAtLeast(rowStart)
-            val to = end.coerceAtMost(rowEnd)
+        cuts.forEach { cut ->
+            val from = cut.start.coerceAtLeast(rowStart)
+            val to = cut.end.coerceAtMost(rowEnd)
             if (from >= to) return@forEach
-            val caretRow = ((drawn.y + lineHeight / 2) / lineHeight).toInt()
+            val caretRow = ((cut.caret.y + lineHeight / 2) / lineHeight).toInt()
             if (line.row < caretRow) return@forEach
             val left = line.layout.getHorizontalPosition(inRow(line.row, from), usePrimaryDirection = true)
             var right = line.layout.getHorizontalPosition(inRow(line.row, to), usePrimaryDirection = true)
             // a letter can reach a bit beyond its place, where nothing is shown behind it that would be cut off
-            val shownBehind = end < rowEnd && state.rangeStyles.none {
-                it.item.color == Color.Transparent && it.start <= end && end < it.end
-            }
+            val shownBehind = cut.end < rowEnd && !cut.hiddenBehind
             if (!shownBehind) right += lineHeight / 2
-            val hiddenFrom = if (line.row == caretRow) maxOf(left, drawn.x - line.position.x) else left
+            val hiddenFrom = if (line.row == caretRow) maxOf(left, cut.caret.x - line.position.x) else left
             if (hiddenFrom >= right) return@forEach
             val list = parts ?: mutableListOf<FadingPart>().also { parts = it }
             list += FadingPart(hiddenFrom, right, 0f)

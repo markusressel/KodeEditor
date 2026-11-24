@@ -166,16 +166,18 @@ internal fun VisibleLines(
                     }
                 }
 
+                // where text is not drawn yet ahead of the cursors of others, the same for all rows
+                val cuts = layout.caretCuts()
                 translate(left, top) {
                     layout.linesWithin(area).forEach { line ->
                         val parts = layout.movingParts(line)
                         if (parts == null) {
-                            val fadingParts = layout.fadingParts(line)
+                            val fadingParts = layout.fadingParts(line, cuts)
                             if (fadingParts == null) drawRowContent(line) else drawFadingRow(line, fadingParts)
                         } else {
                             val rowAlpha = layout.rowAlpha(line.row)
                             // text that still appears keeps its alpha while it moves, or it flashes up for the move
-                            val fadingParts = layout.fadingParts(line)
+                            val fadingParts = layout.fadingParts(line, cuts)
                             parts.forEach { part ->
                                 val drawPart = {
                                     translate(part.distance.x, part.distance.y) {
