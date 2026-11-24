@@ -252,6 +252,7 @@ class TypingTest {
         show("first line", 10)
         val stops = ArrayList<Long>()
         var last = -1f
+        var moving = false
         var keyAt = 0
         var lastKeyTime = -1000L
 
@@ -259,11 +260,12 @@ class TypingTest {
             val c = composeRule.runOnIdle { caret.intValue }
             val x = composeRule.runOnIdle { (layout as EditorLineLayout).shownCursorRect(c).left }
             if (c != keyAt) {
-                // a key right after the one before goes on moving in its first frame
-                if (time - lastKeyTime <= STEADY_INSERT_MS && x - last < 0.01f) stops += time
+                // a key while the text still moves goes on moving in its first frame, a crisp step may start from rest
+                if (time - lastKeyTime <= STEADY_INSERT_MS && moving && x - last < 0.01f) stops += time
                 keyAt = c
                 lastKeyTime = time
             }
+            moving = x - last >= 0.01f
             last = x
         }
 
@@ -435,6 +437,26 @@ class TypingTest {
             .groupBy { frame -> stepFrameKey(frame, xs) }.values.map { it.size }
 
         assertTrue("steps of at most 120 ms: $stepFrames in $xs", stepFrames.drop(2).all { it * 16 <= 120 })
+    }
+
+    @Test
+    fun `a crisp step of somebody who types slowly starts at once`() {
+        show("first line", 10)
+        val xs = ArrayList<Float>()
+        val keys = ArrayList<Int>()
+        var at = 10
+        // a key each 224 ms, slow enough for crisp steps, which still follow each other
+        janePresses(" slowly typed".map { 224L to it }, 10) { image, _ ->
+            xs += image.caretX()
+            val now = composeRule.runOnIdle { caret.intValue }
+            if (now != at) keys += xs.size - 1
+            at = now
+        }
+        val step = composeRule.runOnIdle { (layout.getCursorRect(23).left - layout.getCursorRect(10).left) / 13 }
+        // how far the caret moves in the first frame of each key, after the first few, which are no crisp steps yet
+        val firstMoves = keys.drop(3).map { xs[it] - xs[it - 1] }
+
+        assertTrue("no head start: $firstMoves, $step", firstMoves.all { it <= step * 0.2f })
     }
 
     /** the frames of a step are those in a row in which the caret moves */

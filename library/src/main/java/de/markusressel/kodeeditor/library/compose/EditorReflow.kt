@@ -6,6 +6,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.util.lerp
+import kotlin.math.roundToLong
 
 internal const val REFLOW_ANIMATION_MS = 150
 
@@ -110,6 +111,9 @@ internal class ReflowTransition(
 
     private val version = state.rawVersion
     private var startMs = -1L
+
+    /** how much later than [startMs] it starts to move, a crisp step starts in its first frame instead of before */
+    private var delayMs = 0L
     private var depth: Int = (previous?.depth ?: 0) + 1
 
     /** stays where it is, an insertion that follows takes the text on from there */
@@ -163,11 +167,12 @@ internal class ReflowTransition(
                 durationMs = steadyStepMs(even, crisp).toInt()
                 easing = if (crisp <= 0f) LinearEasing else Easing { steadyStepEase(it, crisp) }
                 steady = true
+                delayMs = (STEADY_FRAME_MS * crisp).roundToLong()
             }
         }
         // one that takes the text on moves in its first frame already, the text does not stop for a frame at each key
         if (startMs < 0) startMs = if (steady) nowMs - STEADY_FRAME_MS else nowMs
-        val time = ((nowMs - startMs) / durationMs.toFloat()).coerceAtMost(1f)
+        val time = ((nowMs - startMs - delayMs) / durationMs.toFloat()).coerceIn(0f, 1f)
         progress = easing.transform(time)
     }
 

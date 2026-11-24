@@ -146,7 +146,8 @@ next to a view model, then the app runs `keepRevealing()` in a coroutine of the 
   stops where it is, and the new one takes the text on from there to its new place.
 - Typing (R6b): an insertion of at most 3 characters right behind the one before, at most 250 ms after it, slides at an
   even speed (linear) for `clamp(1.5 × interval, 32, 250)` ms, with the time between the keys smoothed like in R5b. It
-  starts a frame (16 ms) early, so the text does not stand still for a frame at each key. A cursor at the end of the
+  starts a frame (16 ms) early, so the text does not stand still for a frame at each key. A crisp step of R5c starts
+  less early, `16 × (1 - crisp)` ms, so a step of slow typing starts at once. A cursor at the end of the
   insertion is drawn where the text behind it is drawn on its way, so the text behind the cursor of somebody who types
   moves exactly with their cursor, at the even speed of R5b. The time and the curve follow R5c, with the same
   numbers, so slow typing moves the text behind the cursor in crisp steps too.
@@ -221,7 +222,8 @@ the end of a line:
   [typing-pattern.md](typing-pattern.md)): the text behind the cursor of somebody who types keeps its distance to the
   caret (±2 px), no typed or revealed text shows right of the caret, and the speed of the caret while typing has a 95th
   percentile of at most 2.5 times its mean, for a fast typist (log-normal around 70 ms). For slow typing, standing
-  still between keys is right. Keys 250 ms apart take steps of at most 120 ms. A typist who goes from 80 to 250 to 160
+  still between keys is right. Keys 250 ms apart take steps of at most 120 ms. At keys 224 ms apart, a step moves the caret at most 0.2 of a
+  key in its first frame, and a key that comes while the text still moves never stops it. A typist who goes from 80 to 250 to 160
   and back to 80 ms between keys keeps the text behind the caret at its distance (±2 px), and the caret moves at most
   0.75 of a key per frame, never back. With `durationMs = 1000`, no character's alpha changes by more than 0.1
   between two frames, for a person typing and for a reveal of 400 characters, and neither at 500 ms. With a typo that
