@@ -256,4 +256,19 @@ class KodeEditorRevealTest {
 
         assertFalse(reveal.isRevealing)
     }
+
+    @Test
+    fun `a character of two UTF-16 units is revealed as a whole`() {
+        val chunk = "a\uD83D\uDE00b\uD83D\uDE00\uD83D\uDE00c"
+        reveal.insert(before.length, chunk)
+        var frames = 0
+        while (reveal.isRevealing) {
+            reveal.advance(16)
+            frames++
+            val start = reveal.head ?: break
+            assertFalse("the hidden text starts inside a pair at $start", state.text[start].isLowSurrogate())
+        }
+        // about one character in each frame at 60 characters per second, a pair counts as one
+        assertTrue("$frames frames", frames <= chunk.codePointCount(0, chunk.length) + 1)
+    }
 }

@@ -133,7 +133,7 @@ class KodeEditorReveal(
      * @return whether text is still hidden
      */
     internal fun advance(elapsedMs: Long): Boolean {
-        var pending = queue
+        val pending = queue
         if (pending.isEmpty()) {
             rested()
             return false
@@ -145,13 +145,17 @@ class KodeEditorReveal(
         carry += charsPerSecond * elapsedMs / 1000f
         var steps = floor(carry).toInt()
         carry -= steps
+        if (steps == 0) return true
+        val text = state.rawText
         val styles = state.rangeStyles.toMutableList()
-        while (steps > 0 && pending.isNotEmpty()) {
-            val range = pending.first()
+        val revealed = ArrayList<IntRange>()
+        var left = pending.size
+        for (range in pending) {
+            if (steps <= 0) break
             var start = range.start
             while (steps > 0 && start < range.end) {
                 val collapsed = layout?.collapsedRangeAt(start)
-                start = if (collapsed != null && collapsed.max > start) collapsed.max else start + 1
+                start = if (collapsed != null && collapsed.max > start) collapsed.max else text.nextCharacter(start)
                 steps--
             }
             start = start.coerceAtMost(range.end)
@@ -160,14 +164,15 @@ class KodeEditorReveal(
                 styles[index] = AnnotatedString.Range(HIDDEN, start, range.end, range.tag)
             } else {
                 styles.removeAt(index)
+                left--
             }
-            state.setRangeStyles(styles)
-            state.appear(range.start, start, tag)
-            if (start < range.end) break
-            pending = pending.drop(1)
+            revealed += range.start until start
         }
-        if (styles.none { it.tag.startsWith(prefix) }) rested()
-        return queue.isNotEmpty()
+        // the styles once per frame, the pieces in the order of the queue
+        state.setRangeStyles(styles)
+        revealed.forEach { state.appear(it.first, it.last + 1, tag) }
+        if (left == 0) rested()
+        return left > 0
     }
 
     /**
@@ -200,6 +205,10 @@ class KodeEditorReveal(
             state.removeSpliceListener(spliceListener)
         }
     }
+
+    /** @return the position behind the character at [index], a surrogate pair is one character */
+    private fun String.nextCharacter(index: Int): Int =
+        if (index + 1 < length && this[index].isHighSurrogate() && this[index + 1].isLowSurrogate()) index + 2 else index + 1
 
     private fun rested() {
         charsPerSecond = 0f
