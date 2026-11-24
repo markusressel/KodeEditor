@@ -1,33 +1,17 @@
 package de.markusressel.kodeeditor.library.compose.cursor
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.dp
-import de.markusressel.kodeeditor.library.compose.KodeEditor
-import de.markusressel.kodeeditor.library.compose.animation.CONTINUOUS_INTERVAL_MS
 import de.markusressel.kodeeditor.library.compose.animation.FRAME_MS
 import de.markusressel.kodeeditor.library.compose.animation.MIN_STEP_MS
 import de.markusressel.kodeeditor.library.compose.animation.TYPING_MAX_CHARS
@@ -40,55 +24,9 @@ import de.markusressel.kodeeditor.library.compose.animation.steadyStepEase
 import de.markusressel.kodeeditor.library.compose.animation.steadyStepMs
 import de.markusressel.kodeeditor.library.compose.animation.steadyStepSpeed
 import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
-import de.markusressel.kodeeditor.library.compose.layout.placedAt
 import de.markusressel.kodeeditor.library.compose.state.TextSplice
 import de.markusressel.kodeeditor.library.compose.state.mapPosition
 import kotlin.math.abs
-import kotlin.math.min
-import kotlin.math.roundToInt
-
-/**
- * The cursors and selections of another user, which a [KodeEditor] draws on top of its text.
- *
- * @param id tells the users apart, it keys the movement of the cursors and the label
- * @param selections the selections of the user, in UTF-16 characters of the text. The end of each one is where its
- * cursor is, a collapsed one is only a cursor. The label is at the cursor of the first one
- * @param caretColor the color of the cursors
- * @param selectionColor the color behind the selected text, which should not be opaque
- */
-@Immutable
-data class KodeEditorRemoteCursor(
-    val id: String,
-    val selections: List<TextRange>,
-    val caretColor: Color,
-    val selectionColor: Color,
-)
-
-/**
- * How the cursors of other users move to their new place, see [KodeEditorRemoteCursor]. A cursor glides when its user
- * moved it a little, also while it follows text that is revealed piece after piece: a new place during a glide glides
- * on from where the cursor is drawn. It jumps for all other moves, when the text in front of it changed, when only the
- * layout moves it, e.g. for a fold, a zoom or a new size, and for moves of less than half a pixel. A new cursor just
- * appears, and the cursor of this editor never glides. A selection glides with its cursor: its other end grows or
- * shrinks with it, however far. A user who leaves fades out, with the cursors, selections and label. The system setting
- * that scales the duration of animations scales this too, and turns it off with a scale of 0. The defaults are those of
- * the MkDocsEditor web client.
- *
- * @param durationMs how long a cursor takes to its new place, it slows down towards the end (cubic ease-out). A cursor
- * that gets a new place while it still glides, or within 90 ms of its last one, takes 1.5 times the time since that
- * one, at most this, so it keeps close behind a fast series of places, like the head of revealed text
- * @param sameRowWidthFraction how far a cursor may move within its row and still glide, as a part of the width of
- * the text area
- * @param nextRowLines how far sideways a cursor may move to the row above or below and still glide, in line heights
- * @param fadeOutMs how long a user who leaves takes to fade out, 0 removes it at once
- */
-@Immutable
-data class KodeEditorCursorGlide(
-    val durationMs: Int = 120,
-    val sameRowWidthFraction: Float = 0.4f,
-    val nextRowLines: Float = 3f,
-    val fadeOutMs: Int = 200,
-)
 
 /**
  * Where the cursors of other users are drawn, while they glide away from their place towards it. A glide is kept as
@@ -280,10 +218,10 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         }
         glide.anchor.startX = -anchorMove.x
         glide.anchor.startY = -anchorMove.y
-        glide.anchor.velocity = anchorVelocity?.let { keptVelocity(it, anchorMove, glide.durationMs) }
+        glide.anchor.velocity = anchorVelocity?.let { keptGlideVelocity(it, anchorMove, glide.durationMs) }
         glide.head.startX = -headMove.x
         glide.head.startY = -headMove.y
-        glide.head.velocity = headVelocity?.let { keptVelocity(it, headMove, glide.durationMs) }
+        glide.head.velocity = headVelocity?.let { keptGlideVelocity(it, headMove, glide.durationMs) }
         // during a glide the frames run, so it goes on from the current one instead of losing a frame
         glide.started = if (gliding) now else NOT_STARTED
         isGliding = true
@@ -363,11 +301,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         return gliding
     }
 
-    /**
-     * @return how far an end is drawn away from its place. It goes from its distance at the start and its speed at the
-     * start to its place, where it stops (a cubic Hermite curve). With the speed of the cubic ease-out, `3 × distance /
-     * duration` towards its place, the curve is that ease-out: `distance × (1 - t)^3`
-     */
+    /** @return how far an end is drawn away from its place, see [glideDistance] */
     private fun distanceOf(glide: Glide, end: End): Offset {
         val started = glide.started
         if (started == NONE) return Offset.Zero
@@ -375,10 +309,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         val t = if (started == NOT_STARTED || duration <= 0) 0f else ((now - started).toFloat() / duration).coerceIn(0f, 1f)
         val start = Offset(end.startX, end.startY)
         if (glide.linear) return start * (1f - steadyStepEase(t, glide.crisp))
-        val velocity = end.velocity ?: return start * (1f - t).let { it * it * it }
-        val h00 = 2 * t * t * t - 3 * t * t + 1
-        val h10 = t * t * t - 2 * t * t + t
-        return start * h00 + velocity * (h10 * duration)
+        return glideDistance(start, end.velocity, t, duration)
     }
 
     /** @return how fast an end moves now, in pixels per millisecond */
@@ -389,28 +320,12 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         val t = ((now - started).toFloat() / duration).coerceIn(0f, 1f)
         val start = Offset(end.startX, end.startY)
         if (glide.linear) return start * (-steadyStepSpeed(t, glide.crisp) / duration)
-        val velocity = end.velocity ?: (start * (-3f / duration))
-        val dh00 = 6 * t * t - 6 * t
-        val dh10 = 3 * t * t - 4 * t + 1
-        return start * (dh00 / duration) + velocity * dh10
-    }
-
-    /**
-     * @return the part of the [velocity] towards the end of a [move], at most the speed of the ease-out at its start, so
-     * the end does not shoot past its place or swing sideways. Moving away from it, it starts from rest
-     */
-    private fun keptVelocity(velocity: Offset, move: Offset, durationMs: Long): Offset {
-        val length = move.getDistance()
-        if (length < MIN_GLIDE || durationMs <= 0) return Offset.Zero
-        val direction = move / length
-        val along = (velocity.x * direction.x + velocity.y * direction.y).coerceIn(0f, 3f * length / durationMs)
-        return direction * along
+        return glideVelocity(start, end.velocity, t, duration)
     }
 
     private fun shown(glide: Glide, end: End): Offset =
         layout.shownCursorRect(end.offset).topLeft + distanceOf(glide, end)
 
-    /** @return where the cursor of a selection is drawn, its rect moved by the glide */
     /**
      * @return the place in the text of each cursor of the users, and the top left of where its caret is drawn now.
      * Reading it draws again for each frame of a glide
@@ -422,6 +337,7 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         }
     }
 
+    /** @return where the cursor of the selection at [index] of a user is drawn, its rect moved by the glide */
     fun caretRect(cursor: KodeEditorRemoteCursor, index: Int): Rect {
         val head = cursor.selections[index].end.coerceIn(0, layout.text.length)
         val rect = layout.shownCursorRect(head)
@@ -476,9 +392,6 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         const val NONE = -1L
         const val NOT_STARTED = -2L
 
-        /** pixels, a smaller move jumps */
-        const val MIN_GLIDE = 0.5f
-
         /** in line heights, a move to the row above or below is less than this */
         const val NEXT_ROW_HEIGHTS = 1.5f
 
@@ -492,160 +405,3 @@ internal class RemoteCursorGlides(private val layout: EditorLineLayout, private 
         const val FRAME_SLACK_MS = 20L
     }
 }
-
-/**
- * Draws the selections of other users in a layer of its own, below the text. While a selection glides, its ends are
- * where they are drawn on their way, and the rows between them are covered like by a selection.
- */
-@Composable
-internal fun RemoteSelectionLayer(
-    layout: EditorLineLayout,
-    cursors: State<List<KodeEditorRemoteCursor>>,
-    glides: RemoteCursorGlides,
-    window: State<IntRect>,
-) {
-    Box(
-        modifier = Modifier
-            .placedAt { window.value }
-            .graphicsLayer {}
-            .drawBehind {
-                val all = glides.drawn(cursors.value)
-                if (all.isEmpty()) return@drawBehind
-                val area = window.value
-                translate(-area.left.toFloat(), -area.top.toFloat()) {
-                    all.forEach { (cursor, alpha) ->
-                        val color = cursor.selectionColor.let { it.copy(alpha = it.alpha * alpha) }
-                        cursor.selections.forEachIndexed { index, selection ->
-                            val ends = glides.glidingEnds(cursor, index)
-                            if (ends != null) {
-                                drawGlidingSelection(layout, ends.first, ends.second, color)
-                            } else if (!selection.collapsed) {
-                                val length = layout.text.length
-                                val min = selection.min.coerceIn(0, length)
-                                val max = selection.max.coerceIn(0, length)
-                                if (min < max) drawPath(layout.shownPathForRange(min, max), color)
-                            }
-                        }
-                    }
-                }
-            },
-    )
-}
-
-/**
- * Draws a selection between two places on their way, given as the top left of their cursor rects: the rows of both
- * ends from and to these places, and the rows between them like a selection.
- */
-private fun DrawScope.drawGlidingSelection(layout: EditorLineLayout, one: Offset, other: Offset, color: Color) {
-    val height = layout.lineHeight
-    if (abs(one.x - other.x) < 0.5f && abs(one.y - other.y) < 0.5f) return
-    val firstRow = layout.rowAt(one.y + height / 2)
-    val lastRow = layout.rowAt(other.y + height / 2)
-    val ordered = firstRow < lastRow || (firstRow == lastRow && one.x <= other.x)
-    val (first, last) = if (ordered) one to other else other to one
-    val top = layout.rowAt(first.y + height / 2)
-    val bottom = layout.rowAt(last.y + height / 2)
-    if (top == bottom) {
-        drawRect(color, Offset(first.x, first.y), Size(last.x - first.x, height))
-        return
-    }
-    // an end on its way between two rows is drawn up to the row next to it, so no part is covered twice
-    val topEnd = layout.shownCursorRect(layout.endOfRow(top)).left
-    val topHeight = min(first.y + height, layout.shownCursorRect(layout.startOfRow(top + 1)).top) - first.y
-    if (topEnd > first.x && topHeight > 0f) {
-        drawRect(color, Offset(first.x, first.y), Size(topEnd - first.x, topHeight))
-    }
-    if (bottom - top > 1) {
-        val start = layout.startOfRow(top + 1)
-        val end = layout.endOfRow(bottom - 1)
-        if (end > start) drawPath(layout.shownPathForRange(start, end), color)
-    }
-    val above = layout.shownCursorRect(layout.endOfRow(bottom - 1)).bottom
-    val bottomTop = maxOf(last.y, first.y + height, above)
-    val bottomHeight = last.y + height - bottomTop
-    val bottomStart = layout.shownCursorRect(layout.startOfRow(bottom)).left
-    if (last.x > bottomStart && bottomHeight > 0f) {
-        drawRect(color, Offset(bottomStart, bottomTop), Size(last.x - bottomStart, bottomHeight))
-    }
-}
-
-/** Draws the cursors of other users in a layer of its own, on top of the text */
-@Composable
-internal fun RemoteCaretLayer(
-    cursors: State<List<KodeEditorRemoteCursor>>,
-    glides: RemoteCursorGlides,
-    window: State<IntRect>,
-) {
-    Box(
-        modifier = Modifier
-            .placedAt { window.value }
-            .graphicsLayer {}
-            .drawBehind {
-                val all = glides.drawn(cursors.value)
-                if (all.isEmpty()) return@drawBehind
-                val area = window.value
-                val width = REMOTE_CARET_WIDTH.toPx()
-                translate(-area.left.toFloat(), -area.top.toFloat()) {
-                    all.forEach { (cursor, alpha) ->
-                        cursor.selections.indices.forEach { index ->
-                            val rect = glides.caretRect(cursor, index)
-                            drawRect(
-                                color = cursor.caretColor.let { it.copy(alpha = it.alpha * alpha) },
-                                topLeft = Offset(rect.center.x - width / 2, rect.top),
-                                size = Size(width, rect.height),
-                            )
-                        }
-                    }
-                }
-            },
-    )
-}
-
-/**
- * The labels of other users at their first cursor, above it, or below it on the first row and at the start of a row
- * that continues a wrapped line, where the label would cover the text just written in the row above. A label stays
- * inside the right edge of the visible text while its cursor is visible. Only placing them follows a glide or a
- * scroll, and only drawing them a fade out, they are not composed again for it.
- */
-@Composable
-internal fun RemoteCursorLabels(
-    cursors: List<KodeEditorRemoteCursor>,
-    glides: RemoteCursorGlides,
-    visibleRight: () -> Float,
-    label: @Composable (KodeEditorRemoteCursor) -> Unit,
-) {
-    (cursors + glides.leaving.map { it.cursor }).forEach { cursor ->
-        if (cursor.selections.isEmpty()) return@forEach
-        key(cursor.id) {
-            // read while placing, a new place of the cursor only places the label again
-            val current = rememberUpdatedState(cursor)
-            Box(
-                modifier = Modifier
-                    .graphicsLayer { alpha = glides.alphaOf(current.value.id) }
-                    .layout { measurable, _ ->
-                        val placeable = measurable.measure(Constraints())
-                        layout(placeable.width, placeable.height) {
-                            val rect = glides.caretRect(current.value, 0)
-                            // above the cursor, except where that would cover what was just written in the row above
-                            val below = rect.top < placeable.height || glides.atWrappedRowStart(current.value)
-                            val y = if (below) rect.bottom else rect.top - placeable.height
-                            val right = visibleRight()
-                            // the cursor stays under the label, a label of a cursor out of sight stays with it
-                            val x = if (rect.left > right) {
-                                rect.left
-                            } else {
-                                rect.left
-                                    .coerceAtMost(right - placeable.width)
-                                    .coerceAtLeast(rect.left - placeable.width)
-                            }
-                            placeable.place(x.roundToInt(), y.roundToInt())
-                        }
-                    },
-            ) {
-                label(cursor)
-            }
-        }
-    }
-}
-
-private val REMOTE_CARET_WIDTH = 2.dp

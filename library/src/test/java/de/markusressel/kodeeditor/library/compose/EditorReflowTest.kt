@@ -2,6 +2,7 @@ package de.markusressel.kodeeditor.library.compose
 
 import androidx.compose.ui.geometry.Offset
 import de.markusressel.kodeeditor.library.compose.animation.LayoutBeforeInsert
+import de.markusressel.kodeeditor.library.compose.animation.LayoutBeforeReflow
 import de.markusressel.kodeeditor.library.compose.animation.REFLOW_ANIMATION_MS
 import de.markusressel.kodeeditor.library.compose.animation.ReflowTransition
 import de.markusressel.kodeeditor.library.compose.layout.WrappedRows
@@ -20,11 +21,14 @@ class EditorReflowTest {
         previous: ReflowTransition? = null,
     ) = ReflowTransition(
         state = state,
-        firstRows = intArrayOf(0, 1 + (breaks?.size ?: 0)),
-        breaks = arrayOf(breaks),
+        before = LayoutBeforeReflow(
+            state = state,
+            firstRows = intArrayOf(0, 1 + (breaks?.size ?: 0)),
+            breaks = arrayOf(breaks),
+            lineHeight = 20f,
+            measure = { start, end -> (end - start) * 10f },
+        ),
         previous = previous,
-        lineHeight = 20f,
-        measure = { start, end -> (end - start) * 10f },
     )
 
     @Test
@@ -186,26 +190,18 @@ class EditorReflowTest {
         val text = KodeEditorState("ab")
         val first = ReflowTransition(
             state = text,
-            firstRows = IntArray(0),
-            breaks = emptyArray(),
             previous = null,
-            lineHeight = 20f,
-            measure = { _, _ -> 0f },
             durationMs = 100,
-            inserted = beforeInsert("aXb", 1, 1, intArrayOf(0, 1), arrayOf(null)),
+            before = beforeInsert("aXb", 1, 1, intArrayOf(0, 1), arrayOf(null)),
         )
         first.onFrame(1000)
         first.onFrame(1050)
         text.applyRemote(listOf(TextSplice(2, 0, "Y")))
         val second = ReflowTransition(
             state = text,
-            firstRows = IntArray(0),
-            breaks = emptyArray(),
             previous = first,
-            lineHeight = 20f,
-            measure = { _, _ -> 0f },
             durationMs = 100,
-            inserted = beforeInsert("aXYb", 2, 1, intArrayOf(0, 1), arrayOf(null)),
+            before = beforeInsert("aXYb", 2, 1, intArrayOf(0, 1), arrayOf(null)),
         )
         // "b" was at 10 before the first insertion, at 20 before the second one, and is on its way
         val start = second.startOf(3).x

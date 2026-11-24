@@ -652,10 +652,10 @@ fun KodeEditor(
     }
     DisposableEffect(state, layout) {
         state.addSpliceObserver(SplicePhase.Rows, layout.rowObserver)
-        state.addBeforeRemoteObserver(layout.beforeRemoteChange)
+        state.addBeforeRemoteObserver(layout.scrollAnchor.beforeRemoteChange)
         onDispose {
             state.removeSpliceObserver(SplicePhase.Rows, layout.rowObserver)
-            state.removeBeforeRemoteObserver(layout.beforeRemoteChange)
+            state.removeBeforeRemoteObserver(layout.scrollAnchor.beforeRemoteChange)
         }
     }
 
@@ -710,7 +710,7 @@ fun KodeEditor(
     // text that others insert or remove in front of what the user looks at moves the view with it, in the same frame
     val currentKeepView by rememberUpdatedState(keepViewOnRemoteChanges)
     DisposableEffect(layout) {
-        layout.remoteAnchor = anchor@{
+        layout.scrollAnchor.anchor = anchor@{
             if (!currentKeepView) return@anchor null
             val visible = settledGeometry.visibleSize
             val caret = state.selection.end
@@ -720,14 +720,14 @@ fun KodeEditor(
             // the cursor if the user sees it, otherwise the first visible line
             if (focused && inView) caret else layout.startOfRow(layout.rowAt(offset.y))
         }
-        layout.onRemoteShift = { distance ->
+        layout.scrollAnchor.shift = { distance ->
             val before = offset
             offset = EditorGeometry.coerce(before + distance, maxOffset)
             offset - before
         }
         onDispose {
-            layout.remoteAnchor = { null }
-            layout.onRemoteShift = { Offset.Zero }
+            layout.scrollAnchor.anchor = { null }
+            layout.scrollAnchor.shift = { Offset.Zero }
         }
     }
 

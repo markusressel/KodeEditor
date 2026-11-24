@@ -12,21 +12,9 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import de.markusressel.kodeeditor.library.compose.KodeEditor
-import de.markusressel.kodeeditor.library.compose.animation.APPEAR_RATE_MS
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAppearance
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorLocalAnimations
-import kotlin.math.abs
-import kotlin.math.exp
-
-/**
- * One change of the text.
- *
- * @param start where the change happens
- * @param removedLength how many characters are removed at [start]
- * @param inserted the text that is inserted at [start]
- */
-data class TextSplice(val start: Int, val removedLength: Int, val inserted: String)
 
 /**
  * Called on the main thread, within the call that made the change.
@@ -173,15 +161,8 @@ class KodeEditorState(
         if (appearances.isEmpty()) finishAppearing()
     }
 
-    /** the time of the frame each appearing range started in and how long it takes, by its tag */
-    private val appearStarts = HashMap<String, AppearTiming>()
-
-    /** how long the appearing ranges take that do not follow the rate of their writer, by their tag */
-    private val fixedAppearMs = HashMap<String, Long>()
-
-    /** how many characters per second appear for each writer, smoothed, by their tag */
-    private val appearRates = HashMap<String, AppearRate>()
-    private var nextAppearId = 0
+    /** when the appearing ranges started and how long they take */
+    private val appearTimings = AppearTimings()
 
     val canUndo: Boolean
         get() {
@@ -333,8 +314,7 @@ class KodeEditorState(
     internal fun setRangeAlphas(ranges: List<AnnotatedString.Range<Float>>) {
         rangeAlphasState = ranges.cutTo(currentText.length)
         val tags = rangeAlphasState.mapTo(HashSet()) { it.tag }
-        appearStarts.keys.retainAll(tags)
-        fixedAppearMs.keys.retainAll(tags)
+        appearTimings.retain(tags)
     }
 
     /**
@@ -356,8 +336,7 @@ class KodeEditorState(
         val from = start.coerceIn(0, currentText.length)
         val to = end.coerceIn(from, currentText.length)
         if (from == to) return
-        val added = AnnotatedString.Range(0f, from, to, "${nextAppearId++}$APPEAR_TAG_SEPARATOR$tag")
-        if (durationMs != null) fixedAppearMs[added.tag] = durationMs
+        val added = AnnotatedString.Range(0f, from, to, appearTimings.newTag(tag, durationMs))
         setRangeAlphas(limitAppearing(rangeAlphasState, added, config))
     }
 
@@ -373,7 +352,7 @@ class KodeEditorState(
     }
 
     /** @return how long the appearing range with [tag] takes, null if it did not start yet */
-    internal fun appearDurationOf(tag: String): Long? = appearStarts[tag]?.durationMs
+    internal fun appearDurationOf(tag: String): Long? = appearTimings.durationOf(tag)
 
     /**
      * Moves the appearing text on by a frame. A range that is new gets its duration from the rate of its writer, see
@@ -391,32 +370,7 @@ class KodeEditorState(
             finishAppearing()
             return false
         }
-        val config = appearance ?: KodeEditorAppearance()
-        // the rates first, with all that arrived in this frame
-        ranges.forEach { range ->
-            if (range.tag in appearStarts || range.tag in fixedAppearMs) return@forEach
-            val writer = range.tag.appearTag()
-            val rate = appearRates.getOrPut(writer) { AppearRate(0f, nowMs) }
-            rate.add(range.end - range.start, nowMs)
-        }
-        ranges.forEach { range ->
-            if (range.tag in appearStarts) return@forEach
-            val duration = fixedAppearMs.remove(range.tag)
-                ?: config.durationFor(appearRates.getValue(range.tag.appearTag()).charsPerSecond).toLong()
-            appearStarts[range.tag] = AppearTiming(nowMs, (duration * scale).toLong())
-        }
-        setRangeAlphas(
-            ranges.mapNotNull { range ->
-                val timing = appearStarts.getValue(range.tag)
-                val started = timing.startMs
-                val durationMs = timing.durationMs
-                val progress = if (durationMs > 0) (nowMs - started).toFloat() / durationMs else 1f
-                if (progress >= 1f) return@mapNotNull null
-                // fast at first, so new text does not stay invisible for long
-                val remaining = 1f - progress.coerceAtLeast(0f)
-                AnnotatedString.Range(1f - remaining * remaining, range.start, range.end, range.tag)
-            },
-        )
+        setRangeAlphas(appearTimings.onFrame(ranges, nowMs, scale, appearance ?: KodeEditorAppearance()))
         return rangeAlphasState.isNotEmpty()
     }
 
@@ -622,316 +576,4 @@ internal interface InputLink {
 
     /** the keyboard wants to know the text around the cursor after each change, identified by [token] */
     fun monitorExtractedText(token: Int) {}
-}
-
-internal fun TextRange.coercedIn(length: Int) = TextRange(start.coerceIn(0, length), end.coerceIn(0, length))
-
-/** where a range is after the change, it does not grow when text is inserted right at its edges */
-internal fun TextRange.mapped(splice: TextSplice) = TextRange(mapPosition(start, splice), mapPosition(end, splice))
-
-/** like [mapped], but text inserted at either edge stays out of the range */
-internal fun TextRange.mappedInside(splice: TextSplice): TextRange? {
-    val isInsertion = splice.removedLength == 0
-    val first = if (isInsertion && min == splice.start) min + splice.inserted.length else mapPosition(min, splice)
-    val last = mapPosition(max, splice)
-    return if (first < last) TextRange(first, last) else null
-}
-
-/**
- * The appearing ranges with [added], at most [KodeEditorAppearance.maxRanges] of them. Nothing is shown at once that
- * is still far from visible: with too many, the two pieces one behind the other of the same writer whose alphas are
- * the closest become one, which goes on with the alpha of the more visible one. So a piece only gets a bit more visible
- * at once. Only without such pieces the most visible range is shown at once.
- */
-internal fun limitAppearing(
-    ranges: List<AnnotatedString.Range<Float>>,
-    added: AnnotatedString.Range<Float>,
-    config: KodeEditorAppearance,
-): List<AnnotatedString.Range<Float>> {
-    val all = (ranges + added).toMutableList()
-    val max = config.maxRanges.coerceAtLeast(1)
-    while (all.size > max) {
-        var best = -1
-        var bestOther = -1
-        var bestDifference = Float.MAX_VALUE
-        all.forEachIndexed { index, range ->
-            val tag = range.tag.appearTag()
-            val other = all.indexOfFirst { it.start == range.end && it.tag.appearTag() == tag }
-            if (other < 0) return@forEachIndexed
-            val difference = abs(all[other].item - range.item)
-            if (difference < bestDifference) {
-                best = index
-                bestOther = other
-                bestDifference = difference
-            }
-        }
-        if (best < 0) {
-            all.removeAt(all.indices.maxBy { all[it].item })
-            continue
-        }
-        val first = all[best]
-        val second = all[bestOther]
-        // the tag keeps the time the more visible one started at, the other one does not get less visible
-        val kept = if (first.item >= second.item) first else second
-        val merged = AnnotatedString.Range(kept.item, first.start, second.end, kept.tag)
-        all[minOf(best, bestOther)] = merged
-        all.removeAt(maxOf(best, bestOther))
-    }
-    return all
-}
-
-private const val APPEAR_TAG_SEPARATOR = '/'
-
-/** the appear tag of the big changes of the user, see [KodeEditorLocalAnimations.bigChanges] */
-internal const val LOCAL_APPEAR_TAG = "kodeeditor.local"
-
-/** the tag the application gave to [KodeEditorState.appear], behind the id that makes each range unique */
-internal fun String.appearTag() = substringAfter(APPEAR_TAG_SEPARATOR)
-
-/**
- * @param startMs the time of the frame a range started to appear in
- * @param durationMs how long it takes
- */
-private class AppearTiming(val startMs: Long, val durationMs: Long)
-
-/**
- * The characters per second that appear for a writer, an exponential average over [APPEAR_RATE_MS]: n characters add
- * n × 1000 / [APPEAR_RATE_MS], and the rate decays by e^(-elapsed / [APPEAR_RATE_MS]). So text that comes at r
- * characters per second for a while has a rate of r.
- */
-internal class AppearRate(var charsPerSecond: Float, private var lastMs: Long) {
-    /** @param chars how many characters arrived at [nowMs] */
-    fun add(chars: Int, nowMs: Long) {
-        val elapsed = (nowMs - lastMs).coerceAtLeast(0L)
-        charsPerSecond = charsPerSecond * exp(-elapsed / APPEAR_RATE_MS) + chars * 1000f / APPEAR_RATE_MS
-        lastMs = nowMs
-    }
-}
-
-/** the ranges cut to a text of [length], without the empty ones */
-private fun <T> List<AnnotatedString.Range<T>>.cutTo(length: Int) = mapNotNull { range ->
-    val start = range.start.coerceIn(0, length)
-    val end = range.end.coerceIn(start, length)
-    when {
-        start == end -> null
-        start == range.start && end == range.end -> range
-        else -> AnnotatedString.Range(range.item, start, end, range.tag)
-    }
-}
-
-/** each range moved by [movedInside], the same list if none of them moved */
-private fun <T> List<AnnotatedString.Range<T>>.movedInside(splice: TextSplice): List<AnnotatedString.Range<T>> {
-    if (isEmpty()) return this
-    var changed = false
-    val moved = mapNotNull { range -> range.movedInside(splice).also { if (it !== range) changed = true } }
-    return if (changed) moved else this
-}
-
-/** like [mappedInside], the same object if it does not move, null if it ends up empty */
-internal fun <T> AnnotatedString.Range<T>.movedInside(splice: TextSplice): AnnotatedString.Range<T>? {
-    // in front of the change, also when text is inserted right at its end
-    if (end <= splice.start) return this
-    val moved = TextRange(start, end).mappedInside(splice) ?: return null
-    return if (moved.min == start && moved.max == end) this else AnnotatedString.Range(item, moved.min, moved.max, tag)
-}
-
-internal fun mapPosition(position: Int, splice: TextSplice): Int {
-    val end = splice.start + splice.removedLength
-    return when {
-        position <= splice.start -> position
-        position >= end -> position - splice.removedLength + splice.inserted.length
-        else -> splice.start
-    }
-}
-
-/**
- * Where the lines of the text start. A change only touches the lines it is in, and moves the ones after it.
- */
-internal class LineIndex(text: String) {
-    private var starts = IntArray(16)
-
-    var count = 0
-        private set
-
-    init {
-        add(0)
-        var index = text.indexOf('\n')
-        while (index >= 0) {
-            add(index + 1)
-            index = text.indexOf('\n', index + 1)
-        }
-    }
-
-    private fun add(start: Int) {
-        if (count == starts.size) starts = starts.copyOf(count * 2)
-        starts[count++] = start
-    }
-
-    fun start(line: Int): Int = starts[line.coerceIn(0, count - 1)]
-
-    /** @return where the lines start now, a copy */
-    fun starts(): IntArray = starts.copyOf(count)
-
-    fun lineOf(offset: Int): Int {
-        var low = 0
-        var high = count - 1
-        while (low < high) {
-            val middle = (low + high + 1) ushr 1
-            if (starts[middle] <= offset) low = middle else high = middle - 1
-        }
-        return low
-    }
-
-    fun longest(textLength: Int): Int {
-        var best = 0
-        var bestLength = -1
-        for (line in 0 until count) {
-            val end = if (line + 1 < count) starts[line + 1] - 1 else textLength
-            val length = end - starts[line]
-            if (length > bestLength) {
-                bestLength = length
-                best = line
-            }
-        }
-        return best
-    }
-
-    /**
-     * @param old the text before the change
-     * @param splice the change
-     */
-    fun apply(old: String, splice: TextSplice) {
-        val delta = splice.inserted.length - splice.removedLength
-        val removedEnd = splice.start + splice.removedLength
-        val firstLine = lineOf(splice.start)
-        var removedLines = 0
-        for (index in splice.start until removedEnd) if (old[index] == '\n') removedLines++
-        var insertedLines = 0
-        for (char in splice.inserted) if (char == '\n') insertedLines++
-
-        val newCount = count - removedLines + insertedLines
-        val result = if (newCount > starts.size) IntArray(newCount * 2) else starts
-        // the part that moves, handled first so it is not overwritten when the array is reused
-        val tailFrom = firstLine + 1 + removedLines
-        val tailTo = firstLine + 1 + insertedLines
-        System.arraycopy(starts, tailFrom, result, tailTo, count - tailFrom)
-        if (result !== starts) System.arraycopy(starts, 0, result, 0, firstLine + 1)
-        for (line in tailTo until newCount) result[line] += delta
-        var line = firstLine + 1
-        splice.inserted.forEachIndexed { index, char ->
-            if (char == '\n') result[line++] = splice.start + index + 1
-        }
-        starts = result
-        count = newCount
-    }
-}
-
-/**
- * The changes of the user that can be taken back. Typing is grouped into one step, until there is a pause.
- *
- * @param now the current time in milliseconds
- */
-internal class UndoStack(private val now: () -> Long = System::currentTimeMillis) {
-
-    private class Entry(
-        var start: Int,
-        var removed: String,
-        var inserted: String,
-        val selectionBefore: TextRange,
-        var selectionAfter: TextRange,
-        var time: Long,
-    )
-
-    class Step(val splice: TextSplice, val selection: TextRange)
-
-    private val undo = ArrayDeque<Entry>()
-    private val redo = ArrayDeque<Entry>()
-
-    val canUndo get() = undo.isNotEmpty()
-    val canRedo get() = redo.isNotEmpty()
-
-    fun record(splice: TextSplice, removed: String, selectionBefore: TextRange, selectionAfter: TextRange) {
-        redo.clear()
-        val time = now()
-        val last = undo.lastOrNull()
-        if (last != null && time - last.time < MERGE_WINDOW_MS && merge(last, splice, removed)) {
-            last.selectionAfter = selectionAfter
-            last.time = time
-            return
-        }
-        undo.addLast(Entry(splice.start, removed, splice.inserted, selectionBefore, selectionAfter, time))
-        if (undo.size > MAX_ENTRIES) undo.removeFirst()
-    }
-
-    private fun merge(last: Entry, splice: TextSplice, removed: String): Boolean {
-        val lastEnd = last.start + last.inserted.length
-        return when {
-            // the keyboard replaces the word it is composing
-            splice.start == last.start && splice.removedLength == last.inserted.length -> {
-                last.inserted = splice.inserted
-                true
-            }
-
-            // typing further, a new line starts a new step
-            removed.isEmpty() && splice.start == lastEnd && '\n' !in splice.inserted -> {
-                last.inserted += splice.inserted
-                true
-            }
-
-            // deleting what was just typed
-            splice.inserted.isEmpty() && splice.start + splice.removedLength == lastEnd &&
-                splice.start >= last.start -> {
-                last.inserted = last.inserted.substring(0, splice.start - last.start)
-                true
-            }
-
-            else -> false
-        }
-    }
-
-    fun undo(): Step? {
-        val entry = undo.removeLastOrNull() ?: return null
-        redo.addLast(entry)
-        return Step(TextSplice(entry.start, entry.inserted.length, entry.removed), entry.selectionBefore)
-    }
-
-    fun redo(): Step? {
-        val entry = redo.removeLastOrNull() ?: return null
-        undo.addLast(entry)
-        return Step(TextSplice(entry.start, entry.removed.length, entry.inserted), entry.selectionAfter)
-    }
-
-    /**
-     * Steps that overlap the change can not be taken back anymore, and neither can the ones before them.
-     * The others move with the text.
-     */
-    fun onRemote(splice: TextSplice) {
-        redo.clear()
-        var start = splice.start
-        var index = undo.size - 1
-        while (index >= 0) {
-            val entry = undo[index]
-            val entryEnd = entry.start + entry.inserted.length
-            val delta = splice.inserted.length - splice.removedLength
-            when {
-                start + splice.removedLength <= entry.start -> entry.start += delta
-                start >= entryEnd -> start += entry.removed.length - entry.inserted.length
-                else -> {
-                    repeat(index + 1) { undo.removeFirst() }
-                    return
-                }
-            }
-            index--
-        }
-    }
-
-    fun clear() {
-        undo.clear()
-        redo.clear()
-    }
-
-    private companion object {
-        const val MERGE_WINDOW_MS = 1000L
-        const val MAX_ENTRIES = 1000
-    }
 }
