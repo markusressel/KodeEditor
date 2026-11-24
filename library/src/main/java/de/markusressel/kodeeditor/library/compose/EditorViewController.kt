@@ -65,11 +65,7 @@ internal class EditorViewController(
         TextRange(layout.startOfRow(layout.rowAt(offset.y)), layout.endOfRow(layout.rowAt(lastY)))
     }
 
-    override var offset: Offset
-        get() = offsetState.value
-        set(value) {
-            offsetState.value = value
-        }
+    override val offset: Offset get() = offsetState.value
     override val visibleSize: Size get() = geometryOf().visibleSize
     override val animates: Boolean get() = animatesOf()
     override val visibleRange: TextRange? get() = shownRange.value

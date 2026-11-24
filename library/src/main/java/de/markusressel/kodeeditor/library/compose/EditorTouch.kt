@@ -15,7 +15,6 @@ import de.markusressel.kodeeditor.library.compose.layout.EditorLineLayout
 import de.markusressel.kodeeditor.library.compose.state.KodeEditorState
 import de.markusressel.kodeeditor.library.compose.view.KodeEditorViewState
 
-
 /** What the fingers, a mouse and the selection handles do to the editor right now */
 @Stable
 internal class EditorTouch {

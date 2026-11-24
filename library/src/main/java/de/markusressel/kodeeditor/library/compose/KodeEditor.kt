@@ -405,7 +405,7 @@ fun KodeEditor(
         state = state,
         wrapWidth = wrapWidth.value,
         anchors = ::anchors,
-        focused = focused,
+        focused = { focused },
         keepViewOnRemoteChanges = keepViewOnRemoteChanges,
         keepCursorVisible = keepCursorVisible,
         cursorFollower = cursorFollower,
@@ -583,8 +583,7 @@ fun KodeEditor(
             minZoom = minZoom,
             maxZoom = maxZoom,
             onOffsetChanged = {
-                cursorFollower.onUserMovedView()
-                viewport.scrollTo(it)
+                viewport.moveTo(it)
             },
             onZoomChanged = {
                 cursorFollower.onUserMovedView()
@@ -676,12 +675,11 @@ fun KodeEditor(
                     onDragStart = {
                         flingStops++
                         viewState.scrollbarMoving = true
-                        onUserMovesView()
                         cursorFollower.onUserMovedView()
+                        onUserMovesView()
                     },
                     onDrag = {
-                        cursorFollower.onUserMovedView()
-                        viewport.scrollTo(it)
+                        viewport.moveTo(it)
                     },
                     onDragEnd = { viewState.scrollbarMoving = false },
                 )
@@ -704,7 +702,7 @@ fun KodeEditor(
             size = { totalSize },
             editorCoordinates = { editorCoordinates },
             maxOffset = { maxOffset },
-            scrollTo = { offset = it },
+            scrollTo = viewport::scrollTo,
             onUserMovesView = ::onUserMovesView,
         )
     }

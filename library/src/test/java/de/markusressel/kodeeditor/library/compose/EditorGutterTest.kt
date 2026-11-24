@@ -1,11 +1,11 @@
 package de.markusressel.kodeeditor.library.compose
 
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import android.app.Application
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -21,8 +21,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import de.markusressel.kodeeditor.library.compose.gutter.GUTTER_ANIMATION_MS
 import de.markusressel.kodeeditor.library.compose.animation.KodeEditorAnimations
+import de.markusressel.kodeeditor.library.compose.gutter.GUTTER_ANIMATION_MS
 import de.markusressel.kodeeditor.library.compose.gutter.GutterCell
 import de.markusressel.kodeeditor.library.compose.gutter.GutterLine
 import de.markusressel.kodeeditor.library.compose.gutter.KodeEditorGutterColumn

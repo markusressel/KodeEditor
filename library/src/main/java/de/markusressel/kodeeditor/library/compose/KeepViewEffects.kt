@@ -19,7 +19,7 @@ import de.markusressel.kodeeditor.library.compose.view.CursorVisibility
  * @param state the text
  * @param wrapWidth the width lines wrap at
  * @param anchors what the user works on, the cursor and the moving end of a selection first
- * @param focused whether the editor has the focus
+ * @param focused whether the editor has the focus, read when it is needed
  * @param keepViewOnRemoteChanges whether text that others change in front of the view moves the view with it
  * @param keepCursorVisible whether the view follows the cursor while the user edits
  * @param cursorFollower tells whether the view follows the cursor
@@ -33,7 +33,7 @@ internal fun KeepViewEffects(
     state: KodeEditorState,
     wrapWidth: Float,
     anchors: () -> List<Int>,
-    focused: Boolean,
+    focused: () -> Boolean,
     keepViewOnRemoteChanges: Boolean,
     keepCursorVisible: Boolean,
     cursorFollower: CursorFollower,
@@ -42,6 +42,7 @@ internal fun KeepViewEffects(
     handleDragged: () -> Boolean,
 ) {
     val selection = state.selection
+    val isFocused = focused()
 
     // the cursor or the selection stays where it is when the lines wrap differently, otherwise the top of the view does
     LaunchedEffect(view.layout, wrapWidth) {
@@ -59,7 +60,7 @@ internal fun KeepViewEffects(
         anchor = {
             val visible = view.geometry.visibleSize
             val shown = Rect(view.offset, Size(visible.width.toFloat(), visible.height.toFloat()))
-            remoteScrollAnchorIn(view.layout, state.selection.end, focused, shown, view.textStartPadding)
+            remoteScrollAnchorIn(view.layout, state.selection.end, focused(), shown, view.textStartPadding)
         },
         scrollBy = view::scrollBy,
     )
@@ -73,17 +74,19 @@ internal fun KeepViewEffects(
 
     // Follow the cursor while the user edits: when the selection moves or the editor changes its size.
     // Panning or remote changes of the text alone don't scroll, also not when they move the selection.
-    LaunchedEffect(keepCursorVisible, focused, selection, size, zoom, wrapWidth) {
-        val follow = cursorFollower.shouldFollow(selection, focused, selection == state.selectionMovedByOthers)
+    LaunchedEffect(keepCursorVisible, isFocused, selection, size, zoom, wrapWidth) {
+        val follow = cursorFollower.shouldFollow(selection, isFocused, selection == state.selectionMovedByOthers)
         // a dragged handle scrolls the view itself
         if (!keepCursorVisible || !follow || size == IntSize.Zero || handleDragged()) {
             return@LaunchedEffect
         }
-        view.offset = CursorVisibility.offsetFor(
-            offset = view.offset,
-            cursor = view.layout.getCursorRect(selection.end).translate(view.textStartPadding, 0f),
-            viewport = view.geometry.visibleSize,
-            maxOffset = view.maxOffset,
+        view.scrollTo(
+            CursorVisibility.offsetFor(
+                offset = view.offset,
+                cursor = view.layout.getCursorRect(selection.end).translate(view.textStartPadding, 0f),
+                viewport = view.geometry.visibleSize,
+                maxOffset = view.maxOffset,
+            ),
         )
     }
 }
