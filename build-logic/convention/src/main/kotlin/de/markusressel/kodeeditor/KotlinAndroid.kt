@@ -11,6 +11,9 @@ import org.jetbrains.kotlin.gradle.dsl.kotlinExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 const val COMPILE_SDK = 37
+
+// Compose 1.13 needs the APIs of Android 17.1
+const val COMPILE_SDK_MINOR = 1
 const val TARGET_SDK = 34
 
 /**
@@ -20,7 +23,9 @@ internal fun Project.configureKotlinAndroid(
     commonExtension: CommonExtension,
 ) {
     commonExtension.apply {
-        compileSdk = COMPILE_SDK
+        compileSdk {
+            version = release(COMPILE_SDK) { minorApiLevel = COMPILE_SDK_MINOR }
+        }
 
         kotlinExtension.apply {
             jvmToolchain(21)
