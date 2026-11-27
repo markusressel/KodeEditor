@@ -44,7 +44,7 @@ android {
         resValue("string", "app_name", if (localBuild) "KodeEditor DEV" else "KodeEditor")
         // the real one is set by SetManifestVersionCode, see there
         versionCode = 1
-        versionName = "9.6.1"
+        versionName = "9.7.0"
     }
 
     buildTypes {
